@@ -12,7 +12,7 @@ test_mojo = { cmd = "magic run mojo test -I . tests/mojo" }
 test_python = { cmd = "magic run mojo test -I . tests/python" }
 
 [dependencies]
-max = ">=24.6.0"
+max = ">=25.4.0,<26"
 pytorch = ">=2.7.0,<3"
 torchvision = ">=0.22.0,<0.23"
 torchaudio = ">=2.7.1,<3"
