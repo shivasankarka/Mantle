@@ -7,9 +7,10 @@ platforms = ["osx-arm64", "linux-64"]
 version = "0.1.0"
 
 [tasks]
-test = { cmd = "magic run mojo test -I . tests" }
-test_mojo = { cmd = "magic run mojo test -I . tests/mojo" }
-test_python = { cmd = "magic run mojo test -I . tests/python" }
+test = { cmd = "mojo test -I . tests" }
+test_mojo = { cmd = "mojo test -I . tests/mojo" }
+test_python = { cmd = "mojo test -I . tests/python" }
+format = { cmd = "mojo format basalt/" }
 
 [dependencies]
 max = ">=26.3.0,<27"
@@ -18,7 +19,7 @@ torchvision = ">=0.26.0,<0.27"
 torchaudio = ">=2.11.0,<3"
 onnx = ">=1.21.0,<2"
 pandas = ">=3.0.3,<4"
-modular = ">=26.3.0,<27"  
+modular = ">=26.3.0,<27"
 #mojo -I . examples/housing.mojo max = ">=24.6.0"
 
 [pypi-dependencies]
