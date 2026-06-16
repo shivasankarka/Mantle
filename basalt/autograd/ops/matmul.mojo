@@ -6,7 +6,7 @@ from sys.info import simdwidthof
 
 
 @always_inline
-fn calculate_block[
+def calculate_block[
     M: Int, N: Int, K: Int, BLOCK_M: Int, BLOCK_N: Int, nelts: Int
 ](
     res: UnsafePointer[Scalar[dtype]],
@@ -25,7 +25,7 @@ fn calculate_block[
         for m in range(BLOCK_M):
 
             @parameter
-            fn inner_n[nelts: Int](n: Int):
+            def inner_n[nelts: Int](n: Int):
                 acc.store(
                     m * BLOCK_N + n,
                     SIMD[dtype, nelts](t1[(bm + m) * K + k])
@@ -41,7 +41,7 @@ fn calculate_block[
     for m in range(BLOCK_M):
 
         @parameter
-        fn vec_store[nelts: Int](n: Int):
+        def vec_store[nelts: Int](n: Int):
             res.store(
                 (bm + m) * N + (bn + n), acc.load[width=nelts](m * BLOCK_N + n)
             )
@@ -51,7 +51,7 @@ fn calculate_block[
 
 @parameter
 @always_inline
-fn dot[
+def dot[
     t1_shape: TensorShape, t2_shape: TensorShape
 ](mut res: Tensor[dtype], t1: Tensor[dtype], t2: Tensor[dtype]):
     dot[t1_shape, t2_shape](res.data(), t1.data(), t2.data())
@@ -59,24 +59,24 @@ fn dot[
 
 @parameter
 @always_inline
-fn dot[
+def dot[
     t1_shape: TensorShape, t2_shape: TensorShape
 ](res: UnsafePointer[Scalar[dtype]], t1: UnsafePointer[Scalar[dtype]], t2: UnsafePointer[Scalar[dtype]]):
-    alias M = t1_shape[0]  # t1[0]
-    alias K = t1_shape[1]  # t1[1], t2[0]
-    alias N = t2_shape[1]  # t2[1]
+    comptime M = t1_shape[0]  # t1[0]
+    comptime K = t1_shape[1]  # t1[1], t2[0]
+    comptime N = t2_shape[1]  # t2[1]
 
     # simdwidthof[dtype]() = 8 for float32
-    alias nelts = simdwidthof[dtype]()
-    alias BLOCK_N = 8 * 2
-    alias BLOCK_M = 6
-    alias THREADS = 6  # num_logical_cores()
+    comptime nelts = simdwidthof[dtype]()
+    comptime BLOCK_N = 8 * 2
+    comptime BLOCK_M = 6
+    comptime THREADS = 6  # num_logical_cores()
 
-    alias BLOCK_N_REMAINDER = N % BLOCK_N
-    alias BLOCK_M_REMAINDER = M % BLOCK_M
+    comptime BLOCK_N_REMAINDER = N % BLOCK_N
+    comptime BLOCK_M_REMAINDER = M % BLOCK_M
 
     @parameter
-    fn bm_par(m_outer: Int):
+    def bm_par(m_outer: Int):
         var bm = m_outer * BLOCK_M
 
         for n_outer in range(0, N // BLOCK_N):
@@ -117,13 +117,13 @@ fn dot[
             )
 
 
-fn dot_transpose_t2[
+def dot_transpose_t2[
     A_shape: TensorShape, B_shape: TensorShape
 ](mut C: UnsafePointer[Scalar[dtype]], A: UnsafePointer[Scalar[dtype]], B: UnsafePointer[Scalar[dtype]]):
     dot[A_shape, TensorShape(B_shape[1], B_shape[0])](C, A, transpose_2D[B_shape](B))
 
 
-fn dot_transpose_t2[
+def dot_transpose_t2[
     A_shape: TensorShape, B_shape: TensorShape
 ](mut C: Tensor[dtype], A: Tensor[dtype], B: Tensor[dtype]):
     memset_zero(C.data(), C.num_elements())
@@ -131,11 +131,11 @@ fn dot_transpose_t2[
     dot[A_shape, TensorShape(B_shape[1], B_shape[0])](C, A, transpose_2D[B_shape](B))
 
     # @parameter
-    # fn calc_row(i: Int):
+    # def calc_row(i: Int):
     #     for j in range(B_shape[0]):
 
     #         @parameter
-    #         fn calc_row_A_B[nelts: Int](k: Int):
+    #         def calc_row_A_B[nelts: Int](k: Int):
     #             var A_pos = i * A.dim(1) + k
     #             var B_pos = j * A.dim(1) + k
     #             var t_new_pos = i * C.dim(1) + j
@@ -149,7 +149,7 @@ fn dot_transpose_t2[
     # parallelize[calc_row](A_shape[0], 1)
 
 
-fn dot_transpose_t1[
+def dot_transpose_t1[
     A_shape: TensorShape, B_shape: TensorShape
 ](mut C: Tensor[dtype], A: Tensor[dtype], B: Tensor[dtype]):
     memset_zero(C.data(), C.num_elements())
@@ -157,11 +157,11 @@ fn dot_transpose_t1[
     dot[TensorShape(A_shape[1], A_shape[0]), B_shape](C, transpose_2D[A_shape](A), B)
 
     # @parameter
-    # fn calc_row(i: Int):
+    # def calc_row(i: Int):
     #     for j in range(A_shape[0]):
 
     #         @parameter
-    #         fn calc_row_t_new_B[nelts: Int](k: Int):
+    #         def calc_row_t_new_B[nelts: Int](k: Int):
     #             var A_pos = j * A.dim(1) + i
     #             var B_pos = j * B.dim(1) + k
     #             var t_new_pos = i * C.dim(1) + k

@@ -1,10 +1,10 @@
-import pandas as pd
+import time
 
+import pandas as pd
 import torch
 import torch.nn as nn
 from torch import optim
-from torch.utils.data import Dataset, DataLoader, TensorDataset
-import time
+from torch.utils.data import DataLoader, Dataset, TensorDataset
 
 
 class BostonHousing(Dataset):
@@ -51,7 +51,7 @@ if __name__ == "__main__":
 
     # Train Parameters
     batch_size = 32
-    num_epochs = 200
+    num_epochs = 20
     learning_rate = 0.02
 
     # Batchwise data loader
@@ -109,3 +109,4 @@ if __name__ == "__main__":
         test_predictions = model(test_data.data)
         mse_loss = loss_func(test_predictions, test_data.target).item()
         print(f"Mean Squared Error on Test Data: {mse_loss:.4f}")
+

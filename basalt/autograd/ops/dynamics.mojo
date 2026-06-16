@@ -7,7 +7,7 @@ from memory import memcpy
 
 struct CONCAT:
     @staticmethod
-    fn result_shape(
+    def result_shape(
         input_shapes: List[TensorShape], attributes: AttributeVector
     ) -> List[TensorShape]:
         # Assumptions: all tensors have the same shape, except for the concatenating dimension
@@ -23,7 +23,7 @@ struct CONCAT:
         return List[TensorShape](res_shape)
 
     @staticmethod
-    fn calc_chunks(shape: TensorShape, dim: Int) -> Int:
+    def calc_chunks(shape: TensorShape, dim: Int) -> Int:
         # Number of chunks up to the concatenating dimension
         # Assuming tensor of equal shape, except for the concatenating dimension
         var chunks = 1
@@ -32,12 +32,12 @@ struct CONCAT:
         return chunks
 
     @staticmethod
-    fn forward[attributes: AttributeVector](
+    def forward[attributes: AttributeVector](
         inputs: List[Symbol],
         outputs: List[Symbol],
         mut parameters: Parameters,
     ):
-        alias dim = attributes["dim"].value().to_int() if attributes["dim"] else 0
+        comptime dim = attributes["dim"].value().to_int() if attributes["dim"] else 0
         var n_chunks = Self.calc_chunks(inputs[0].shape, dim)
 
         var chunks = List[Int]()
@@ -57,12 +57,12 @@ struct CONCAT:
                 )
 
     @staticmethod
-    fn backward[input_id: Int, attributes: AttributeVector](
+    def backward[input_id: Int, attributes: AttributeVector](
         inputs: List[Symbol],
         outputs: List[Symbol],
         mut parameters: Parameters,
     ) -> Tensor[dtype]:
-        alias dim = attributes["dim"].value().to_int() if attributes["dim"] else 0
+        comptime dim = attributes["dim"].value().to_int() if attributes["dim"] else 0
         var n_chunks = Self.calc_chunks(inputs[0].shape, dim)
 
         var chunks = List[Int]()
@@ -86,7 +86,7 @@ struct CONCAT:
 
 struct SPLIT:
     @staticmethod
-    fn result_shape(
+    def result_shape(
         input_shapes: List[TensorShape], attributes: AttributeVector
     ) -> List[TensorShape]:
         # Assuming the sum of the sections is equal to the total size in the dim dimension.
@@ -103,7 +103,7 @@ struct SPLIT:
         return res_shapes
 
     @staticmethod
-    fn calc_chunks(shape: TensorShape, dim: Int) -> Int:
+    def calc_chunks(shape: TensorShape, dim: Int) -> Int:
         # Number of chunks up to the concatenating dimension
         # Assuming tensor of equal shape, except for the concatenating dimension
         var chunks = 1
@@ -112,13 +112,13 @@ struct SPLIT:
         return chunks
 
     @staticmethod
-    fn forward[attributes: AttributeVector](
+    def forward[attributes: AttributeVector](
         inputs: List[Symbol],
         outputs: List[Symbol],
         mut parameters: Parameters,
     ):
-        alias dim = attributes["dim"].value().to_int() if attributes["dim"] else 0
-        alias sections = attributes["sections"].value().to_shape()
+        comptime dim = attributes["dim"].value().to_int() if attributes["dim"] else 0
+        comptime sections = attributes["sections"].value().to_shape()
         var n_chunks = Self.calc_chunks(inputs[0].shape, dim)
 
         var chunks = List[Int]()
@@ -138,13 +138,13 @@ struct SPLIT:
                 )
 
     @staticmethod
-    fn backward[input_id: Int, attributes: AttributeVector](
+    def backward[input_id: Int, attributes: AttributeVector](
         inputs: List[Symbol],
         outputs: List[Symbol],
         mut parameters: Parameters,
     ) -> Tensor[dtype]:
-        alias dim = attributes["dim"].value().to_int() if attributes["dim"] else 0
-        alias sections = attributes["sections"].value().to_shape()
+        comptime dim = attributes["dim"].value().to_int() if attributes["dim"] else 0
+        comptime sections = attributes["sections"].value().to_shape()
         var n_chunks = Self.calc_chunks(inputs[0].shape, dim)
 
         var chunks = List[Int]()

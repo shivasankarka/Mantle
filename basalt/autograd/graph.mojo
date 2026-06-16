@@ -11,7 +11,7 @@ from basalt import seed, dtype
 from basalt import Tensor, TensorShape
 
 
-struct Graph:
+struct Graph(Copyable, Movable):
     var inputs: List[Symbol]
     var params: ParamDict
     var nodes: List[Node]
@@ -19,7 +19,7 @@ struct Graph:
     var loss_out: OptionalReg[Symbol]
     var symbol_count: UInt32
 
-    fn __init__(out self):
+    def __init__(out self):
         self.inputs = List[Symbol]()
         self.params = ParamDict()
         self.nodes = List[Node]()
@@ -27,7 +27,7 @@ struct Graph:
         self.loss_out = None
         self.symbol_count = 0
 
-    fn __moveinit__(out self, owned other: Graph):
+    def __moveinit__(out self, deinit other: Graph):
         self.inputs = other.inputs^
         self.params = other.params^
         self.nodes = other.nodes^
@@ -35,7 +35,7 @@ struct Graph:
         self.loss_out = other.loss_out
         self.symbol_count = other.symbol_count
 
-    fn create_symbol(mut self, shape: TensorShape, data: Optional[Param] = None, trainable: Bool = False, is_input: Bool = False) -> Symbol:
+    def create_symbol(mut self, shape: TensorShape, data: Optional[Param] = None, trainable: Bool = False, is_input: Bool = False) -> Symbol:
         var symbol = Symbol(self.symbol_count, dtype, shape, trainable)
         self.symbol_count += 1
 
@@ -49,28 +49,28 @@ struct Graph:
 
         return symbol
 
-    fn input(mut self, shape: TensorShape, trainable: Bool = False) -> Symbol:
+    def input(mut self, shape: TensorShape, trainable: Bool = False) -> Symbol:
         return self.create_symbol(shape, trainable=trainable, is_input=True)
 
-    fn param(mut self, shape: TensorShape, init: Param, trainable: Bool = True) -> Symbol:
+    def param(mut self, shape: TensorShape, init: Param, trainable: Bool = True) -> Symbol:
         return self.create_symbol(shape, init, trainable)
 
-    fn param(mut self, shape: TensorShape, trainable: Bool = True) -> Symbol:
+    def param(mut self, shape: TensorShape, trainable: Bool = True) -> Symbol:
         return self.create_symbol(shape, trainable=trainable)
 
-    fn scalar(mut self, value: Scalar[dtype]) -> Symbol:
+    def scalar(mut self, value: Scalar[dtype]) -> Symbol:
         return self.create_symbol(TensorShape(1), Param(value), trainable=False)
 
-    fn constant(mut self, shape: TensorShape, data: List[Scalar[dtype]]) -> Symbol:
+    def constant(mut self, shape: TensorShape, data: List[Scalar[dtype]]) -> Symbol:
         return self.create_symbol(shape, Param(data), trainable=False)
 
-    fn out(mut self, symbol: Symbol):
+    def out(mut self, symbol: Symbol):
         self.outputs.append(symbol)
 
-    fn loss(mut self, symbol: Symbol):
+    def loss(mut self, symbol: Symbol):
         self.loss_out = symbol
 
-    fn op(
+    def op(
         mut self,
         op: OP,
         *operands: Symbol,
@@ -89,7 +89,7 @@ struct Graph:
         self.nodes.append(Node(op, inputs, List[Symbol](res), attributes))
         return res
 
-    fn op(
+    def op(
         mut self,
         op: OP,
         operand_1: Symbol,
@@ -98,7 +98,7 @@ struct Graph:
     ) -> Symbol:
         return self.op(op, operand_1, self.scalar(operand_2.cast[dtype]()), attributes=attributes)
 
-    fn op(
+    def op(
         mut self,
         op: OP,
         operand_1: Float64,
@@ -107,20 +107,20 @@ struct Graph:
     ) -> Symbol:
         return self.op(op, self.scalar(operand_1.cast[dtype]()), operand_2, attributes=attributes)
 
-    fn create_symbols(mut self, shapes: List[TensorShape], trainable: Bool = False) -> List[Symbol]:
+    def create_symbols(mut self, shapes: List[TensorShape], trainable: Bool = False) -> List[Symbol]:
         var symbols = List[Symbol]()
         symbols.reserve(len(shapes))
-        
+
         for shape in shapes:
             symbols.append(Symbol(self.symbol_count, dtype, shape[], trainable))
             self.symbol_count += 1
-        
+
         return symbols
 
-    fn add_node(mut self, op: OP, inputs: List[Symbol], outputs: List[Symbol], attributes: AttributeVector):
+    def add_node(mut self, op: OP, inputs: List[Symbol], outputs: List[Symbol], attributes: AttributeVector):
         self.nodes.append(Node(op, inputs, outputs, attributes))
 
-    fn concat(mut self, *operands: Symbol, dim: Int = 0) -> Symbol:
+    def concat(mut self, *operands: Symbol, dim: Int = 0) -> Symbol:
         var attributes = AttributeVector(Attribute("dim", dim))
         var res_shape = dynamic_result_shape(OP.CONCAT, operands, attributes)[0]
         var res_symbols = self.create_symbols(List[TensorShape](res_shape), self.result_trainable(operands))
@@ -133,7 +133,7 @@ struct Graph:
         self.add_node(OP.CONCAT, operand_list, res_symbols, attributes)
         return res_symbols[0]
 
-    fn split(
+    def split(
         mut self, operand: Symbol, sections: List[Int], dim: Int = 0
     ) -> List[Symbol]:
         var attributes = AttributeVector(Attribute("sections", TensorShape(sections)), Attribute("dim", dim))
@@ -144,13 +144,13 @@ struct Graph:
         return result_symbols
 
     @staticmethod
-    fn result_trainable(operands: VariadicList[Symbol]) -> Bool:
+    def result_trainable(operands: VariadicList[Symbol]) -> Bool:
         for operand in operands:
             if operand.trainable:
                 return True
         return False
 
-    fn json(self) -> String:
+    def json(self) -> String:
         var result: String = '{"graph_name": "basalt", "nodes": ['
         for i in range(len(self.nodes)):
             result += self.nodes[i].json()
@@ -177,13 +177,13 @@ struct Graph:
         result += "]}"
         return result
 
-    fn render(self, render_type: String = "node") raises:
+    def render(self, render_type: String = "node") raises:
         Python.add_to_path("./basalt/utils")
         var renderer = Python.import_module("graph_render")
         var json = Python.import_module("json")
         _ = renderer.netron_render(json.loads(self.json()), render_type)
 
-    fn compile(inout self):
+    def compile(mut self):
         # 0. Sorting the graph
         # The staticlly defined graph has an implicit topological sorted order because,
         # each new operation is added the list of nodes after its dependencies have been calculated.

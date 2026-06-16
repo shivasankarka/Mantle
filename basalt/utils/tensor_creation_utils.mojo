@@ -4,7 +4,7 @@ from memory import memcpy, UnsafePointer
 # maybe this functions should be from the Tensor struct (like tensor.to_numpy()) and tensor.__init__(np_array: PythonObject) to create a tensor from a numpy array and tensor.copy_np_data(np_array: PythonObject) to copy the numpy array to the tensor.
 
 
-fn to_numpy(tensor: Tensor) -> PythonObject:
+def to_numpy(tensor: Tensor) -> PythonObject:
     try:
         var np = Python.import_module("numpy")
 
@@ -28,7 +28,7 @@ fn to_numpy(tensor: Tensor) -> PythonObject:
         return PythonObject()
 
 
-fn to_tensor(np_array: PythonObject) raises -> Tensor[dtype]:
+def to_tensor(np_array: PythonObject) raises -> Tensor[dtype]:
     var shape = List[Int]()
     for i in range(np_array.ndim):
         shape.append(int(float(np_array.shape[i])))
@@ -58,7 +58,7 @@ fn to_tensor(np_array: PythonObject) raises -> Tensor[dtype]:
     return tensor^
 
 
-fn copy_np_data(inout tensor: Tensor, np_array: PythonObject) raises:
+def copy_np_data(inout tensor: Tensor, np_array: PythonObject) raises:
     var np_array_2: PythonObject
     try:
         var np = Python.import_module("numpy")

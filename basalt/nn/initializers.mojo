@@ -5,7 +5,7 @@ from basalt import Tensor, TensorShape
 from basalt.utils.rand_utils import rand_normal, rand_uniform
 
 
-fn initialize_tensor(
+def initialize_tensor(
     shape: TensorShape, type: String, data: List[Scalar[dtype]]
 ) -> Tensor[dtype]:
     if type == "random_uniform":
@@ -13,13 +13,13 @@ fn initialize_tensor(
         var high = data[1]
         var t = Tensor[dtype](shape)
         rand_uniform(t, low=low, high=high)
-        return t
+        return t^
     elif type == "random_normal":
         var mean = data[0].cast[DType.float64]()
         var std = data[1].cast[DType.float64]()
         var t = Tensor[dtype](shape)
         rand_normal(t, mean=mean, std=std)
-        return t
+        return t^
     # elif type == "kaiming_uniform":
     #     # mode, nonlinearity
     #     var mode_id = data[0]
@@ -35,7 +35,7 @@ fn initialize_tensor(
         return Tensor[dtype]()
 
 
-fn calculate_fan(shape: TensorShape, mode: String) -> Scalar[dtype]:
+def calculate_fan(shape: TensorShape, mode: String) -> Scalar[dtype]:
     """
     Calculate the fan-in and fan-out of any tensor.
     """
@@ -64,7 +64,7 @@ fn calculate_fan(shape: TensorShape, mode: String) -> Scalar[dtype]:
 
 
 # # TODO: https://pytorch.org/docs/stable/_modules/torch/nn/init.html
-# fn kaiming_uniform(shape: TensorShape, mode: String = "fan_in", nonlinearity: String = "leaky_relu") -> Tensor[dtype]:
+# def kaiming_uniform(shape: TensorShape, mode: String = "fan_in", nonlinearity: String = "leaky_relu") -> Tensor[dtype]:
 #     var fan = calculate_fan(shape, mode)
 
 #     # TODO: add support for other gains: https://github.com/pytorch/pytorch/blob/main/torch/nn/init.py#L68
@@ -83,7 +83,7 @@ fn calculate_fan(shape: TensorShape, mode: String) -> Scalar[dtype]:
 
 
 # # TODO: https://pytorch.org/docs/stable/_modules/torch/nn/init.html
-# fn kaiming_normal(shape: TensorShape, mode: String = "fan_in", nonlinearity: String = "leaky_relu") -> Tensor[dtype]:
+# def kaiming_normal(shape: TensorShape, mode: String = "fan_in", nonlinearity: String = "leaky_relu") -> Tensor[dtype]:
 #     var fan = calculate_fan(shape, mode)
 
 #     # TODO: add support for other gains: https://github.com/pytorch/pytorch/blob/main/torch/nn/init.py#L68

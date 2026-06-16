@@ -8,35 +8,34 @@ from basalt.utils.tensorutils import elwise_transform
 from basalt.autograd.attributes import Attribute, AttributeVector
 
 
-@value
-struct SIGMOID:
+struct SIGMOID(Copyable, Movable):
     @staticmethod
-    fn result_shape(t1_shape: TensorShape) -> TensorShape:
+    def result_shape(t1_shape: TensorShape) -> TensorShape:
         return t1_shape
 
     @staticmethod
     @always_inline
-    fn sigmoid[
+    def sigmoid[
         type: DType, simd_width: Int
     ](x: SIMD[type, simd_width]) -> SIMD[type, simd_width]:
         return 1 / (1 + exp(-x))
 
     @staticmethod
     @always_inline
-    fn sidmoid_bw[
+    def sidmoid_bw[
         type: DType, simd_width: Int
     ](x: SIMD[type, simd_width]) -> SIMD[type, simd_width]:
         return Self.sigmoid(x) * (1 - Self.sigmoid(x))
 
     @staticmethod
-    fn forward[
+    def forward[
         t1_shape: TensorShape,
     ](mut res: Tensor[dtype], t1: Tensor[dtype]):
         """Forward operation of sigmoid."""
         elwise_transform[Self.sigmoid](res, t1)
 
     @staticmethod
-    fn backward[
+    def backward[
         ug_shape: TensorShape,
         t1_shape: TensorShape,
     ](ug: Tensor[dtype], t1: Tensor[dtype]) -> Tensor[dtype]:
@@ -45,7 +44,7 @@ struct SIGMOID:
         var res_grad = Tensor[dtype](ug_shape)
 
         @parameter
-        fn vec_sigmoid_bw[nelts: Int](idx: Int):
+        def vec_sigmoid_bw[nelts: Int](idx: Int):
             res_grad.store[nelts](
                 idx,
                 Self.sidmoid_bw(t1.load[nelts](idx)) * ug.load[nelts](idx),
@@ -58,12 +57,12 @@ struct SIGMOID:
 
 struct RELU:
     @staticmethod
-    fn result_shape(t1_shape: TensorShape) -> TensorShape:
+    def result_shape(t1_shape: TensorShape) -> TensorShape:
         return t1_shape
 
     @staticmethod
     @always_inline
-    fn relu[
+    def relu[
         type: DType, simd_width: Int
     ](x: SIMD[type, simd_width]) -> SIMD[type, simd_width]:
         # x if x > 0 else 0
@@ -71,21 +70,21 @@ struct RELU:
 
     @staticmethod
     @always_inline
-    fn relu_bw[
+    def relu_bw[
         type: DType, simd_width: Int
     ](x: SIMD[type, simd_width]) -> SIMD[type, simd_width]:
         # 1 if x > 0 else 0
         return (x > 0).select[type](1, 0)
 
     @staticmethod
-    fn forward[
+    def forward[
         t1_shape: TensorShape,
     ](mut res: Tensor[dtype], t1: Tensor[dtype]):
         """Forward operation of relu."""
         elwise_transform[Self.relu](res, t1)
 
     @staticmethod
-    fn backward[
+    def backward[
         ug_shape: TensorShape,
         t1_shape: TensorShape,
     ](ug: Tensor[dtype], t1: Tensor[dtype]) -> Tensor[dtype]:
@@ -94,7 +93,7 @@ struct RELU:
         var res_grad = Tensor[dtype](ug_shape)
 
         @parameter
-        fn vec_relu_bw[nelts: Int](idx: Int):
+        def vec_relu_bw[nelts: Int](idx: Int):
             res_grad.store[nelts](
                 idx, Self.relu_bw(t1.load[nelts](idx)) * ug.load[nelts](idx)
             )
@@ -106,17 +105,17 @@ struct RELU:
 
 struct LEAKYRELU:
     @staticmethod
-    fn result_shape(t1_shape: TensorShape) -> TensorShape:
+    def result_shape(t1_shape: TensorShape) -> TensorShape:
         return t1_shape
 
     @staticmethod
-    fn forward[
+    def forward[
         t1_shape: TensorShape,
         attributes: AttributeVector,
     ](mut res: Tensor[dtype], t1: Tensor[dtype]):
         """Forward operation of leaky_relu."""
 
-        fn leaky_relu[
+        def leaky_relu[
             type: DType,
             simd_width: Int,
         ](x: SIMD[type, simd_width]) -> SIMD[type, simd_width]:
@@ -128,7 +127,7 @@ struct LEAKYRELU:
         elwise_transform[leaky_relu](res, t1)
 
     @staticmethod
-    fn backward[
+    def backward[
         ug_shape: TensorShape,
         t1_shape: TensorShape,
         attributes: AttributeVector,
@@ -136,7 +135,7 @@ struct LEAKYRELU:
         """Backward operation of leaky_relu."""
 
         @always_inline
-        fn leaky_relu_bw[
+        def leaky_relu_bw[
             type: DType, simd_width: Int
         ](x: SIMD[type, simd_width]) -> SIMD[type, simd_width]:
             var negative_slope = attributes["negative_slope"].value().to_scalar[
@@ -148,7 +147,7 @@ struct LEAKYRELU:
         var res_grad = Tensor[dtype](ug_shape)
 
         @parameter
-        fn vec_leaky_relu_bw[nelts: Int](idx: Int):
+        def vec_leaky_relu_bw[nelts: Int](idx: Int):
             res_grad.store[nelts](
                 idx,
                 leaky_relu_bw(t1.load[nelts](idx)) * ug.load[nelts](idx),
@@ -161,32 +160,32 @@ struct LEAKYRELU:
 
 struct TANH:
     @staticmethod
-    fn result_shape(t1_shape: TensorShape) -> TensorShape:
+    def result_shape(t1_shape: TensorShape) -> TensorShape:
         return t1_shape
 
     @staticmethod
     @always_inline
-    fn tanh[
+    def tanh[
         type: DType, simd_width: Int
     ](x: SIMD[type, simd_width]) -> SIMD[type, simd_width]:
         return (exp(x) - exp(-x)) / (exp(x) + exp(-x))
 
     @staticmethod
     @always_inline
-    fn tanh_bw[
+    def tanh_bw[
         type: DType, simd_width: Int
     ](x: SIMD[type, simd_width]) -> SIMD[type, simd_width]:
         return 1 - pow(Self.tanh(x), 2)
 
     @staticmethod
-    fn forward[
+    def forward[
         t1_shape: TensorShape,
     ](mut res: Tensor[dtype], t1: Tensor[dtype]):
         """Forward operation of tanh."""
         elwise_transform[Self.tanh](res, t1)
 
     @staticmethod
-    fn backward[
+    def backward[
         ug_shape: TensorShape,
         t1_shape: TensorShape,
     ](ug: Tensor[dtype], t1: Tensor[dtype]) -> Tensor[dtype]:
@@ -195,7 +194,7 @@ struct TANH:
         var res_grad = Tensor[dtype](ug_shape)
 
         @parameter
-        fn vec_tanh_bw[nelts: Int](idx: Int):
+        def vec_tanh_bw[nelts: Int](idx: Int):
             res_grad.store[nelts](
                 idx, Self.tanh_bw(t1.load[nelts](idx)) * ug.load[nelts](idx)
             )
@@ -207,18 +206,18 @@ struct TANH:
 
 struct CLIP:
     @staticmethod
-    fn result_shape(t_shape: TensorShape) -> TensorShape:
+    def result_shape(t_shape: TensorShape) -> TensorShape:
         return t_shape
 
     @staticmethod
-    fn forward[
+    def forward[
         t_shape: TensorShape, attributes: AttributeVector
     ](mut res: Tensor[dtype], t: Tensor[dtype]):
         """
         Forward pass of the clip operation.
         """
-        alias min_attr = attributes["min"]
-        alias max_attr = attributes["max"]
+        comptime min_attr = attributes["min"]
+        comptime max_attr = attributes["max"]
 
         var min_val = min_attr.value().to_scalar[
             dtype
@@ -228,20 +227,20 @@ struct CLIP:
         ]() if max_attr else max_finite[dtype]()
 
         @parameter
-        fn vec_clip[nelts: Int](i: Int):
+        def vec_clip[nelts: Int](i: Int):
             res.store[nelts](i, max(min(t.load[nelts](i), max_val), min_val))
 
         vectorize[vec_clip, nelts, size = t_shape.num_elements()]()
 
     @staticmethod
-    fn backward[
+    def backward[
         ug_shape: TensorShape,
         t_shape: TensorShape,
         attributes: AttributeVector = AttributeVector(),
     ](ug: Tensor[dtype], t: Tensor[dtype]) -> Tensor[dtype]:
         """Backward operation of clip."""
-        alias min_attr = attributes["min"]
-        alias max_attr = attributes["max"]
+        comptime min_attr = attributes["min"]
+        comptime max_attr = attributes["max"]
 
         var min_val = min_attr.value().to_scalar[
             dtype
@@ -253,7 +252,7 @@ struct CLIP:
         var res_grad = Tensor[dtype](t_shape)
 
         @parameter
-        fn vec_clip_bw[nelts: Int](i: Int):
+        def vec_clip_bw[nelts: Int](i: Int):
             var val = t.load[nelts](i)
             res_grad.store[nelts](
                 i,
@@ -269,7 +268,7 @@ struct CLIP:
 
 struct SQUEEZE:
     @staticmethod
-    fn result_shape(
+    def result_shape(
         t1_shape: TensorShape, attributes: AttributeVector
     ) -> TensorShape:
         var dim = attributes["dims"]
@@ -286,14 +285,14 @@ struct SQUEEZE:
         return TensorShape(new_shape)
 
     @staticmethod
-    fn forward[
+    def forward[
         t1_shape: TensorShape,
         attributes: AttributeVector,
     ](mut res: Tensor[dtype], t1: Tensor[dtype]):
         memcpy(res.data(), t1.data(), t1.num_elements())
 
     @staticmethod
-    fn backward[
+    def backward[
         ug_shape: TensorShape,
         t1_shape: TensorShape,
     ](ug: Tensor[dtype], t1: Tensor[dtype]) -> Tensor[dtype]:
@@ -304,7 +303,7 @@ struct SQUEEZE:
 
 struct UNSQUEEZE:
     @staticmethod
-    fn result_shape(
+    def result_shape(
         t1_shape: TensorShape, attributes: AttributeVector
     ) -> TensorShape:
         var dim = attributes["dims"]
@@ -325,14 +324,14 @@ struct UNSQUEEZE:
         return TensorShape(new_shape)
 
     @staticmethod
-    fn forward[
+    def forward[
         t1_shape: TensorShape,
         attributes: AttributeVector,
     ](mut res: Tensor[dtype], t1: Tensor[dtype]):
         memcpy(res.data(), t1.data(), t1.num_elements())
 
     @staticmethod
-    fn backward[
+    def backward[
         ug_shape: TensorShape,
         t1_shape: TensorShape,
     ](ug: Tensor[dtype], t1: Tensor[dtype]) -> Tensor[dtype]:
@@ -343,34 +342,34 @@ struct UNSQUEEZE:
 
 struct SLICE:
     @staticmethod
-    fn adjust_boundary(slice: Int, dim_size: Int) -> Int:
+    def adjust_boundary(slice: Int, dim_size: Int) -> Int:
         # Adjust negative indices & ensure they are within bounds.
         var s = slice if slice >= 0 else dim_size + slice
         return max(min(s, dim_size), 0)
 
     @staticmethod
-    fn default_starts(shape: List[Int]) -> List[Int]:
+    def default_starts(shape: List[Int]) -> List[Int]:
         var starts = List[Int]()
         for i in range(len(shape)):
             starts.append(0)
         return starts^
 
     @staticmethod
-    fn default_ends(shape: List[Int]) -> List[Int]:
+    def default_ends(shape: List[Int]) -> List[Int]:
         var ends = List[Int]()
         for i in range(len(shape)):
             ends.append(shape[i])
         return ends^
 
     @staticmethod
-    fn default_steps(shape: List[Int]) -> List[Int]:
+    def default_steps(shape: List[Int]) -> List[Int]:
         var steps = List[Int]()
         for i in range(len(shape)):
             steps.append(1)
         return steps^
 
     @staticmethod
-    fn default_axes(shape: TensorShape) -> List[Int]:
+    def default_axes(shape: TensorShape) -> List[Int]:
         # NOTE: axes can't be negative
         var axes = List[Int]()
         for i in range(shape.rank()):
@@ -378,7 +377,7 @@ struct SLICE:
         return axes^
 
     @staticmethod
-    fn result_shape(
+    def result_shape(
         t1_shape: TensorShape, attributes: AttributeVector
     ) -> TensorShape:
         # NOTE: Starts and ends have to be of the same size
@@ -406,7 +405,7 @@ struct SLICE:
         return new_shape
 
     @staticmethod
-    fn reorder_positions[
+    def reorder_positions[
         id: Int
     ](original: List[Int], axes: List[Int], t1_shape: List[Int]) -> List[
         Int
@@ -433,7 +432,7 @@ struct SLICE:
     # NOTE: For now you can't have recursive function as parameter functions.
     # NOTE: From testing it seems a recursive function is almost the same speed as doing multiple nested for loops.
     @staticmethod
-    fn recursive_iters_slice[
+    def recursive_iters_slice[
         shape: TensorShape,
         original_shape: TensorShape,
         steps: List[Int],
@@ -449,8 +448,8 @@ struct SLICE:
         idx: Int,
         idx_original: Int,
     ):
-        alias strides = shape.strides()
-        alias t1_strides = original_shape.strides()
+        comptime strides = shape.strides()
+        comptime t1_strides = original_shape.strides()
 
         var idx_temp = idx
         var idx_original_temp = starts[position] * t1_strides[
@@ -459,11 +458,11 @@ struct SLICE:
 
         if position == last_position + 1:
             # Work on the last dimensions
-            alias position = shape.rank() - 1
-            alias stride = t1_strides[position] * steps[position]
+            comptime position = shape.rank() - 1
+            comptime stride = t1_strides[position] * steps[position]
 
             @parameter
-            fn v_slice[nelts: Int](k: Int):
+            def v_slice[nelts: Int](k: Int):
                 @parameter
                 if not backward_op:
 
@@ -513,7 +512,7 @@ struct SLICE:
             idx_original_temp += steps[position] * t1_strides[position]
 
     @staticmethod
-    fn slice_kernel[
+    def slice_kernel[
         res_shape: TensorShape,
         original_shape: TensorShape,
         steps: List[Int],
@@ -521,7 +520,7 @@ struct SLICE:
         ends: List[Int],
         backward_op: Bool = False,
     ](mut res: Tensor[dtype], t1: Tensor[dtype]):
-        alias strides = original_shape.strides()
+        comptime strides = original_shape.strides()
 
         # Get the dimensions for vectorization
         var last_dims = 1
@@ -546,7 +545,7 @@ struct SLICE:
         var middle_dims = res_shape.num_elements() // last_dims // first_dims
 
         @parameter
-        fn p_slice(i: Int):
+        def p_slice(i: Int):
             Self.recursive_iters_slice[
                 res_shape, original_shape, steps, starts, ends, backward_op
             ](
@@ -562,45 +561,45 @@ struct SLICE:
         parallelize[p_slice](first_dims)
 
     @staticmethod
-    fn forward[
+    def forward[
         t1_shape: TensorShape,
         attributes: AttributeVector,
     ](mut res: Tensor[dtype], t1: Tensor[dtype]):
-        alias axes = attributes["axes"].value().to_list() if attributes[
+        comptime axes = attributes["axes"].value().to_list() if attributes[
             "axes"
         ] else Self.default_axes(t1_shape)
-        alias starts = Self.reorder_positions[0](
+        comptime starts = Self.reorder_positions[0](
             attributes["starts"].value().to_list(), axes, t1_shape.to_list()
         )
-        alias ends = Self.reorder_positions[1](
+        comptime ends = Self.reorder_positions[1](
             attributes["ends"].value().to_list(), axes, t1_shape.to_list()
         )
-        alias steps = Self.reorder_positions[2](
+        comptime steps = Self.reorder_positions[2](
             attributes["steps"].value().to_list(), axes, t1_shape.to_list()
         ) if attributes["steps"] else Self.default_steps(t1_shape.to_list())
 
-        alias res_shape = Self.result_shape(t1_shape, attributes)
+        comptime res_shape = Self.result_shape(t1_shape, attributes)
 
         Self.slice_kernel[res_shape, t1_shape, steps, starts, ends, False](
             res, t1
         )
 
     @staticmethod
-    fn backward[
+    def backward[
         ug_shape: TensorShape,
         t1_shape: TensorShape,
         attributes: AttributeVector = AttributeVector(),
     ](ug: Tensor[dtype], t1: Tensor[dtype]) -> Tensor[dtype]:
-        alias axes = attributes["axes"].value().to_list() if attributes[
+        comptime axes = attributes["axes"].value().to_list() if attributes[
             "axes"
         ] else Self.default_axes(t1_shape)
-        alias starts = Self.reorder_positions[0](
+        comptime starts = Self.reorder_positions[0](
             attributes["starts"].value().to_list(), axes, t1_shape.to_list()
         )
-        alias ends = Self.reorder_positions[1](
+        comptime ends = Self.reorder_positions[1](
             attributes["ends"].value().to_list(), axes, t1_shape.to_list()
         )
-        alias steps = Self.reorder_positions[2](
+        comptime steps = Self.reorder_positions[2](
             attributes["steps"].value().to_list(), axes, t1_shape.to_list()
         ) if attributes["steps"] else Self.default_steps(t1_shape.to_list())
 

@@ -4,7 +4,7 @@ from basalt.utils import q_sqrt
 from basalt.autograd.params import Param
 
 
-fn Linear(
+def Linear(
     mut g: Graph,
     inputs: Symbol,
     n_outputs: Int,

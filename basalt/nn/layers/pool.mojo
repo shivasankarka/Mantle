@@ -6,7 +6,7 @@ from basalt import Graph, Symbol, OP
 from basalt.autograd.attributes import AttributeVector, Attribute
 
 
-fn set_static_stride(
+def set_static_stride(
     kernel_size: IndexList[2], stride: Optional[Int] = None
 ) -> IndexList[2]:
     if stride:
@@ -15,7 +15,7 @@ fn set_static_stride(
         return kernel_size
 
 
-fn MaxPool2d(
+def MaxPool2d(
     mut g: Graph,
     inputs: Symbol,
     kernel_size: IndexList[2],
@@ -37,7 +37,7 @@ fn MaxPool2d(
     return MaxPool2d(g, inputs, kernel_size, stride_temp, padding, dilation)
 
 
-fn MaxPool2d(
+def MaxPool2d(
     mut g: Graph,
     inputs: Symbol,
     kernel_size: IndexList[2],

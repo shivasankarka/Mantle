@@ -8,7 +8,7 @@ from memory import memset_zero, UnsafePointer
 
 
 @always_inline
-fn get_result_shape(
+def get_result_shape(
     input_shape: TensorShape,
     kernel_shape: TensorShape,
     padding: IndexList[2],
@@ -36,7 +36,7 @@ fn get_result_shape(
 
 struct CONV2D:
     @staticmethod
-    fn result_shape(
+    def result_shape(
         input_shape: TensorShape,
         kernel_shape: TensorShape,
         bias_shape: TensorShape,
@@ -52,7 +52,7 @@ struct CONV2D:
         return TensorShape(input_shape[0], kernel_shape[0], res[0], res[1])
 
     @staticmethod
-    fn forward[
+    def forward[
         input_shape: TensorShape,
         kernel_shape: TensorShape,
         bias_shape: TensorShape,
@@ -70,47 +70,47 @@ struct CONV2D:
             bias.shape       [out_channels].
             output.shape     [batch, out_channels, oX, oY].
         """
-        alias padding = attributes["padding"].value().to_static[2]()
-        alias stride = attributes["stride"].value().to_static[2]()
-        alias dilation = attributes["dilation"].value().to_static[2]()
+        comptime padding = attributes["padding"].value().to_static[2]()
+        comptime stride = attributes["stride"].value().to_static[2]()
+        comptime dilation = attributes["dilation"].value().to_static[2]()
 
-        alias padding_x = padding[0]
-        alias padding_y = padding[1]
-        alias stride_x = stride[0]
-        alias stride_y = stride[1]
-        alias dilation_x = dilation[0]
-        alias dilation_y = dilation[1]
+        comptime padding_x = padding[0]
+        comptime padding_y = padding[1]
+        comptime stride_x = stride[0]
+        comptime stride_y = stride[1]
+        comptime dilation_x = dilation[0]
+        comptime dilation_y = dilation[1]
 
-        alias batch_size = input_shape[0]
-        alias in_channels = input_shape[1]
-        alias in_x = input_shape[2]
-        alias in_y = input_shape[3]
-        alias out_channels = kernel_shape[0]
-        alias k_x = kernel_shape[2]
-        alias k_y = kernel_shape[3]
-        alias out_x = output_shape[2]
-        alias out_y = output_shape[3]
-        alias col_x = out_x
-        alias col_y = out_y
+        comptime batch_size = input_shape[0]
+        comptime in_channels = input_shape[1]
+        comptime in_x = input_shape[2]
+        comptime in_y = input_shape[3]
+        comptime out_channels = kernel_shape[0]
+        comptime k_x = kernel_shape[2]
+        comptime k_y = kernel_shape[3]
+        comptime out_x = output_shape[2]
+        comptime out_y = output_shape[3]
+        comptime col_x = out_x
+        comptime col_y = out_y
 
-        alias col_shape = TensorShape(
+        comptime col_shape = TensorShape(
             batch_size, col_x * col_y, in_channels * k_x * k_y
         )  # [batch, colX * colY, in_channels * kX * kY]
-        alias output_shape = Self.result_shape(
+        comptime output_shape = Self.result_shape(
             input_shape, kernel_shape, bias_shape, attributes
         )
-        alias col_shape_stripped = TensorShape(in_channels * k_x * k_y, col_x, col_y)
+        comptime col_shape_stripped = TensorShape(in_channels * k_x * k_y, col_x, col_y)
 
-        alias inputs_strides = input_shape.strides()
-        alias kernel_strides = kernel_shape.strides()
-        alias outputs_strides = output_shape.strides()
-        alias col_strides = col_shape.strides()
+        comptime inputs_strides = input_shape.strides()
+        comptime kernel_strides = kernel_shape.strides()
+        comptime outputs_strides = output_shape.strides()
+        comptime col_strides = col_shape.strides()
 
         var col_ptr = UnsafePointer[Scalar[dtype]].alloc(col_shape.num_elements())
         memset_zero(col_ptr, col_shape.num_elements())
 
         @parameter
-        fn im2col(batch: Int):
+        def im2col(batch: Int):
             for ux in range(out_x):
                 for uy in range(out_y):
                     for in_ch in range(in_channels):
@@ -140,14 +140,14 @@ struct CONV2D:
         parallelize[im2col](batch_size)
 
         @parameter
-        fn conv(batch: Int):
+        def conv(batch: Int):
             for out_ch in range(out_channels):
                 for ux in range(out_x):
                     for uy in range(out_y):
                         var result: SIMD[dtype, nelts] = 0
 
                         @parameter
-                        fn v_im2col[_nelts: Int](in_ch_kx_ky: Int):
+                        def v_im2col[_nelts: Int](in_ch_kx_ky: Int):
                             var col_index = (
                                 batch * col_strides[0]
                                 + (ux * col_y + uy) * col_strides[1]
@@ -185,7 +185,7 @@ struct CONV2D:
         col_ptr.free()
 
     @staticmethod
-    fn backward[
+    def backward[
         tensor_id: Int,
         ug_shape: TensorShape,
         input_shape: TensorShape,
@@ -204,39 +204,39 @@ struct CONV2D:
         Upper gradient of shape: [batch, out_channels, uX, uY].
         """
 
-        alias padding = attributes["padding"].value().to_static[2]()
-        alias stride = attributes["stride"].value().to_static[2]()
-        alias dilation = attributes["dilation"].value().to_static[2]()
-        alias padding_0 = padding[0]
-        alias padding_1 = padding[1]
-        alias stride_0 = stride[0]
-        alias stride_1 = stride[1]
-        alias dilation_0 = dilation[0]
-        alias dilation_1 = dilation[1]
+        comptime padding = attributes["padding"].value().to_static[2]()
+        comptime stride = attributes["stride"].value().to_static[2]()
+        comptime dilation = attributes["dilation"].value().to_static[2]()
+        comptime padding_0 = padding[0]
+        comptime padding_1 = padding[1]
+        comptime stride_0 = stride[0]
+        comptime stride_1 = stride[1]
+        comptime dilation_0 = dilation[0]
+        comptime dilation_1 = dilation[1]
 
-        alias inputs_strides = input_shape.strides()
-        alias kernel_strides = kernel_shape.strides()
-        alias ug_strides = ug_shape.strides()
-        alias inputs_strides_0 = inputs_strides[0]
-        alias inputs_strides_1 = inputs_strides[1]
-        alias inputs_strides_2 = inputs_strides[2]
-        alias kernel_strides_0 = kernel_strides[0]
-        alias kernel_strides_1 = kernel_strides[1]
-        alias kernel_strides_2 = kernel_strides[2]
-        alias ug_strides_0 = ug_strides[0]
-        alias ug_strides_1 = ug_strides[1]
-        alias ug_strides_2 = ug_strides[2]
+        comptime inputs_strides = input_shape.strides()
+        comptime kernel_strides = kernel_shape.strides()
+        comptime ug_strides = ug_shape.strides()
+        comptime inputs_strides_0 = inputs_strides[0]
+        comptime inputs_strides_1 = inputs_strides[1]
+        comptime inputs_strides_2 = inputs_strides[2]
+        comptime kernel_strides_0 = kernel_strides[0]
+        comptime kernel_strides_1 = kernel_strides[1]
+        comptime kernel_strides_2 = kernel_strides[2]
+        comptime ug_strides_0 = ug_strides[0]
+        comptime ug_strides_1 = ug_strides[1]
+        comptime ug_strides_2 = ug_strides[2]
 
-        alias input_shape_0 = input_shape[0]
-        alias input_shape_1 = input_shape[1]
-        alias input_shape_2 = input_shape[2]
-        alias input_shape_3 = input_shape[3]
-        alias kernel_shape_2 = kernel_shape[2]
-        alias kernel_shape_3 = kernel_shape[3]
-        alias ug_shape_0 = ug_shape[0]
-        alias ug_shape_1 = ug_shape[1]
-        alias ug_shape_2 = ug_shape[2]
-        alias ug_shape_3 = ug_shape[3]
+        comptime input_shape_0 = input_shape[0]
+        comptime input_shape_1 = input_shape[1]
+        comptime input_shape_2 = input_shape[2]
+        comptime input_shape_3 = input_shape[3]
+        comptime kernel_shape_2 = kernel_shape[2]
+        comptime kernel_shape_3 = kernel_shape[3]
+        comptime ug_shape_0 = ug_shape[0]
+        comptime ug_shape_1 = ug_shape[1]
+        comptime ug_shape_2 = ug_shape[2]
+        comptime ug_shape_3 = ug_shape[3]
 
         var res: Tensor[dtype]
 
@@ -248,7 +248,7 @@ struct CONV2D:
             res = Tensor[dtype](input_shape)
 
             @parameter
-            fn input_grad(batch: Int):
+            def input_grad(batch: Int):
                 for out_ch in range(ug_shape_1):
                     for ux in range(ug_shape_2):
                         for uy in range(ug_shape_3):  # For all the element of ug
@@ -301,7 +301,7 @@ struct CONV2D:
             res = Tensor[dtype](kernel_shape)
 
             @parameter
-            fn kernel_grad(out_ch: Int):
+            def kernel_grad(out_ch: Int):
                 var channel_offset = out_ch * kernel_strides_0
                 for k in range(input_shape_1 * kernel_shape_2 * kernel_shape_3):
                     var in_ch_kx_ky = divmod(k, kernel_shape_3)
@@ -349,14 +349,14 @@ struct CONV2D:
             # Add the sum to the bias tensor
 
             @parameter
-            fn bias_grad(out_ch: Int):
+            def bias_grad(out_ch: Int):
                 var channel_offset = out_ch * ug_strides_1
                 var sum: Scalar[dtype] = 0
                 for batch in range(ug_shape_0):
                     var batch_offset = batch * ug_strides_0 + channel_offset
 
                     @parameter
-                    fn vec_sum[Nelts: Int](ux_uy: Int):
+                    def vec_sum[Nelts: Int](ux_uy: Int):
                         sum += ug.load[Nelts](batch_offset + ux_uy).reduce_add()
 
                     vectorize[vec_sum, nelts, size = ug_shape_2 * ug_shape_3]()

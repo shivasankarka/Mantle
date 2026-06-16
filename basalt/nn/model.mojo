@@ -14,11 +14,11 @@ from basalt.utils.onnx_utils import load_onnx_model, export_onnx_model
 
 # When runing mojo -D DEBUG=1 -I . file, a crash happens at some point at runtime because of an error in linking it seems (because of using -I .)
 # For now it seems one has to change this variable manually to be able to run model with performance metrics.
-alias DEBUG = env_get_int["DEBUG", 0]()
+comptime DEBUG = env_get_int["DEBUG", 0]()
 
 
 # TODO: remove when ability to concatenate graphs (modules)
-fn dv_contains(dv: List[Symbol], symbol: Symbol) -> Bool:
+def dv_contains(dv: List[Symbol], symbol: Symbol) -> Bool:
     for i in range(len(dv)):
         if dv[i] == symbol:
             return True
@@ -26,7 +26,7 @@ fn dv_contains(dv: List[Symbol], symbol: Symbol) -> Bool:
 
 
 # TODO: remove when ability to concatenate graphs (modules)
-fn n_inference_nodes(g: Graph) -> OptionalReg[Int]:
+def n_inference_nodes(g: Graph) -> OptionalReg[Int]:
     """
     Calculate the index of the node up to wich the forward pass should be executed for a model inference.
     When looping in revers: Equals the first index on which the node output is also a graph output.
@@ -39,12 +39,11 @@ fn n_inference_nodes(g: Graph) -> OptionalReg[Int]:
     return None
 
 
-@value
 struct Parameters:
     var tensors: Collection
     var grads: Collection
 
-    fn __init__(out self):
+    def __init__(out self):
         self.tensors = Collection()
         self.grads = Collection()
 
@@ -56,12 +55,12 @@ struct Model[
     var parameters: Parameters
     var perf_metrics: PerfMetrics
 
-    fn __init__(out self, inference_only: Bool = False):
+    def __init__(out self, inference_only: Bool = False):
         self.parameters = Parameters()
-
+        var graph = materialize[g]()
         @parameter
         if DEBUG == 1:
-            self.perf_metrics = PerfMetrics(g)
+            self.perf_metrics = PerfMetrics(graph)
         else:
             self.perf_metrics = PerfMetrics()
 
@@ -80,7 +79,7 @@ struct Model[
 
     # TODO: remove when ability to concatenate graphs (modules)
     # Removes the need for splitting in forward and inference mode
-    fn forward(mut self, *t_inputs: Tensor[dtype]) -> ref[__origin_of(self)] Tensor[dtype]:
+    def forward(mut self, *t_inputs: Tensor[dtype]) -> ref[origin_of(self)] Tensor[dtype]:
         # NOTE: Important detail here is that the order of the inputs must be the same as the order the inputs were defined in the graph.
         # Example: If you were te define the y_true before the x when creating the graph
         #
@@ -99,7 +98,7 @@ struct Model[
         # TODO: known copy (reference?)
         return self.parameters.tensors[g.loss_out.value()]
 
-    fn inference(mut self, *t_inputs: Tensor[dtype]) -> List[Tensor[dtype]]:
+    def inference(mut self, *t_inputs: Tensor[dtype]) -> List[Tensor[dtype]]:
         # 1. Execute forward pass up to model out
         self.execute[n_inference_nodes.value()](t_inputs)
 
@@ -110,16 +109,17 @@ struct Model[
             outputs.append(self.parameters.tensors[g.outputs[i]])
         return outputs ^
 
-    fn execute[num_nodes: Int](mut self, t_input: VariadicListMem[Tensor[dtype]]):
+    def execute[num_nodes: Int](mut self, t_input: VariadicListMem[Tensor[dtype]]):
         # 1. Write inputs to allocated input memory
-        for i in range(len(g.inputs)):
-            self.parameters.tensors[g.inputs[i]] = t_input[i]
+        var graph = materialize[g]()
+        for i in range(len(graph.inputs)):
+            self.parameters.tensors[graph.inputs[i]] = t_input[i].copy()
 
         # 2. Loop over all nodes and execute forward operations
         @parameter
         for i in range(num_nodes):
-            alias op = g.nodes[i].operator
-            alias attrs = g.nodes[i].attributes
+            comptime op = g.nodes[i].operator
+            comptime attrs = g.nodes[i].attributes
 
             # Save start time for performance metrics
             @parameter
@@ -129,15 +129,15 @@ struct Model[
             @parameter
             if op.dynamic:
                 forward_op[op, attrs](
-                    g.nodes[i].inputs,
-                    g.nodes[i].outputs,
+                    graph.nodes[i].inputs,
+                    graph.nodes[i].outputs,
                     self.parameters,
                 )
             else:
                 # Statically known shapes and number of operands
-                alias num_operands = len(g.nodes[i].inputs)
-                alias t1 = g.nodes[i].inputs[0]
-                alias out = g.nodes[i].outputs[0]
+                comptime num_operands = len(g.nodes[i].inputs)
+                comptime t1 = g.nodes[i].inputs[0]
+                comptime out = g.nodes[i].outputs[0]
 
                 @parameter
                 if num_operands == 1:
@@ -147,7 +147,7 @@ struct Model[
                     )
                 elif num_operands == 2:
                     # Binary operator
-                    alias t2 = g.nodes[i].inputs[1]
+                    comptime t2 = g.nodes[i].inputs[1]
                     forward_op[op, t1.shape, t2.shape, attrs](
                         self.parameters.tensors[out],
                         self.parameters.tensors[t1],
@@ -155,8 +155,8 @@ struct Model[
                     )
                 elif num_operands == 3:
                     # Ternary operator
-                    alias t2 = g.nodes[i].inputs[1]
-                    alias t3 = g.nodes[i].inputs[2]
+                    comptime t2 = g.nodes[i].inputs[1]
+                    comptime t3 = g.nodes[i].inputs[2]
                     forward_op[op, t1.shape, t2.shape, t3.shape, attrs](
                         self.parameters.tensors[out],
                         self.parameters.tensors[t1],
@@ -169,31 +169,32 @@ struct Model[
             if DEBUG == 1:
                 self.perf_metrics.end_forward_pass(i)
 
-    fn backward(mut self, *upper_grads: Tensor[dtype]):
+    def backward(mut self, *upper_grads: Tensor[dtype]):
         """
         Main entrypoint of backward pass.
         """
+        var graph = materialize[g]()
         # 1. Initialize output gradient at the beginning of the backward pass
         if len(upper_grads) == 0:
             # TODO remove loss_out tag
             fill(self.parameters.grads[g.loss_out.value()], 1.0)
         else:
-            var node_outputs = g.nodes[len(g.nodes)- 1].outputs
+            var node_outputs = graph.nodes[len(graph.nodes)- 1].outputs.copy()
             if len(upper_grads) != len(node_outputs):
                 print(
                     "[WARNING] Number of upper grads does not match number of node"
                     " outputs!"
                 )
             for i in range(len(node_outputs)):
-                self.parameters.grads[node_outputs[i]] = upper_grads[i]
+                self.parameters.grads[node_outputs[i]] = upper_grads[i].copy()
 
         # 2. Loop over all nodes in reverse order and execute backward operations
         @parameter
         for i in range(len(g.nodes)):
-            alias reverse_i = len(g.nodes) - i - 1
-            alias op = g.nodes[reverse_i].operator
-            alias attrs = g.nodes[reverse_i].attributes
-            alias num_operands = len(g.nodes[reverse_i].inputs)
+            comptime reverse_i = len(g.nodes) - i - 1
+            comptime op = g.nodes[reverse_i].operator
+            comptime attrs = g.nodes[reverse_i].attributes
+            comptime num_operands = len(g.nodes[reverse_i].inputs)
 
             # Save start time for performance metrics
             @parameter
@@ -208,15 +209,15 @@ struct Model[
                     @parameter
                     if g.nodes[reverse_i].inputs[j].trainable:
                         backward_op[j, op, attrs](
-                            g.nodes[reverse_i].inputs,
-                            g.nodes[reverse_i].outputs,
-                            self.parameters.grads[g.nodes[reverse_i].inputs[j]],
+                            graph.nodes[reverse_i].inputs,
+                            graph.nodes[reverse_i].outputs,
+                            self.parameters.grads[graph.nodes[reverse_i].inputs[j]],
                             self.parameters,
                         )
             else:
                 # Statically known shapes and number of operands
-                alias out = g.nodes[reverse_i].outputs[0]  # or upper_grad symbol
-                alias t1 = g.nodes[reverse_i].inputs[0]
+                comptime out = g.nodes[reverse_i].outputs[0]  # or upper_grad symbol
+                comptime t1 = g.nodes[reverse_i].inputs[0]
 
                 @parameter
                 if num_operands == 1:
@@ -231,7 +232,7 @@ struct Model[
 
                 elif num_operands == 2:
                     # Binary operator
-                    alias t2 = g.nodes[reverse_i].inputs[1]
+                    comptime t2 = g.nodes[reverse_i].inputs[1]
 
                     @parameter
                     if t1.trainable:
@@ -253,8 +254,8 @@ struct Model[
 
                 elif num_operands == 3:
                     # Ternary operator
-                    alias t2 = g.nodes[reverse_i].inputs[1]
-                    alias t3 = g.nodes[reverse_i].inputs[2]
+                    comptime t2 = g.nodes[reverse_i].inputs[1]
+                    comptime t3 = g.nodes[reverse_i].inputs[2]
 
                     @parameter
                     if t1.trainable:
@@ -297,15 +298,16 @@ struct Model[
             if DEBUG == 1:
                 self.perf_metrics.end_backward_pass(i)
 
-    fn allocate_tensor_memory(mut self):
-        for i in range(len(g.inputs)):
+    def allocate_tensor_memory(mut self):
+        var graph = materialize[g]()
+        for i in range(len(graph.inputs)):
             self.parameters.tensors.append(
-                Tensor[dtype](g.inputs[i].shape), g.inputs[i]
+                Tensor[dtype](graph.inputs[i].shape), graph.inputs[i]
             )
 
-        for i in range(len(g.params)):
-            var p = g.params.symbols[i]
-            var p_init = g.params.values[i]
+        for i in range(len(graph.params)):
+            var p = graph.params.symbols[i]
+            var p_init = graph.params.values[i].copy()
 
             var par: Tensor[dtype]
             if p_init.initializer:
@@ -319,44 +321,45 @@ struct Model[
             elif p_init.data:
                 # 2. Parameter initialized with data only
                 # Data is assumed to contain the tensor
-                par = g.params.get_tensor(i)
+                par = graph.params.get_tensor(i).copy()
             else:
                 # Default parameter initialization to zero
                 par = Tensor[dtype](p.shape)
 
             self.parameters.tensors.append(par ^, p)
 
-        for i in range(len(g.nodes)):
+        for i in range(len(graph.nodes)):
             # Assumption: An input or a param cannot be an output of a node
-            for j in range(len(g.nodes[i].outputs)):
+            for j in range(len(graph.nodes[i].outputs)):
                 self.parameters.tensors.append(
-                    Tensor[dtype](g.nodes[i].outputs[j].shape), g.nodes[i].outputs[j]
+                    Tensor[dtype](graph.nodes[i].outputs[j].shape), graph.nodes[i].outputs[j]
                 )
 
-    fn allocate_grad_memory(mut self):
+    def allocate_grad_memory(mut self):
         # Gradient have same shape as the tensor
-        for i in range(len(g.inputs)):
-            if g.inputs[i].trainable:
+        var graph = materialize[g]()
+        for i in range(len(graph.inputs)):
+            if graph.inputs[i].trainable:
                 self.parameters.grads.append(
-                    Tensor[dtype](g.inputs[i].shape), g.inputs[i]
+                    Tensor[dtype](graph.inputs[i].shape), graph.inputs[i]
                 )
 
-        for i in range(len(g.params)):
-            var grad = g.params.symbols[i]
+        for i in range(len(graph.params)):
+            var grad = graph.params.symbols[i]
             if grad.trainable:
                 self.parameters.grads.append(Tensor[dtype](grad.shape), grad)
 
-        for i in range(len(g.nodes)):
-            for j in range(len(g.nodes[i].outputs)):
-                var out = g.nodes[i].outputs[j]
+        for i in range(len(graph.nodes)):
+            for j in range(len(graph.nodes[i].outputs)):
+                var out = graph.nodes[i].outputs[j]
                 if out.trainable:
                     self.parameters.grads.append(Tensor[dtype](out.shape), out)
 
-    fn print_perf_metrics(self, time_format: String = "ns", print_shape: Bool = False):
+    def print_perf_metrics(self, time_format: String = "ns", print_shape: Bool = False):
         self.perf_metrics.print_forward_perf_metrics(time_format, print_shape)
         self.perf_metrics.print_backward_perf_metrics(time_format, print_shape)
 
-    fn load_model_data(mut self, model_path: String):  
+    def load_model_data(mut self, model_path: String):
         var path = Path(model_path)
         print("Loading model data from:", path)
 
@@ -368,7 +371,7 @@ struct Model[
         except e:
             print("Error loading model data:", e)
 
-    fn export_model(mut self, model_path: String):
+    def export_model(mut self, model_path: String):
         var path = Path(model_path)
         print("Exporting model to:", path)
 

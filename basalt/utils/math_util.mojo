@@ -1,5 +1,5 @@
 @always_inline
-fn add[
+def add[
     dtype: DType, simd_width: Int
 ](a: SIMD[dtype, simd_width], b: SIMD[dtype, simd_width]) -> SIMD[
     dtype, simd_width
@@ -8,7 +8,7 @@ fn add[
 
 
 @always_inline
-fn sub[
+def sub[
     dtype: DType, simd_width: Int
 ](a: SIMD[dtype, simd_width], b: SIMD[dtype, simd_width]) -> SIMD[
     dtype, simd_width
@@ -17,7 +17,7 @@ fn sub[
 
 
 @always_inline
-fn mul[
+def mul[
     dtype: DType, simd_width: Int
 ](a: SIMD[dtype, simd_width], b: SIMD[dtype, simd_width]) -> SIMD[
     dtype, simd_width
@@ -26,7 +26,7 @@ fn mul[
 
 
 @always_inline
-fn div[
+def div[
     dtype: DType, simd_width: Int
 ](a: SIMD[dtype, simd_width], b: SIMD[dtype, simd_width]) -> SIMD[
     dtype, simd_width
@@ -35,7 +35,7 @@ fn div[
 
 
 @always_inline
-fn round_simd[
+def round_simd[
     dtype: DType, simd_width: Int
 ](x: SIMD[dtype, simd_width]) -> SIMD[dtype, simd_width]:
     return round(x)

@@ -7,7 +7,7 @@ from basalt.utils.collection import Collection
 from basalt.utils.math_util import add, sub, mul, div
 
 
-fn get_trainable_parameters(g: Graph) -> List[Symbol]:
+def get_trainable_parameters(g: Graph) -> List[Symbol]:
     """
     Get all symbols of trainable parameters.
     """
@@ -21,12 +21,11 @@ fn get_trainable_parameters(g: Graph) -> List[Symbol]:
     return trainable_parameters ^
 
 
-@value
 struct Adam[
     g: Graph,
     trainable_parameters: List[Symbol] = get_trainable_parameters(g),
 ]:
-    var parameters: Pointer[Parameters, MutableAnyOrigin]
+    var parameters: Pointer[Parameters, MutAnyOrigin]
 
     var lr: Scalar[dtype]
     var beta1: Scalar[dtype]
@@ -37,9 +36,9 @@ struct Adam[
     var rms_grads: Collection
     var momentum_grads: Collection
 
-    fn __init__(
+    def __init__(
         out self,
-        ref[MutableAnyOrigin] parameters: Parameters,
+        ref[MutAnyOrigin] parameters: Parameters,
         lr: Scalar[dtype] = 0.001,
         beta1: Scalar[dtype] = 0.9,
         beta2: Scalar[dtype] = 0.999,
@@ -54,27 +53,29 @@ struct Adam[
         self.epsilon = epsilon
         self.iter = 0
 
+        var tr = materialize[trainable_parameters]()
         # Capacity of the collections should be the n of trainable parameters
-        self.rms_grads = Collection(capacity=len(trainable_parameters))
-        self.momentum_grads = Collection(capacity=len(trainable_parameters))
+        self.rms_grads = Collection(capacity=len(tr))
+        self.momentum_grads = Collection(capacity=len(tr))
 
         self.allocate_rms_and_momentum()
 
-    fn zero_grad(mut self):
+    def zero_grad(mut self):
         """Set all gradients to zero."""
         self.parameters[].grads.set_zero()
 
-    fn step(mut self):
+    def step(mut self):
         """Update model parameters."""
         self.iter += 1
+        var tr = materialize[trainable_parameters]()
 
         # Loop over all trainable parameters
         @parameter
-        fn p_step(i: Int):
-            var param = trainable_parameters[i]
+        def p_step(i: Int):
+            var param = tr[i]
 
             @parameter
-            fn v_step[nelts: Int](j: Int):
+            def v_step[nelts: Int](j: Int):
                 var momentum_grads = self.momentum_grads[param].load[nelts](j)
                 var rms_grads = self.rms_grads[param].load[nelts](j)
                 var grads = self.parameters[].grads[param].load[nelts](j)
@@ -106,12 +107,13 @@ struct Adam[
 
             vectorize[v_step, 1](param.shape.num_elements())
 
-        parallelize[p_step](len(trainable_parameters))
+        parallelize[p_step](len(tr))
 
-    fn allocate_rms_and_momentum(mut self):
+    def allocate_rms_and_momentum(mut self):
         # They are initialized to zero
         # Loop over all trainable parameters
-        for i in range(len(trainable_parameters)):
-            var param = trainable_parameters[i]
+        var tr = materialize[trainable_parameters]()
+        for i in range(len(tr)):
+            var param = tr[i]
             self.rms_grads.append(Tensor[dtype](param.shape), param)
             self.momentum_grads.append(Tensor[dtype](param.shape), param)

@@ -26,7 +26,7 @@ fn linear_regression(batch_size: Int, n_inputs: Int, n_outputs: Int) -> Graph:
 fn main():
     # Train Parameters
     alias batch_size = 32
-    alias num_epochs = 200
+    alias num_epochs = 20
     alias learning_rate = 0.02
 
     alias graph = linear_regression(batch_size, 13, 1)
@@ -55,9 +55,9 @@ fn main():
     for epoch in range(num_epochs):
         var num_batches: Int = 0
         var epoch_loss: Float32 = 0.0
-        for batch in training_loader:
+        for ref batch in training_loader:
             # Forward pass
-            var loss = model.forward(batch.data, batch.labels)
+            var loss = model.forward(batch.data.copy(), batch.labels.copy()).copy()
 
             # Backward pass
             optim.zero_grad()

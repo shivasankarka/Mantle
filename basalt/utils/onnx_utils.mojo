@@ -14,7 +14,7 @@ from .tensor_creation_utils import to_numpy, copy_np_data
 # NOTE: Torch doesn't import onnx, need onnx2torch and it doesn't support operators like reshape?
 
 
-fn make_onnx_attribute(op: OP, attr: Attribute) raises -> PythonObject:
+def make_onnx_attribute(op: OP, attr: Attribute) raises -> PythonObject:
     var onnx = Python.import_module("onnx")
     var onnx_helper = Python.import_module("onnx.helper")
 
@@ -56,7 +56,7 @@ fn make_onnx_attribute(op: OP, attr: Attribute) raises -> PythonObject:
     return onnx_helper.make_attribute(attr_name, attr_value)
 
 
-fn make_onnx_operator_type(op_type: OP) raises -> String:
+def make_onnx_operator_type(op_type: OP) raises -> String:
     if op_type == OP.ADD:
         return "Add"
     elif op_type == OP.SUB:
@@ -114,7 +114,7 @@ fn make_onnx_operator_type(op_type: OP) raises -> String:
 
 
 # --- Loader and exporter ---
-fn load_onnx_model(
+def load_onnx_model(
     model_path: Path, inout model_parameters: Parameters, g: Graph
 ) raises:
     # Simple onnx data loader where we load the data in order (so we need to have the correct order of the weights and biases in the model. We don't use the names for the loading)
@@ -174,7 +174,7 @@ fn load_onnx_model(
             raise Error("Unsupported data type")
 
 
-fn create_attributes_and_constant_inputs(node: Node, node_number: Int) raises -> (List[PythonObject], List[PythonObject]):
+def create_attributes_and_constant_inputs(node: Node, node_number: Int) raises -> (List[PythonObject], List[PythonObject]):
     var onnx = Python.import_module("onnx")
     var np = Python.import_module("numpy")
 
@@ -185,7 +185,7 @@ fn create_attributes_and_constant_inputs(node: Node, node_number: Int) raises ->
         var attr = node.attributes[i]
 
         @parameter
-        fn to_np_array(attr: Attribute) raises -> PythonObject:
+        def to_np_array(attr: Attribute) raises -> PythonObject:
             if not attr.type == AttributeType.INTS:
                 raise Error("Attribute is not a shape")
 
@@ -251,7 +251,7 @@ fn create_attributes_and_constant_inputs(node: Node, node_number: Int) raises ->
     return (attributes, inputs)
 
 
-fn export_onnx_model(model_path: Path, inout model_parameters: Parameters, g: Graph) raises:
+def export_onnx_model(model_path: Path, inout model_parameters: Parameters, g: Graph) raises:
     # Create onnx model with data and nodes
     var onnx = Python.import_module("onnx")
     var onnx_helper = Python.import_module("onnx.helper")

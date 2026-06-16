@@ -1,9 +1,9 @@
 from math import nan
 from utils.numerics import inf
 from utils.static_tuple import StaticTuple
+from sys.info import size_of
 
-alias ScalarBytes = DType.uint64.sizeof()
-
+comptime ScalarBytes = size_of[DType.uint64]()
 
 @register_passable("trivial")
 struct Bytes[capacity: Int](Stringable, Copyable, Movable, EqualityComparable):
@@ -13,7 +13,7 @@ struct Bytes[capacity: Int](Stringable, Copyable, Movable, EqualityComparable):
 
     var data: StaticTuple[UInt8, capacity]
 
-    fn __init__(out self):
+    def __init__(out self):
         var data = StaticTuple[UInt8, capacity](0)
 
         for i in range(capacity):
@@ -21,7 +21,7 @@ struct Bytes[capacity: Int](Stringable, Copyable, Movable, EqualityComparable):
 
         self.data = data
 
-    fn __init__(out self, s: String):
+    def __init__(out self, s: String):
         var data = StaticTuple[UInt8, capacity](0)
         var length = len(s)
 
@@ -31,33 +31,33 @@ struct Bytes[capacity: Int](Stringable, Copyable, Movable, EqualityComparable):
         self.data = data
 
     @always_inline("nodebug")
-    fn __len__(self) -> Int:
+    def __len__(self) -> Int:
         return capacity
 
     @always_inline("nodebug")
-    fn __setitem__(mut self, index: Int, value: UInt8):
+    def __setitem__(mut self, index: Int, value: UInt8):
         self.data[index] = value
 
     @always_inline("nodebug")
-    fn __getitem__(self, index: Int) -> UInt8:
+    def __getitem__(self, index: Int) -> UInt8:
         return self.data[index]
 
     @always_inline("nodebug")
-    fn __eq__(self, other: Self) -> Bool:
+    def __eq__(self, other: Self) -> Bool:
         for i in range(capacity):
             if self[i] != other[i]:
                 return False
         return True
 
     @always_inline("nodebug")
-    fn __ne__(self, other: Self) -> Bool:
+    def __ne__(self, other: Self) -> Bool:
         for i in range(capacity):
             if self[i] != other[i]:
                 return True
         return False
 
     @always_inline("nodebug")
-    fn __str__(self) -> String:
+    def __str__(self) -> String:
         var result: String = ""
 
         for i in range(capacity):
@@ -68,7 +68,7 @@ struct Bytes[capacity: Int](Stringable, Copyable, Movable, EqualityComparable):
         return result
 
 
-fn scalar_to_bytes[
+def scalar_to_bytes[
     dtype: DType, Size: Int = ScalarBytes
 ](value: Scalar[dtype]) -> Bytes[Size]:
     constrained[Size >= ScalarBytes, "Size must be at least ${ScalarBytes}"]()
@@ -82,7 +82,7 @@ fn scalar_to_bytes[
     return data
 
 
-fn bytes_to_scalar[dtype: DType](data: Bytes) -> Scalar[dtype]:
+def bytes_to_scalar[dtype: DType](data: Bytes) -> Scalar[dtype]:
     constrained[data.capacity >= ScalarBytes, "Size must be at least ${ScalarBytes}"]()
 
     var bits: UInt64 = 0
@@ -93,7 +93,7 @@ fn bytes_to_scalar[dtype: DType](data: Bytes) -> Scalar[dtype]:
     return bitcast[expand_type[dtype]()](bits).cast[dtype]()
 
 
-fn expand_type[dtype: DType]() -> DType:
+def expand_type[dtype: DType]() -> DType:
     @parameter
     if dtype.is_floating_point():
         return DType.float64
@@ -101,6 +101,6 @@ fn expand_type[dtype: DType]() -> DType:
         return DType.int64
     elif dtype.is_integral():
         return DType.uint64
-    
+
     constrained[False, "Type must be numeric"]()
     return DType.invalid

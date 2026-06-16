@@ -7,24 +7,23 @@ from .symbol import Symbol
 from .attributes import Attribute
 
 
-@value
-struct Param(Copyable, Movable, Stringable):
+struct Param(ImplicitlyCopyable, Movable, Stringable):
     var data: Optional[List[Scalar[dtype]]]
     var initializer: Optional[Attribute]
 
-    fn __init__(out self):
+    def __init__(out self):
         self.data = None
         self.initializer = None
 
-    fn __init__(out self, data: List[Scalar[dtype]]):
-        self.data = data
+    def __init__(out self, data: List[Scalar[dtype]]):
+        self.data = data.copy()
         self.initializer = None
 
-    fn __init__(out self, data: Scalar[dtype]):
+    def __init__(out self, data: Scalar[dtype]):
         self.data = List[Scalar[dtype]](data)
         self.initializer = None
 
-    fn __init__(out self, initializer: String, *args: Scalar[dtype]):
+    def __init__(out self, initializer: String, *args: Scalar[dtype]):
         # Supported initializers:
         #   "random_uniform", lower_bound, upper_bound
         #   "random_normal", mean, std
@@ -34,18 +33,18 @@ struct Param(Copyable, Movable, Stringable):
         var data = List[Scalar[dtype]]()
         for arg in args:
             data.append(arg)
-        self.data = data
+        self.data = data.copy()
 
-    fn __getitem__(self, i: Int) -> Optional[Scalar[dtype]]:
+    def __getitem__(self, i: Int) -> Optional[Scalar[dtype]]:
         if self.data:
             return self.data.value()[i]
         else:
             return None
 
-    fn __str__(self) -> String:
+    def __str__(self) -> String:
         var s: String = ""
         if self.data:
-            var data = self.data.value()
+            ref data = self.data.value()
             s += "["
             for i in range(len(data)):
                 s += String(data[i])
@@ -55,26 +54,26 @@ struct Param(Copyable, Movable, Stringable):
         return s
 
 
-@value
-struct ParamDict(Sized):
+struct ParamDict(Sized, Copyable, Movable):
     var symbols: List[Symbol]
     var values: List[Param]
 
-    fn __init__(out self):
+    def __init__(out self):
         self.symbols = List[Symbol]()
         self.values = List[Param]()
 
-    fn put(mut self, param_id: Symbol, value: Param = Param()):
+    def put(mut self, param_id: Symbol, value: Param = Param()):
         self.symbols.append(param_id)
         self.values.append(value)
 
-    fn get_tensor(self, idx: Int) -> Tensor[dtype]:
+    def get_tensor(self, idx: Int) -> Tensor[dtype]:
         # May only be called at runtime
         var num = self.symbols[idx].shape.num_elements()
-        var t = UnsafePointer[Scalar[dtype]].alloc(num)
+        # var t = UnsafePointer[Scalar[dtype]].alloc(num)
+        var t = alloc[Scalar[dtype]](num)
         for i in range(num):
             t[i] = self.values[idx][i].value()
         return Tensor[dtype](t, self.symbols[idx].shape)
 
-    fn __len__(self) -> Int:
+    def __len__(self) -> Int:
         return len(self.symbols)

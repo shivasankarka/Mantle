@@ -1,24 +1,24 @@
 from basalt import Tensor, TensorShape
 
+# I don't know what's the shape doing yet and why there's no initializer
 
-@value
 @register_passable("trivial")
-struct Symbol(Copyable, Movable, Stringable, EqualityComparable):
-    var name: UInt32
+struct Symbol(ImplicitlyCopyable, Movable, Stringable, EqualityComparable):
+    var name: UInt32 # name of the symbol
     var dtype: DType
     var shape: TensorShape
     var trainable: Bool
 
-    fn __eq__(self, other: Self) -> Bool:
+    def __eq__(self, other: Self) -> Bool:
         return self.name == other.name
 
-    fn __ne__(self, other: Self) -> Bool:
+    def __ne__(self, other: Self) -> Bool:
         return self.name != other.name
 
-    fn __str__(self) -> String:
+    def __str__(self) -> String:
         return self.json()
 
-    fn json(self) -> String:
+    def json(self) -> String:
         return (
             '{"name": "'
             + String(self.name)

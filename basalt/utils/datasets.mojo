@@ -6,18 +6,18 @@ from basalt.utils.tensorutils import elwise_op, tmean, tstd
 
 
 @always_inline
-fn div[dtype: DType, simd_width: Int](a: SIMD[dtype, simd_width], b: Scalar[dtype]) -> SIMD[dtype, simd_width]:
+def div[dtype: DType, simd_width: Int](a: SIMD[dtype, simd_width], b: Scalar[dtype]) -> SIMD[dtype, simd_width]:
     return a / b
 
 
 struct BostonHousing:
-    alias n_inputs = 13
+    comptime n_inputs = 13
 
     var data: Tensor[dtype]
     var labels: Tensor[dtype]
 
-    fn __init__(out self, file_path: String) raises:
-        var s = read_file(file_path)
+    def __init__(out self, file_path: String) raises:
+        var s = open(file_path, "r").read()
         # Skip the first and last lines
         # This does assume your last line in the file has a newline at the end
         var list_of_lines = s.split("\n")[1:-1]
@@ -32,7 +32,8 @@ struct BostonHousing:
 
         # Load data in Tensor
         for item in range(N):
-            line = list_of_lines[item].split(",")
+            line = List[String](list_of_lines[item].split(","))
+            # var line_strings = List[String](line)
             self.labels[item] = cast_string[dtype](line[-1])
 
             for n in range(self.n_inputs):
@@ -40,7 +41,7 @@ struct BostonHousing:
 
         # Normalize data
         # TODO: redo when tensorutils tmean2 and tstd2 are implemented
-        alias nelts = simdwidthof[dtype]()
+        comptime nelts = simdwidthof[dtype]()
         var col = Tensor[dtype](N)
         for j in range(self.n_inputs):
             for k in range(N):
@@ -53,8 +54,9 @@ struct MNIST:
     var data: Tensor[dtype]
     var labels: Tensor[dtype]
 
-    fn __init__(out self, file_path: String) raises:
-        var s = read_file(file_path)
+    def __init__(out self, file_path: String) raises:
+        # var s = read_file(file_path)
+        var s = open(file_path, "r").read()
         # Skip the first and last lines
         # This does assume your last line in the file has a newline at the end
         var list_of_lines = s.split("\n")[1:-1]
@@ -75,30 +77,30 @@ struct MNIST:
                     self.data[item * 28 * 28 + i * 28 + j] = atol(line[i * 28 + j + 1])
 
         # Normalize data
-        alias nelts = simdwidthof[dtype]()
+        comptime nelts = simdwidthof[dtype]()
 
         @parameter
-        fn vecdiv[nelts: Int](idx: Int):
+        def vecdiv[nelts: Int](idx: Int):
             self.data.store[nelts](idx, div(self.data.load[nelts](idx), 255.0))
 
         vectorize[vecdiv, nelts](self.data.num_elements())
 
 
-fn read_file(file_path: String) raises -> String:
+def read_file(file_path: String) raises -> String:
     var s: String
     with open(file_path, "r") as f:
         s = f.read()
     return s
 
 
-fn find_first(s: String, delimiter: String) -> Int:
+def find_first(s: String, delimiter: String) -> Int:
     for i in range(len(s)):
         if s[i] == delimiter:
             return i
     return -1
 
 
-fn cast_string[dtype: DType](s: String) raises -> Scalar[dtype]:
+def cast_string[dtype: DType](s: String) raises -> Scalar[dtype]:
     """
     Cast a string with decimal to a SIMD vector of dtype.
     """

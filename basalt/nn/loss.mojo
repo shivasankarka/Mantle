@@ -3,7 +3,7 @@ from basalt import Tensor, TensorShape
 from basalt import Graph, Symbol, OP
 
 
-fn MSELoss(
+def MSELoss(
     mut g: Graph,
     y_pred: Symbol,
     y_true: Symbol,
@@ -17,7 +17,7 @@ fn MSELoss(
     return mean_loss
 
 
-fn CrossEntropyLoss(
+def CrossEntropyLoss(
     mut g: Graph,
     y_pred: Symbol,
     y_true: Symbol,

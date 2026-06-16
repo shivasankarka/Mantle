@@ -7,7 +7,7 @@ from basalt.autograd.attributes import AttributeVector, Attribute
 from utils.index import IndexList
 
 
-fn Conv2d(
+def Conv2d(
     mut g: Graph,
     inputs: Symbol,
     out_channels: Int,

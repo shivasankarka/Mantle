@@ -5,29 +5,36 @@ from utils.index import IndexList
 from basalt.nn.tensor import Tensor, TensorShape, MAX_RANK
 from basalt.utils.bytes import Bytes, scalar_to_bytes, bytes_to_scalar
 
+# Figure out what this attribute does in this code.
+# 1) AttributeType seems to be defining some container for the type being used with fixed size
+#
+#
+#
+#
 
-alias MAX_ATTRS = 10
-alias MAX_NAME_CHARS = 16
-alias MAX_DATA_BYTES = 32
+
+comptime MAX_ATTRS = 10
+comptime MAX_NAME_CHARS = 16
+comptime MAX_DATA_BYTES = 32
 
 
 @register_passable("trivial")
 struct AttributeType(Stringable):
-    alias BOOL = AttributeType(0, "BOOL")
-    alias INT = AttributeType(1, "INT")
-    alias FLOAT = AttributeType(2, "FLOAT")
-    alias STRING = AttributeType(3, "STRING")
-    alias INTS = AttributeType(4, "INTS")
-    alias FLOATS = AttributeType(5, "FLOATS")
+    comptime BOOL = AttributeType(0, "BOOL")
+    comptime INT = AttributeType(1, "INT")
+    comptime FLOAT = AttributeType(2, "FLOAT")
+    comptime STRING = AttributeType(3, "STRING")
+    comptime INTS = AttributeType(4, "INTS")
+    comptime FLOATS = AttributeType(5, "FLOATS")
 
     var id: UInt8
-    var name: Bytes[MAX_NAME_CHARS]
+    var name: Bytes[MAX_NAME_CHARS] #
 
-    fn __init__(out self, id: UInt8, name: String):
+    def __init__(out self, id: UInt8, name: String):
         self.id = id
         self.name = Bytes[MAX_NAME_CHARS](name)
 
-    fn __init__(out self, type: DType):
+    def __init__(out self, type: DType):
         if type.is_floating_point():
             self = AttributeType.FLOAT
         elif type == DType.bool:
@@ -35,10 +42,10 @@ struct AttributeType(Stringable):
         else:
             self = AttributeType.INT
 
-    fn __eq__(self, other: Self) -> Bool:
+    def __eq__(self, other: Self) -> Bool:
         return self.id == other.id
 
-    fn __str__(self) -> String:
+    def __str__(self) -> String:
         return String(self.name)
 
 
@@ -47,28 +54,28 @@ struct AttributeVector(Sized, Stringable, Copyable, Movable):
     var attributes: StaticTuple[Attribute, MAX_ATTRS]
     var size: Int
 
-    fn __init__(out self, *attributes: Attribute):
+    def __init__(out self, *attributes: Attribute):
         self.attributes = StaticTuple[Attribute, MAX_ATTRS](Attribute("", ""))
         self.size = len(attributes)
         for i in range(self.size):
             self.attributes[i] = attributes[i]
 
     @always_inline("nodebug")
-    fn __len__(self) -> Int:
+    def __len__(self) -> Int:
         return self.size
 
     @always_inline("nodebug")
-    fn __getitem__(self, index: Int) -> Attribute:
+    def __getitem__(self, index: Int) -> Attribute:
         return self.attributes[index]
 
     @always_inline("nodebug")
-    fn __getitem__(self, index: StringLiteral) -> OptionalReg[Attribute]:
+    def __getitem__(self, index: StringLiteral) -> OptionalReg[Attribute]:
         for i in range(self.size):
             if self.attributes[i].name == Bytes[MAX_NAME_CHARS](index):
                 return self.attributes[i]
         return None
 
-    fn __str__(self) -> String:
+    def __str__(self) -> String:
         var s: String = "["
         for i in range(self.size):
             s += String(self.attributes[i])
@@ -85,14 +92,14 @@ struct Attribute(Stringable, Copyable, Movable):
     var type: AttributeType
     var size: Int
 
-    fn __init__(out self, name: String, value: String):
+    def __init__(out self, name: String, value: String):
         self.data_shape = IndexList[MAX_RANK]()
         self.name = Bytes[MAX_NAME_CHARS](name)
         self.data = Bytes[MAX_DATA_BYTES](value)
         self.type = AttributeType.STRING
         self.size = len(value)
 
-    fn __init__(out self, name: String, value: TensorShape):
+    def __init__(out self, name: String, value: TensorShape):
         self.data_shape = IndexList[MAX_RANK]()
         self.name = Bytes[MAX_NAME_CHARS](name)
         self.data = Bytes[MAX_DATA_BYTES]()
@@ -102,7 +109,7 @@ struct Attribute(Stringable, Copyable, Movable):
         for i in range(self.size):
             self.data_shape[i] = value._shape[i]
 
-    fn __init__[N: Int](out self, name: String, value: IndexList[N]):
+    def __init__[N: Int](out self, name: String, value: IndexList[N]):
         constrained[N < MAX_RANK, "Attribute rank must be less than MAX_RANK."]()
 
         self.data_shape = IndexList[MAX_RANK]()
@@ -114,7 +121,7 @@ struct Attribute(Stringable, Copyable, Movable):
         for i in range(self.size):
             self.data_shape[i] = value[i]
 
-    fn __init__(out self, name: String, value: List[Int]):
+    def __init__(out self, name: String, value: List[Int]):
         self.data_shape = IndexList[MAX_RANK]()
         self.name = Bytes[MAX_NAME_CHARS](name)
         self.data = Bytes[MAX_DATA_BYTES]()
@@ -124,7 +131,7 @@ struct Attribute(Stringable, Copyable, Movable):
         for i in range(self.size):
             self.data_shape[i] = value[i]
 
-    fn __init__(out self, name: String, value: StaticTuple[Int, _]):
+    def __init__(out self, name: String, value: StaticTuple[Int, _]):
         self.data_shape = IndexList[MAX_RANK]()
         self.name = Bytes[MAX_NAME_CHARS](name)
         self.data = Bytes[MAX_DATA_BYTES]()
@@ -134,7 +141,7 @@ struct Attribute(Stringable, Copyable, Movable):
         for i in range(self.size):
             self.data_shape[i] = value[i]
 
-    fn __init__[dtype: DType](out self, name: String, value: Scalar[dtype]):
+    def __init__[dtype: DType](out self, name: String, value: Scalar[dtype]):
         constrained[dtype.is_numeric(), "Attribute value must be numeric."]()
 
         self.data_shape = IndexList[MAX_RANK]()
@@ -143,24 +150,24 @@ struct Attribute(Stringable, Copyable, Movable):
         self.type = AttributeType(dtype)
         self.size = 1
 
-    fn __init__(out self, name: String, value: Int):
-        self.__init__(name, Int64(value))
+    def __init__(out self, name: String, value: Int):
+        self = Self.__init__(name, Int64(value))
         self.data_shape[0] = 1
 
-    fn __init__(out self, name: String, value: FloatLiteral):
-        self.__init__(name, Float64(value))
+    def __init__(out self, name: String, value: FloatLiteral):
+        self = Self.__init__(name, Float64(value))
         self.data_shape[0] = 1
 
     @always_inline("nodebug")
-    fn __str__(self) -> String:
+    def __str__(self) -> String:
         return "Attribute(" + String(self.name) + ", " + "..." + ")"
 
     @always_inline("nodebug")
-    fn to_string(self) -> String:
+    def to_string(self) -> String:
         return String(self.data)
 
     @always_inline("nodebug")
-    fn to_list(self) -> List[Int]:
+    def to_list(self) -> List[Int]:
         var result = List[Int]()
 
         for i in range(self.size):
@@ -169,11 +176,11 @@ struct Attribute(Stringable, Copyable, Movable):
         return result
 
     @always_inline("nodebug")
-    fn to_shape(self) -> TensorShape:
+    def to_shape(self) -> TensorShape:
         return TensorShape(rank=self.size, shape=self.data_shape)
 
     @always_inline("nodebug")
-    fn to_static[N: Int](self) -> IndexList[N]:
+    def to_static[N: Int](self) -> IndexList[N]:
         constrained[N < MAX_RANK, "Attribute rank must be less than MAX_RANK."]()
 
         var result = IndexList[N]()
@@ -184,16 +191,16 @@ struct Attribute(Stringable, Copyable, Movable):
         return result
 
     @always_inline("nodebug")
-    fn to_scalar[dtype: DType](self) -> Scalar[dtype]:
+    def to_scalar[dtype: DType](self) -> Scalar[dtype]:
         constrained[dtype.is_numeric(), "Attribute value must be numeric."]()
 
         return bytes_to_scalar[dtype](self.data)
 
     @always_inline("nodebug")
-    fn to_int(self) -> Int:
+    def to_int(self) -> Int:
         return Int(self.to_scalar[DType.int64]())
 
-    fn json(self) -> String:
+    def json(self) -> String:
         var result = '{"name": "' + String(self.name) + '", '
 
         var type: String = ""

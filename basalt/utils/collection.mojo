@@ -11,22 +11,23 @@ struct Collection(Copyable, Movable, Sized):
 
     var size: Int
     var capacity: Int
-    var data: UnsafePointer[Tensor[dtype]]
-    var symbols: UnsafePointer[Scalar[DType.uint32]]
+    var data: UnsafePointer[Tensor[dtype], MutOrigin.external]
+    var symbols: UnsafePointer[Scalar[DType.uint32], MutOrigin.external]
 
     @always_inline("nodebug")
-    fn __init__(out self, *, capacity: Int = 1):
+    def __init__(out self, *, capacity: Int = 1):
         """
         Initializes a new Collection with the given capacity.
         """
         self.size = 0
         self.capacity = capacity
-        self.data = UnsafePointer[Tensor[dtype]].alloc(capacity)
+        self.data = alloc[Tensor[dtype]](capacity)
         UnsafePointer.init_pointee_move((self.data + self.size), Tensor[dtype]())
-        self.symbols = UnsafePointer[Scalar[DType.uint32]].alloc(capacity)
+        # self.symbols = UnsafePointer[Scalar[DType.uint32]].alloc(capacity)
+        self.symbols = alloc[Scalar[DType.uint32]](capacity)
 
     @always_inline("nodebug")
-    fn __moveinit__(out self, owned existing: Self):
+    def __moveinit__(out self, deinit existing: Self):
         """
         Move initializes a Collection from an existing one.
         """
@@ -36,21 +37,23 @@ struct Collection(Copyable, Movable, Sized):
         self.symbols = existing.symbols
 
     @always_inline("nodebug")
-    fn __copyinit__(out self, existing: Self):
+    def __copyinit__(out self, existing: Self):
         """
         Copy initializes a Collection from an existing one.
         """
         self.capacity = existing.capacity
         self.size = existing.size
-        self.data = UnsafePointer[Tensor[dtype]].alloc(existing.capacity)
-        self.symbols = UnsafePointer[Scalar[DType.uint32]].alloc(existing.capacity)
-        memcpy(self.symbols, existing.symbols, existing.capacity)
+        # self.data = UnsafePointer[Tensor[dtype]].alloc(existing.capacity)
+        # self.symbols = UnsafePointer[Scalar[DType.uint32]].alloc(existing.capacity)
+        self.data = alloc[Tensor[dtype]](existing.capacity)
+        self.symbols = alloc[Scalar[DType.uint32]](existing.capacity)
+        memcpy(dest=self.symbols, src=existing.symbols, count=existing.capacity)
 
         for i in range(existing.size):
-            UnsafePointer.init_pointee_move((self.data + i), (existing.data + i)[])
+            UnsafePointer.init_pointee_move((self.data + i), (existing.data + i)[].copy())
 
     @always_inline("nodebug")
-    fn __del__(owned self):
+    def __del__(deinit self):
         """
         Destructor for the Collection.
         """
@@ -62,22 +65,24 @@ struct Collection(Copyable, Movable, Sized):
             self.symbols.free()
 
     @always_inline("nodebug")
-    fn __len__(self) -> Int:
+    def __len__(self) -> Int:
         """
         Returns the number of elements in the Collection.
         """
         return self.size
 
     @always_inline("nodebug")
-    fn _realloc(mut self, new_capacity: Int):
+    def _realloc(mut self, new_capacity: Int):
         """
         Reallocates the Collection to the new capacity.
         """
-        var new_data = UnsafePointer[Tensor[dtype]].alloc(new_capacity)
-        var new_symbols = UnsafePointer[Scalar[DType.uint32]].alloc(new_capacity)
+        # var new_data = UnsafePointer[Tensor[dtype]].alloc(new_capacity)
+        var new_data = alloc[Tensor[dtype]](new_capacity)
+        # var new_symbols = UnsafePointer[Scalar[DType.uint32]].alloc(new_capacity)
+        var new_symbols = alloc[Scalar[DType.uint32]](new_capacity)
 
         for i in range(self.size):
-            UnsafePointer.init_pointee_move((new_data + i), (self.data + i)[])
+            UnsafePointer.init_pointee_move((new_data + i), (self.data + i)[].copy())
             new_symbols[i] = self.symbols[i]
 
         self.data.free()
@@ -88,14 +93,14 @@ struct Collection(Copyable, Movable, Sized):
         self.capacity = new_capacity
 
     @always_inline("nodebug")
-    fn append(mut self, owned value: Tensor[dtype], symbol: Symbol):
+    def append(mut self, var value: Tensor[dtype], symbol: Symbol):
         """
         Appends a tensor and its associated symbol to the Collection.
         """
         self.append(value ^, symbol.name)
 
     @always_inline("nodebug")
-    fn append(mut self, owned value: Tensor[dtype], symbol_name: UInt32):
+    def append(mut self, var value: Tensor[dtype], symbol_name: UInt32):
         """
         Appends a tensor and its associated symbol name to the Collection.
         """
@@ -106,11 +111,11 @@ struct Collection(Copyable, Movable, Sized):
         self.size += 1
 
     @always_inline("nodebug")
-    fn get_index(self, symbol_name: UInt32) -> Int:
+    def get_index(self, symbol_name: UInt32) -> Int:
         """
         Returns the index of the tensor with the given symbol name.
-        """        
-        alias factor = 8
+        """
+        comptime factor = 8
         # 2 -> 5.32s MNIST
         # 4 -> 4.95s MNIST
         # 8 -> 4.85s MNIST
@@ -121,20 +126,20 @@ struct Collection(Copyable, Movable, Sized):
             var elems = self.symbols.load[width=factor](i) == symbol_name
 
             for j in range(factor):
-                if elems[j]: 
+                if elems[j]:
                     return i + j
 
         var split = divmod(self.size, factor)
 
         for i in range(split[1]):
             var index = split[0] + i
-            
+
             if self.symbols[index] == symbol_name:
                 return index
 
         return -1
 
-    fn __getitem__(
+    def __getitem__(
         self,
         symbol: Symbol,
     ) -> ref[self.data[0]] Tensor[dtype]:
@@ -148,7 +153,7 @@ struct Collection(Copyable, Movable, Sized):
         return (self.data + index)[]
 
     @always_inline("nodebug")
-    fn clear(inout self):
+    def clear(inout self):
         """
         Clears the Collection, removing all tensors and symbols.
         """
@@ -158,7 +163,7 @@ struct Collection(Copyable, Movable, Sized):
         self.size = 0
 
     @always_inline("nodebug")
-    fn set_zero(self):
+    def set_zero(self):
         """
         Zeroes out all the tensors in the collection.
         """

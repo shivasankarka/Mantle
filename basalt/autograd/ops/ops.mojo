@@ -37,61 +37,60 @@ from ..attributes import AttributeVector
 
 
 # Define operators as named parameter expression
-@value
 @register_passable("trivial")
 struct OP(Stringable, Writable):
     """
     Compile time Operators list.
     """
 
-    alias ADD = OP(0, "ADD")
-    alias SUB = OP(1, "SUB")
-    alias MUL = OP(2, "MUL")
-    alias DIV = OP(3, "DIV")
-    alias EXP = OP(4, "EXP")
-    alias LOG = OP(5, "LOG")
-    alias POW = OP(6, "POW")
-    alias DOT = OP(7, "DOT")
-    alias SUM = OP(8, "SUM")
-    alias MEAN = OP(9, "MEAN")
-    alias MAX = OP(10, "MAX")
-    alias FLATTEN = OP(11, "FLATTEN")
-    alias RESHAPE = OP(12, "RESHAPE")
-    alias SIGMOID = OP(13, "SIGMOID")
-    alias RELU = OP(14, "RELU")
-    alias TANH = OP(15, "TANH")
-    alias CONV2D = OP(16, "CONV2D")
-    alias TRANSPOSE = OP(17, "TRANSPOSE")
-    alias MAXPOOL2D = OP(18, "MAXPOOL2D")
-    alias FMA = OP(19, "FMA")
-    alias CLIP = OP(20, "CLIP")
-    alias SQUEEZE = OP(21, "SQUEEZE")
-    alias UNSQUEEZE = OP(22, "UNSQUEEZE")
-    alias CONCAT = OP(23, "CONCAT", dynamic=True)
-    alias SPLIT = OP(24, "SPLIT", dynamic=True)
-    alias SLICE = OP(25, "SLICE")
-    alias LEAKYRELU = OP(28, "LEAKYRELU")
+    comptime ADD = OP(0, "ADD")
+    comptime SUB = OP(1, "SUB")
+    comptime MUL = OP(2, "MUL")
+    comptime DIV = OP(3, "DIV")
+    comptime EXP = OP(4, "EXP")
+    comptime LOG = OP(5, "LOG")
+    comptime POW = OP(6, "POW")
+    comptime DOT = OP(7, "DOT")
+    comptime SUM = OP(8, "SUM")
+    comptime MEAN = OP(9, "MEAN")
+    comptime MAX = OP(10, "MAX")
+    comptime FLATTEN = OP(11, "FLATTEN")
+    comptime RESHAPE = OP(12, "RESHAPE")
+    comptime SIGMOID = OP(13, "SIGMOID")
+    comptime RELU = OP(14, "RELU")
+    comptime TANH = OP(15, "TANH")
+    comptime CONV2D = OP(16, "CONV2D")
+    comptime TRANSPOSE = OP(17, "TRANSPOSE")
+    comptime MAXPOOL2D = OP(18, "MAXPOOL2D")
+    comptime FMA = OP(19, "FMA")
+    comptime CLIP = OP(20, "CLIP")
+    comptime SQUEEZE = OP(21, "SQUEEZE")
+    comptime UNSQUEEZE = OP(22, "UNSQUEEZE")
+    comptime CONCAT = OP(23, "CONCAT", dynamic=True)
+    comptime SPLIT = OP(24, "SPLIT", dynamic=True)
+    comptime SLICE = OP(25, "SLICE")
+    comptime LEAKYRELU = OP(28, "LEAKYRELU")
 
     var id: UInt8
     var name: Bytes[16]
     var dynamic: Bool
 
-    fn __init__(out self, id: UInt8, name: String, dynamic: Bool = False):
+    def __init__(out self, id: UInt8, name: String, dynamic: Bool = False):
         self.id = id
         self.name = Bytes[16](name)
         self.dynamic = dynamic
 
-    fn __eq__(self, other: OP) -> Bool:
+    def __eq__(self, other: OP) -> Bool:
         return self.id == other.id
-    
-    fn write_to[W: Writer](self, mut writer: W):
+
+    def write_to[W: Writer](self, mut writer: W):
         writer.write(String(self.name))
 
-    fn __str__(self) -> String:
+    def __str__(self) -> String:
         return String.write(self)
 
 
-fn static_result_shape(
+def static_result_shape(
     op: OP, operands: VariadicList[Symbol], attributes: AttributeVector
 ) -> TensorShape:
     """
@@ -116,7 +115,7 @@ fn static_result_shape(
         return TensorShape()
 
 
-fn static_result_shape(
+def static_result_shape(
     op: OP, t1_shape: TensorShape, attributes: AttributeVector
 ) -> TensorShape:
     """
@@ -161,7 +160,7 @@ fn static_result_shape(
         return TensorShape(-1)
 
 
-fn static_result_shape(
+def static_result_shape(
     op: OP,
     t1_shape: TensorShape,
     t2_shape: TensorShape,
@@ -188,7 +187,7 @@ fn static_result_shape(
         return TensorShape(-1, -1)
 
 
-fn static_result_shape(
+def static_result_shape(
     op: OP,
     t1_shape: TensorShape,
     t2_shape: TensorShape,
@@ -208,7 +207,7 @@ fn static_result_shape(
         return TensorShape(-1, -1)
 
 
-fn dynamic_result_shape(
+def dynamic_result_shape(
     op: OP,
     operands: VariadicList[Symbol],
     attributes: AttributeVector,
@@ -230,7 +229,7 @@ fn dynamic_result_shape(
         return List[TensorShape](TensorShape(-1))
 
 
-fn forward_op[
+def forward_op[
     op: OP, t1_shape: TensorShape, attributes: AttributeVector
 ](mut res: Tensor[dtype], t1: Tensor[dtype]):
     """
@@ -276,7 +275,7 @@ fn forward_op[
         print("[ERROR] Operator not found.")
 
 
-fn forward_op[
+def forward_op[
     op: OP,
     t1_shape: TensorShape,
     t2_shape: TensorShape,
@@ -303,7 +302,7 @@ fn forward_op[
         print("[ERROR] Operator not found.")
 
 
-fn forward_op[
+def forward_op[
     op: OP,
     t1_shape: TensorShape,
     t2_shape: TensorShape,
@@ -330,7 +329,7 @@ fn forward_op[
         print("[ERROR] Operator not found.")
 
 
-fn forward_op[
+def forward_op[
     op: OP,
     attributes: AttributeVector,
 ](
@@ -349,7 +348,7 @@ fn forward_op[
         print("[ERROR] Operator not found.")
 
 
-fn backward_op[
+def backward_op[
     tensor_id: Int,
     op: OP,
     ug_shape: TensorShape,
@@ -403,7 +402,7 @@ fn backward_op[
     accumulate_grad(grad, res_grad)
 
 
-fn backward_op[
+def backward_op[
     tensor_id: Int,
     op: OP,
     ug_shape: TensorShape,
@@ -450,7 +449,7 @@ fn backward_op[
         print("[ERROR] Operator not found.")
         res_grad = Tensor[dtype](-1, -1)
 
-    fn broadcastable(op: OP) -> Bool:
+    def broadcastable(op: OP) -> Bool:
         return op == OP.ADD or op == OP.SUB or op == OP.MUL or op == OP.DIV
 
     @parameter
@@ -463,7 +462,7 @@ fn backward_op[
         accumulate_grad(grad, res_grad)
 
 
-fn backward_op[
+def backward_op[
     tensor_id: Int,
     op: OP,
     ug_shape: TensorShape,
@@ -499,7 +498,7 @@ fn backward_op[
     accumulate_grad(grad, res_grad)
 
 
-fn backward_op[
+def backward_op[
     input_id: Int,
     op: OP,
     attributes: AttributeVector,

@@ -7,7 +7,7 @@ from basalt.autograd.ops.conv import get_result_shape
 
 struct MAXPOOL2D:
     @staticmethod
-    fn result_shape(
+    def result_shape(
         input_shape: TensorShape, attributes: AttributeVector
     ) -> TensorShape:
         var kernel_size = attributes["kernel_size"].value().to_static[2]()
@@ -26,7 +26,7 @@ struct MAXPOOL2D:
         return TensorShape(input_shape[0], input_shape[1], res[0], res[1])
 
     @staticmethod
-    fn forward[
+    def forward[
         input_shape: TensorShape, attributes: AttributeVector
     ](mut outputs: Tensor[dtype], inputs: Tensor[dtype]):
         """
@@ -35,14 +35,14 @@ struct MAXPOOL2D:
             with kernel_size = (kX, kY)
             outputs.shape    [batch_size, channels, oX, oY].
         """
-        alias kernel_size = attributes["kernel_size"].value().to_static[2]()
-        alias padding = attributes["padding"].value().to_static[2]()
-        alias stride = attributes["stride"].value().to_static[2]()
-        alias dilation = attributes["dilation"].value().to_static[2]()
+        comptime kernel_size = attributes["kernel_size"].value().to_static[2]()
+        comptime padding = attributes["padding"].value().to_static[2]()
+        comptime stride = attributes["stride"].value().to_static[2]()
+        comptime dilation = attributes["dilation"].value().to_static[2]()
 
-        alias inputs_strides = input_shape.strides()
-        alias output_shape = Self.result_shape(input_shape, attributes)
-        alias outputs_strides = output_shape.strides()
+        comptime inputs_strides = input_shape.strides()
+        comptime output_shape = Self.result_shape(input_shape, attributes)
+        comptime outputs_strides = output_shape.strides()
 
         for batch in range(input_shape[0]):
             for in_ch in range(input_shape[1]):
@@ -85,7 +85,7 @@ struct MAXPOOL2D:
                         outputs[out_idx] = max_val
 
     @staticmethod
-    fn backward[
+    def backward[
         ug_shape: TensorShape, input_shape: TensorShape, attributes: AttributeVector
     ](ug: Tensor[dtype], inputs: Tensor[dtype]) -> Tensor[dtype]:
         """
@@ -93,13 +93,13 @@ struct MAXPOOL2D:
 
         Upper gradient of shape: [batch_size, channels, uX, uY]
         """
-        alias kernel_size = attributes["kernel_size"].value().to_static[2]()
-        alias padding = attributes["padding"].value().to_static[2]()
-        alias stride = attributes["stride"].value().to_static[2]()
-        alias dilation = attributes["dilation"].value().to_static[2]()
+        comptime kernel_size = attributes["kernel_size"].value().to_static[2]()
+        comptime padding = attributes["padding"].value().to_static[2]()
+        comptime stride = attributes["stride"].value().to_static[2]()
+        comptime dilation = attributes["dilation"].value().to_static[2]()
 
-        alias ug_strides = ug_shape.strides()
-        alias inputs_strides = input_shape.strides()
+        comptime ug_strides = ug_shape.strides()
+        comptime inputs_strides = input_shape.strides()
 
         var res = Tensor[dtype](input_shape)
 

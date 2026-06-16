@@ -6,16 +6,15 @@ from basalt import dtype, nelts
 from basalt import Tensor, TensorShape
 
 
-@value
 struct Batch[dtype: DType](Copyable, Movable):
     var data: Tensor[dtype]
     var labels: Tensor[dtype]
 
-    fn __init__(out self, batch_data: Tensor[dtype], batch_labels: Tensor[dtype]):
-        self.data = batch_data
-        self.labels = batch_labels
+    def __init__(out self, batch_data: Tensor[dtype], batch_labels: Tensor[dtype]):
+        self.data = batch_data.copy()
+        self.labels = batch_labels.copy()
 
-    fn __init__(
+    def __init__(
         out self,
         df_data: Tensor[dtype],
         df_labels: Tensor[dtype],
@@ -38,18 +37,17 @@ struct Batch[dtype: DType](Copyable, Movable):
             batch_labels_shape.num_elements(),
         )
 
-    fn __getitem__(self, index: Int) -> Tensor[dtype]:
+    def __getitem__(self, index: Int) -> Tensor[dtype]:
         if index == 0:
-            return self.data
+            return self.data.copy()
         elif index == 1:
-            return self.labels
+            return self.labels.copy()
         else:
             print("[ERROR] Batch.__getitem__(): Index out of bounds")
             return Tensor[dtype]()
 
 
-@value
-struct DataLoader:
+struct DataLoader(Copyable, Movable):
     var data: Tensor[dtype]
     var labels: Tensor[dtype]
     var batch_size: Int
@@ -58,14 +56,14 @@ struct DataLoader:
     var _data_batch_shape: TensorShape
     var _label_batch_shape: TensorShape
 
-    fn __init__(
+    def __init__(
         out self,
         data: Tensor[dtype],
         labels: Tensor[dtype],
         batch_size: Int,
     ):
-        self.data = data
-        self.labels = labels
+        self.data = data.copy()
+        self.labels = labels.copy()
         self.batch_size = batch_size
 
         # Number of batches to iter, NOTE: ignore the remainder for now
@@ -80,21 +78,21 @@ struct DataLoader:
         self._label_batch_shape[0] = self.batch_size
 
     @always_inline
-    fn __len__(self) -> Int:
+    def __len__(self) -> Int:
         """
         Returns the number of the batches left in the dataset.
         """
         return self._num_batches
 
-    fn __iter__(self) -> Self:
+    def __iter__(self) -> Self:
         # TODO: Starting the iterator requires to return (COPY!) the whole dataloader which containts the whole dataset
         # Does this mean that the whole dataset is copied every epoch ?!
-        return self
+        return self.copy()
 
-    fn __has_next__(self) -> Bool:
+    def __has_next__(self) -> Bool:
         return self._num_batches > 0
 
-    fn __next__(mut self) -> Batch[dtype]:
+    def __next__(mut self) -> Batch[dtype]:
         # NOTE: ignore the remainder for now
         # var end = min(self._current_index + self.batch_size, self.data.dim(0))
         # self._data_shape[0] = end - self._current_index

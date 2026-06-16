@@ -7,14 +7,13 @@ from basalt.autograd.ops import OP
 from .attributes import AttributeVector
 
 
-@value
 struct Node(Copyable, Movable, Stringable):
     var operator: OP
     var inputs: List[Symbol]
     var outputs: List[Symbol]
     var attributes: AttributeVector
 
-    fn __init__(
+    def __init__(
         out self,
         operator: OP,
         inputs: List[Symbol],
@@ -26,10 +25,10 @@ struct Node(Copyable, Movable, Stringable):
         self.outputs = outputs
         self.attributes = attributes
 
-    fn __str__(self) -> String:
+    def __str__(self) -> String:
         return self.json()
 
-    fn json(self) -> String:
+    def json(self) -> String:
         var s: String = '{"operator": "' + String(self.operator.name) + '", "inputs": ['
         for i in range(len(self.inputs)):
             s += self.inputs[i].json()
