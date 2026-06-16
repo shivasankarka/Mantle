@@ -1,5 +1,4 @@
-from memory.unsafe import bitcast
-
+from std.memory.unsafe import bitcast
 
 @always_inline("nodebug")
 def q_sqrt(value: Float32) -> Float32:
