@@ -1,5 +1,5 @@
-from memory.unsafe_pointer import UnsafePointer
-from memory import memset_zero, memcpy
+from std.memory.unsafe_pointer import UnsafePointer
+from std.memory import memset_zero, memcpy
 
 from basalt import Tensor, Symbol
 
@@ -11,8 +11,8 @@ struct Collection(Copyable, Movable, Sized):
 
     var size: Int
     var capacity: Int
-    var data: UnsafePointer[Tensor[dtype], MutOrigin.external]
-    var symbols: UnsafePointer[Scalar[DType.uint32], MutOrigin.external]
+    var data: UnsafePointer[Tensor[dtype], MutExternalOrigin]
+    var symbols: UnsafePointer[Scalar[DType.uint32], MutExternalOrigin]
 
     @always_inline("nodebug")
     def __init__(out self, *, capacity: Int = 1):
@@ -27,30 +27,28 @@ struct Collection(Copyable, Movable, Sized):
         self.symbols = alloc[Scalar[DType.uint32]](capacity)
 
     @always_inline("nodebug")
-    def __moveinit__(out self, deinit existing: Self):
+    def __init__(out self, *, deinit take: Self):
         """
         Move initializes a Collection from an existing one.
         """
-        self.size = existing.size
-        self.capacity = existing.capacity
-        self.data = existing.data
-        self.symbols = existing.symbols
+        self.size = take.size
+        self.capacity = take.capacity
+        self.data = take.data
+        self.symbols = take.symbols
 
     @always_inline("nodebug")
-    def __copyinit__(out self, existing: Self):
+    def __init__(out self, *, copy: Self):
         """
         Copy initializes a Collection from an existing one.
         """
-        self.capacity = existing.capacity
-        self.size = existing.size
-        # self.data = UnsafePointer[Tensor[dtype]].alloc(existing.capacity)
-        # self.symbols = UnsafePointer[Scalar[DType.uint32]].alloc(existing.capacity)
-        self.data = alloc[Tensor[dtype]](existing.capacity)
-        self.symbols = alloc[Scalar[DType.uint32]](existing.capacity)
-        memcpy(dest=self.symbols, src=existing.symbols, count=existing.capacity)
+        self.capacity = copy.capacity
+        self.size = copy.size
+        self.data = alloc[Tensor[dtype]](copy.capacity)
+        self.symbols = alloc[Scalar[DType.uint32]](copy.capacity)
+        memcpy(dest=self.symbols, src=copy.symbols, count=copy.capacity)
 
-        for i in range(existing.size):
-            UnsafePointer.init_pointee_move((self.data + i), (existing.data + i)[].copy())
+        for i in range(copy.size):
+            UnsafePointer.init_pointee_move((self.data + i), (copy.data + i)[].copy())
 
     @always_inline("nodebug")
     def __del__(deinit self):
@@ -59,10 +57,13 @@ struct Collection(Copyable, Movable, Sized):
         """
         for i in range(self.size):
             UnsafePointer.destroy_pointee((self.data + i))
-        if self.data:
-            self.data.free()
-        if self.symbols:
-            self.symbols.free()
+        # gotta be careful not to cause double free here. figure out how to use Optional[UnsafePointer]
+        self.data.free()
+        self.symbols.free()
+        # if self.data:
+        #     self.data.free()
+        # if self.symbols:
+        #     self.symbols.free()
 
     @always_inline("nodebug")
     def __len__(self) -> Int:
@@ -123,7 +124,7 @@ struct Collection(Copyable, Movable, Sized):
         # NOTE: This ideally should just be a hashmap
 
         for i in range(0, self.size, factor):
-            var elems = self.symbols.load[width=factor](i) == symbol_name
+            var elems = self.symbols.load[width=factor](i).eq(symbol_name)
 
             for j in range(factor):
                 if elems[j]:
@@ -153,7 +154,7 @@ struct Collection(Copyable, Movable, Sized):
         return (self.data + index)[]
 
     @always_inline("nodebug")
-    def clear(inout self):
+    def clear(mut self):
         """
         Clears the Collection, removing all tensors and symbols.
         """
