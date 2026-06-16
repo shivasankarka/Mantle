@@ -1,10 +1,10 @@
 from basalt import Tensor, TensorShape
 from basalt.autograd.attributes import AttributeVector
 
-from algorithm import parallelize, vectorize, tile
-from utils.loop import unroll
-from utils.index import IndexList
-from memory import memset_zero, UnsafePointer
+from std.algorithm import parallelize, vectorize
+from std.utils.loop import unroll
+from std.utils.index import IndexList
+from std.memory import memset_zero, UnsafePointer
 
 
 @always_inline
@@ -100,17 +100,16 @@ struct CONV2D:
         comptime out_channels = kernel_shape[0]
         comptime k_x = kernel_shape[2]
         comptime k_y = kernel_shape[3]
+        comptime output_shape = Self.result_shape(
+            input_shape, kernel_shape, bias_shape, attributes
+        )
         comptime out_x = output_shape[2]
         comptime out_y = output_shape[3]
         comptime col_x = out_x
         comptime col_y = out_y
-
         comptime col_shape = TensorShape(
             batch_size, col_x * col_y, in_channels * k_x * k_y
         )  # [batch, colX * colY, in_channels * kX * kY]
-        comptime output_shape = Self.result_shape(
-            input_shape, kernel_shape, bias_shape, attributes
-        )
         comptime col_shape_stripped = TensorShape(
             in_channels * k_x * k_y, col_x, col_y
         )
@@ -166,8 +165,7 @@ struct CONV2D:
                     for uy in range(out_y):
                         var result: SIMD[dtype, nelts] = 0
 
-                        @parameter
-                        def v_im2col[_nelts: Int](in_ch_kx_ky: Int):
+                        def v_im2col[_nelts: Int](in_ch_kx_ky: Int) {mut result, read col_ptr, read kernel, read batch, read out_ch, read ux, read uy, read col_strides, read kernel_strides, read col_y}:
                             var col_index = (
                                 batch * col_strides[0]
                                 + (ux * col_y + uy) * col_strides[1]
@@ -178,8 +176,7 @@ struct CONV2D:
                                 out_ch * kernel_strides[0] + in_ch_kx_ky
                             )
 
-                            @parameter
-                            if _nelts == nelts:
+                            comptime if _nelts == nelts:
                                 result += col_ptr.load[width=nelts](
                                     col_index
                                 ) * kernel.load[nelts](kernel_index)
@@ -189,7 +186,7 @@ struct CONV2D:
                                     * kernel.load[_nelts](kernel_index)
                                 ).reduce_add()
 
-                        vectorize[v_im2col, nelts](in_channels * k_x * k_y)
+                        vectorize[nelts](in_channels * k_x * k_y, v_im2col)
 
                         var output_index = (
                             batch * outputs_strides[0]
@@ -262,8 +259,7 @@ struct CONV2D:
 
         var res: Tensor[dtype]
 
-        @parameter
-        if tensor_id == 0:
+        comptime if tensor_id == 0:
             # Inputs
             # Sum of upper gradient over batch, X, Y dimensions
 
@@ -393,11 +389,10 @@ struct CONV2D:
                 for batch in range(ug_shape_0):
                     var batch_offset = batch * ug_strides_0 + channel_offset
 
-                    @parameter
-                    def vec_sum[Nelts: Int](ux_uy: Int):
+                    def vec_sum[Nelts: Int](ux_uy: Int) {mut sum, read ug, read batch_offset}:
                         sum += ug.load[Nelts](batch_offset + ux_uy).reduce_add()
 
-                    vectorize[vec_sum, nelts, size=ug_shape_2 * ug_shape_3]()
+                    vectorize[nelts](ug_shape_2 * ug_shape_3, vec_sum)
 
                 res[out_ch] = sum
 
