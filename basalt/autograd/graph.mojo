@@ -1,5 +1,5 @@
-from python.python import Python
-from collections.optional import Optional, OptionalReg
+from std.python.python import Python
+from std.collections.optional import Optional, OptionalReg
 
 from .node import Node
 from .attributes import AttributeVector, Attribute
@@ -27,13 +27,13 @@ struct Graph(Copyable, Movable):
         self.loss_out = None
         self.symbol_count = 0
 
-    def __moveinit__(out self, deinit other: Graph):
-        self.inputs = other.inputs^
-        self.params = other.params^
-        self.nodes = other.nodes^
-        self.outputs = other.outputs^
-        self.loss_out = other.loss_out
-        self.symbol_count = other.symbol_count
+    def __init__(out self, *, deinit take: Graph):
+        self.inputs = take.inputs^
+        self.params = take.params^
+        self.nodes = take.nodes^
+        self.outputs = take.outputs^
+        self.loss_out = take.loss_out
+        self.symbol_count = take.symbol_count
 
     def create_symbol(mut self, shape: TensorShape, data: Optional[Param] = None, trainable: Bool = False, is_input: Bool = False) -> Symbol:
         var symbol = Symbol(self.symbol_count, dtype, shape, trainable)
