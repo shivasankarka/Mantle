@@ -1,19 +1,19 @@
-from time.time import monotonic as now
-from memory import UnsafePointer, memcpy, memset
+from std.time import now
+from std.memory import UnsafePointer, memcpy, memset
 
 from basalt.autograd.node import Node
 
 
 @always_inline("nodebug")
 def fit_string[num: Int](s: String) -> String:
-    var data = UnsafePointer[Byte]().alloc(num + 1)
+    var data = alloc[Byte](num + 1)
     var copy_len = min(num, len(s))
 
     memcpy(data, s.unsafe_ptr(), copy_len)
     memset(data + copy_len, ord(" "), num - copy_len)
     data[num] = 0
 
-    return String(ptr=data, length=num + 1)
+    return String(unsafe_from_utf8_ptr=data, length=num + 1)
 
 
 @always_inline("nodebug")
@@ -23,11 +23,11 @@ def truncate_decimals[num: Int](s: String) -> String:
         var truncated = String(parts[0])
 
         if len(parts) > 1:
-            var decimal_parts = parts[1].split("e")
+            var decimal_parts = String(parts[1]).split("e")
             truncated += "." + fit_string[num](String(decimal_parts[0]))
 
             if len(decimal_parts) > 1:
-                truncated += "e" + decimal_parts[1]
+                truncated += "e" + String(decimal_parts[1])
 
         return truncated
     except e:
@@ -78,23 +78,20 @@ struct PerfMetrics:
         self.start = Int(now())
 
     def end_forward_pass(mut self, pos: Int):
-        self.forward_perf_metrics[pos].ns += now() - UInt(self.start)
+        self.forward_perf_metrics[pos].ns += now() - self.start
         self.epochs_forward += 1
 
     def start_backward_pass(mut self):
         self.start = Int(now())
 
     def end_backward_pass(mut self, pos: Int):
-        self.backward_perf_metrics[pos].ns += now() - UInt(self.start)
+        self.backward_perf_metrics[pos].ns += now() - self.start
         self.epochs_backward += 1
 
     def print_perf_metrics[
         type_part: String
     ](self, time_format: String = "ns", print_shape: Bool = False):
-        constrained[
-            type_part == "Forward" or type_part == "Backward",
-            "Only 'Forward' or 'Backward' are accepted types.",
-        ]()
+        comptime assert type_part == "Forward" or type_part == "Backward", "Only 'Forward' or 'Backward' are accepted types."
 
         comptime is_forward = type_part == "Forward"
 

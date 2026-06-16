@@ -1,6 +1,5 @@
-from testing import assert_equal
-from math import min
-from memory import memcpy
+from std.testing import assert_equal
+from std.memory import memcpy
 
 from basalt import dtype, nelts
 from basalt import Tensor, TensorShape
@@ -91,19 +90,12 @@ struct DataLoader(Copyable, Movable):
         # Does this mean that the whole dataset is copied every epoch ?!
         return self.copy()
 
-    def __has_next__(self) -> Bool:
-        return self._num_batches > 0
-
-    def __next__(mut self) -> Batch[dtype]:
-        # NOTE: ignore the remainder for now
-        # var end = min(self._current_index + self.batch_size, self.data.dim(0))
-        # self._data_shape[0] = end - self._current_index
-        # self._label_shape[0] = end - self._current_index
-
+    def __next__(mut self) raises StopIteration -> Batch[dtype]:
+        if self._num_batches <= 0:
+            raise StopIteration()
         var temp_current_index = self._current_index
         self._current_index += self.batch_size
         self._num_batches -= 1
-
         return Batch[dtype](
             self.data,
             self.labels,

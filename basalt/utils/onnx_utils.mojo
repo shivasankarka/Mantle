@@ -1,6 +1,6 @@
-from python import Python, PythonObject
-from pathlib import Path
-from collections import Set
+from std.python import Python, PythonObject
+from std.pathlib import Path
+from std.collections import Set
 
 from basalt.nn.model import Parameters
 from basalt.nn.tensor import Tensor, TensorShape
@@ -18,7 +18,7 @@ def make_onnx_attribute(op: OP, attr: Attribute) raises -> PythonObject:
     var onnx = Python.import_module("onnx")
     var onnx_helper = Python.import_module("onnx.helper")
 
-    var attr_name = str(attr.name)
+    var attr_name = String(attr.name)
     var attr_value: PythonObject
 
     if attr.type == AttributeType.FLOAT:
@@ -46,7 +46,7 @@ def make_onnx_attribute(op: OP, attr: Attribute) raises -> PythonObject:
         elif attr_name == "padding":
             attr_name = "pads"
         else:
-            raise Error("Unsupported attribute name for operator " + str(op))
+            raise Error("Unsupported attribute name for operator " + String(op))
 
     if (op == OP.CONV2D or op == OP.MAXPOOL2D) and attr_name == "pads":
         # Special case for pads in conv and maxpool, onnx wants pads to be [x1_begin, x2_begin…x1_end, x2_end,…],
@@ -74,17 +74,17 @@ def make_onnx_operator_type(op_type: OP) raises -> String:
     elif op_type == OP.SUM:
         # Special case, axis isn't an attribute, instead it is an input, because it can be dynamic
         raise Error(
-            str(op_type) + " is not supported right now for conversion to onnx"
+            String(op_type) + " is not supported right now for conversion to onnx"
         )
         # return "ReduceSum"
     elif op_type == OP.MEAN:
         raise Error(
-            str(op_type) + " is not supported right now for conversion to onnx"
+            String(op_type) + " is not supported right now for conversion to onnx"
         )
         # return "ReduceMean"
     elif op_type == OP.MAX:
         raise Error(
-            str(op_type) + " is not supported right now for conversion to onnx"
+            String(op_type) + " is not supported right now for conversion to onnx"
         )
         # return "ReduceMax"
     elif op_type == OP.CONV2D:
@@ -114,18 +114,18 @@ def make_onnx_operator_type(op_type: OP) raises -> String:
     elif op_type == OP.CLIP:
         return "Clip"
     elif op_type == OP.FMA:
-        raise Error(str(op_type) + " operator is not supported in onnx")
+        raise Error(String(op_type) + " operator is not supported in onnx")
     else:
-        raise Error("Unsupported operator type " + str(op_type))
+        raise Error("Unsupported operator type " + String(op_type))
 
 
 # --- Loader and exporter ---
 def load_onnx_model(
-    model_path: Path, inoutmodel_parameters: Parameters, g: Graph
+    model_path: Path, mut model_parameters: Parameters, g: Graph
 ) raises:
     # Simple onnx data loader where we load the data in order (so we need to have the correct order of the weights and biases in the model. We don't use the names for the loading)
     var onnx = Python.import_module("onnx")
-    var onnx_model = onnx.load(str(model_path))
+    var onnx_model = onnx.load(String(model_path))
 
     for i in range(len(onnx_model.graph.initializer)):
         var tensor = onnx_model.graph.initializer[i]
@@ -161,18 +161,18 @@ def load_onnx_model(
                         count += 1
 
                     if count == model_tensor_shape.rank():
-                        print("Transposing tensor before copying " + str(i))
+                        print("Transposing tensor before copying " + String(i))
                         raise_error_flag = False
                         data_np = data_np.transpose()
 
                 if raise_error_flag:
                     raise Error(
                         "Shape mismatch for tensor "
-                        + str(i)
+                        + String(i)
                         + ". Expected shape: "
-                        + str(model_tensor_shape)
+                        + String(model_tensor_shape)
                         + ", got shape: "
-                        + str(data_shape)
+                        + String(data_shape)
                     )
 
             copy_np_data(model_parameters.tensors[g.params.symbols[i]], data_np)
@@ -192,7 +192,6 @@ def create_attributes_and_constant_inputs(
     for i in range(len(node.attributes)):
         var attr = node.attributes[i]
 
-        @parameter
         def to_np_array(attr: Attribute) raises -> PythonObject:
             if not attr.type == AttributeType.INTS:
                 raise Error("Attribute is not a shape")
@@ -216,14 +215,14 @@ def create_attributes_and_constant_inputs(
 
         # Special cases where attributes are considered as inputs, so we create Constant inputs
         if node.operator == OP.RESHAPE:
-            if str(attr.name) == "shape":
+            if String(attr.name) == "shape":
                 var outputs = PythonObject([])
                 outputs.append(
-                    str(node.operator)
+                    String(node.operator)
                     + "_"
-                    + str(attr.name)
+                    + String(attr.name)
                     + "_"
-                    + str(node_number)
+                    + String(node_number)
                 )
                 var temp_node = onnx.helper.make_node(
                     op_type="Constant",
@@ -234,14 +233,14 @@ def create_attributes_and_constant_inputs(
 
                 inputs.append(temp_node)
         elif node.operator == OP.CLIP:
-            if str(attr.name) == "min" or str(attr.name) == "max":
+            if String(attr.name) == "min" or String(attr.name) == "max":
                 var outputs = PythonObject([])
                 outputs.append(
-                    str(node.operator)
+                    String(node.operator)
                     + "_"
-                    + str(attr.name)
+                    + String(attr.name)
                     + "_"
-                    + str(node_number)
+                    + String(node_number)
                 )
                 var temp_node = onnx.helper.make_node(
                     op_type="Constant",
@@ -252,14 +251,14 @@ def create_attributes_and_constant_inputs(
 
                 inputs.append(temp_node)
         elif node.operator == OP.SQUEEZE or node.operator == OP.UNSQUEEZE:
-            if str(attr.name) == "dims":
+            if String(attr.name) == "dims":
                 var outputs = PythonObject([])
                 outputs.append(
-                    str(node.operator)
+                    String(node.operator)
                     + "_"
-                    + str(attr.name)
+                    + String(attr.name)
                     + "_"
-                    + str(node_number)
+                    + String(node_number)
                 )
                 var temp_node = onnx.helper.make_node(
                     op_type="Constant",
@@ -278,7 +277,7 @@ def create_attributes_and_constant_inputs(
 
 
 def export_onnx_model(
-    model_path: Path, inoutmodel_parameters: Parameters, g: Graph
+    model_path: Path, mut model_parameters: Parameters, g: Graph
 ) raises:
     # Create onnx model with data and nodes
     var onnx = Python.import_module("onnx")
@@ -303,7 +302,7 @@ def export_onnx_model(
 
         # Create onnx tensor
         var onnx_tensor_data = onnx_helper.make_tensor(
-            name=str(tensor.name),
+            name=String(tensor.name),
             data_type=onnx.TensorProto.FLOAT,
             dims=tensor_np.shape,
             vals=tensor_np,
@@ -318,20 +317,20 @@ def export_onnx_model(
         var op_type = make_onnx_operator_type(node.operator)
         var inputs = PythonObject([])
         var outputs = PythonObject([])
-        var name = str(node.operator) + "_node" + str(i)
+        var name = String(node.operator) + "_node" + String(i)
 
         for j in range(len(node.inputs)):
-            inputs.append(str(node.inputs[j].name))
+            inputs.append(String(node.inputs[j].name))
         for j in range(len(node.outputs)):
-            outputs.append(str(node.outputs[j].name))
+            outputs.append(String(node.outputs[j].name))
 
             # Process intermediate
-            if str(node.outputs[j].name) not in visited:
-                visited.add(str(node.outputs[j].name))
+            if String(node.outputs[j].name) not in visited:
+                visited.add(String(node.outputs[j].name))
                 var intermediate_tensor = node.outputs[j]
                 var intermediate_shape = intermediate_tensor.shape
 
-                var name = str(intermediate_tensor.name)
+                var name = String(intermediate_tensor.name)
                 var dtype = onnx.TensorProto.FLOAT  # TODO
                 var shape = PythonObject([])
                 for j in range(intermediate_shape.rank()):
@@ -361,7 +360,7 @@ def export_onnx_model(
             name,
         )
         for attribute in attributes:
-            onnx_node.attribute.append(attribute[])
+            onnx_node.attribute.append(attribute)
 
         graph.node.append(onnx_node)
 
@@ -370,7 +369,7 @@ def export_onnx_model(
         var input_tensor = g.inputs[i]
         var input_shape = input_tensor.shape
 
-        var name = str(input_tensor.name)
+        var name = String(input_tensor.name)
         var dtype = onnx.TensorProto.FLOAT  # TODO
         var shape = PythonObject([])
         for j in range(input_shape.rank()):
@@ -385,7 +384,7 @@ def export_onnx_model(
         var output_tensor = g.outputs[i]
         var output_shape = output_tensor.shape
 
-        var name = str(output_tensor.name)
+        var name = String(output_tensor.name)
         var dtype = onnx.TensorProto.FLOAT  # TODO
         var shape = PythonObject([])
         for j in range(output_shape.rank()):
@@ -400,4 +399,4 @@ def export_onnx_model(
 
     # Save onnx model
     onnx.checker.check_model(onnx_model)
-    onnx.save(onnx_model, str(model_path))
+    onnx.save(onnx_model, String(model_path))

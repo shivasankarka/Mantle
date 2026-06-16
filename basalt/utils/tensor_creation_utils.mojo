@@ -1,5 +1,5 @@
-from python import Python, PythonObject
-from memory import memcpy, UnsafePointer
+from std.python import Python, PythonObject
+from std.memory import memcpy, UnsafePointer
 
 # maybe this functions should be from the Tensor struct (like tensor.to_numpy()) and tensor.__init__(np_array: PythonObject) to create a tensor from a numpy array and tensor.copy_np_data(np_array: PythonObject) to copy the numpy array to the tensor.
 
@@ -62,7 +62,7 @@ def to_tensor(np_array: PythonObject) raises -> Tensor[dtype]:
     return tensor^
 
 
-def copy_np_data(inouttensor: Tensor, np_array: PythonObject) raises:
+def copy_np_data(mut tensor: Tensor, np_array: PythonObject) raises:
     var np_array_2: PythonObject
     try:
         var np = Python.import_module("numpy")

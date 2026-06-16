@@ -1,4 +1,4 @@
-from algorithm import vectorize
+from std.algorithm import vectorize
 
 from basalt import dtype
 from basalt import Tensor, TensorShape
@@ -22,7 +22,8 @@ struct BostonHousing:
         var s = open(file_path, "r").read()
         # Skip the first and last lines
         # This does assume your last line in the file has a newline at the end
-        var list_of_lines = s.split("\n")[1:-1]
+        var all_lines = s.split("\n")
+        var list_of_lines = all_lines[1:len(all_lines)-1]
 
         # Length is number of lines
         var N = len(list_of_lines)
@@ -32,17 +33,15 @@ struct BostonHousing:
         )  # All columns except the last one
         self.labels = Tensor[dtype](N, 1)  # Only the last column (MEDV)
 
-        var line: List[String] = List[String]()
-
         # Load data in Tensor
         for item in range(N):
-            line = List[String](list_of_lines[item].split(","))
+            var line = list_of_lines[item].split(",")
             # var line_strings = List[String](line)
-            self.labels[item] = cast_string[dtype](line[-1])
+            self.labels[item] = cast_string[dtype](String(line[-1]))
 
             for n in range(self.n_inputs):
                 self.data[item * self.n_inputs + n] = cast_string[dtype](
-                    line[n]
+                    String(line[n])
                 )
 
         # Normalize data
@@ -67,33 +66,31 @@ struct MNIST:
         var s = open(file_path, "r").read()
         # Skip the first and last lines
         # This does assume your last line in the file has a newline at the end
-        var list_of_lines = s.split("\n")[1:-1]
+        var all_lines = s.split("\n")
+        var list_of_lines = all_lines[1:len(all_lines)-1]
 
         # Length is number of lines
         var N = len(list_of_lines)
         self.data = Tensor[dtype](N, 1, 28, 28)
         self.labels = Tensor[dtype](N)
 
-        var line: List[String] = List[String]()
-
         # Load data in Tensor
         for item in range(N):
-            line = list_of_lines[item].split(",")
-            self.labels[item] = atol(line[0])
+            var line = list_of_lines[item].split(",")
+            self.labels[item] = atol(String(line[0]))
             for i in range(self.data.shape()[2]):
                 for j in range(self.data.shape()[3]):
                     self.data[item * 28 * 28 + i * 28 + j] = atol(
-                        line[i * 28 + j + 1]
+                        String(line[i * 28 + j + 1])
                     )
 
         # Normalize data
         comptime nelts = simdwidthof[dtype]()
 
-        @parameter
-        def vecdiv[nelts: Int](idx: Int):
+        def vecdiv[nelts: Int](idx: Int) {mut self}:
             self.data.store[nelts](idx, div(self.data.load[nelts](idx), 255.0))
 
-        vectorize[vecdiv, nelts](self.data.num_elements())
+        vectorize[nelts](self.data.num_elements(), vecdiv)
 
 
 def read_file(file_path: String) raises -> String:
@@ -104,8 +101,8 @@ def read_file(file_path: String) raises -> String:
 
 
 def find_first(s: String, delimiter: String) -> Int:
-    for i in range(len(s)):
-        if s[i] == delimiter:
+    for i in range(s.byte_length()):
+        if String(s[byte=i]) == delimiter:
             return i
     return -1
 
