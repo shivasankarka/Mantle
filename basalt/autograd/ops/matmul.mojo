@@ -1,17 +1,17 @@
-from basalt.utils.tensorutils import transpose_2D
+from std.algorithm import vectorize, parallelize
+from std.memory import memset_zero, stack_allocation, UnsafePointer
+from std.sys.info import simd_width_of
 
-from algorithm import vectorize, parallelize
-from memory import memset_zero, stack_allocation, UnsafePointer
-from sys.info import simdwidthof
+from basalt.utils.tensorutils import transpose_2D
 
 
 @always_inline
 def calculate_block[
     M: Int, N: Int, K: Int, BLOCK_M: Int, BLOCK_N: Int, nelts: Int
 ](
-    res: UnsafePointer[Scalar[dtype]],
-    t1: UnsafePointer[Scalar[dtype]],
-    t2: UnsafePointer[Scalar[dtype]],
+    res: UnsafePointer[Scalar[dtype], _],
+    t1: UnsafePointer[Scalar[dtype], _],
+    t2: UnsafePointer[Scalar[dtype], _],
     bm: Int,
     bn: Int,
 ):
@@ -21,11 +21,9 @@ def calculate_block[
 
     for k in range(K):
 
-        @parameter
-        for m in range(BLOCK_M):
+        comptime for m in range(BLOCK_M):
 
-            @parameter
-            def inner_n[nelts: Int](n: Int):
+            def inner_n[nelts: Int](n: Int) {mut acc, read t1, read t2, read acc, read bm, read bn, read k}:
                 acc.store(
                     m * BLOCK_N + n,
                     SIMD[dtype, nelts](t1[(bm + m) * K + k])
@@ -35,13 +33,12 @@ def calculate_block[
                     ),
                 )
 
-            vectorize[inner_n, nelts](BLOCK_N)
+            vectorize[nelts](BLOCK_N, inner_n)
 
     # Store tile
     for m in range(BLOCK_M):
 
-        @parameter
-        def vec_store[nelts: Int](n: Int):
+        def vec_store[nelts: Int](n: Int) {mut res, read acc, read bm, read bn, read m, read n}:
             res.store(
                 (bm + m) * N + (bn + n), acc.load[width=nelts](m * BLOCK_N + n)
             )
@@ -85,8 +82,7 @@ def dot[
             calculate_block[M, N, K, BLOCK_M, BLOCK_N, nelts](res, t1, t2, bm, bn)
 
         # Handle the remainder of N
-        @parameter
-        if BLOCK_N_REMAINDER > 0:
+        comptime if BLOCK_N_REMAINDER > 0:
             var bn = N - BLOCK_N_REMAINDER
 
             calculate_block[M, N, K, BLOCK_M, BLOCK_N_REMAINDER, nelts](
@@ -96,10 +92,10 @@ def dot[
     parallelize[bm_par](M // BLOCK_M, M // BLOCK_M)
 
     # Handle the remainder of M
-    @parameter
-    if BLOCK_M_REMAINDER > 0:
+    comptime if BLOCK_M_REMAINDER > 0:
         var bm = M - BLOCK_M_REMAINDER
 
+        # comptime for?
         for n_outer in range(0, N // BLOCK_N):
             var bn = n_outer * BLOCK_N
 
@@ -108,8 +104,7 @@ def dot[
             )
 
         # Handle corner remainder
-        @parameter
-        if BLOCK_N_REMAINDER > 0:
+        comptime if BLOCK_N_REMAINDER > 0:
             var bn = N - BLOCK_N_REMAINDER
 
             calculate_block[M, N, K, BLOCK_M_REMAINDER, BLOCK_N_REMAINDER, nelts](
