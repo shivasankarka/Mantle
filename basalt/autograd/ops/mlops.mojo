@@ -1,7 +1,7 @@
-from algorithm import vectorize, parallelize
-from math import exp
-from utils.numerics import min_finite, max_finite
-from memory import memcpy
+from std.algorithm import vectorize, parallelize
+from std.math import exp
+from std.utils.numerics import min_finite, max_finite
+from std.memory import memcpy
 
 from basalt import Tensor, TensorShape
 from basalt.utils.tensorutils import elwise_transform
@@ -43,14 +43,13 @@ struct SIGMOID(Copyable, Movable):
         # d(sigmod(x))/dx = sigmoid(x) * (1 - sigmoid(x))
         var res_grad = Tensor[dtype](ug_shape)
 
-        @parameter
-        def vec_sigmoid_bw[nelts: Int](idx: Int):
+        def vec_sigmoid_bw[nelts: Int](idx: Int) {mut res_grad, read t1, read ug}:
             res_grad.store[nelts](
                 idx,
                 Self.sidmoid_bw(t1.load[nelts](idx)) * ug.load[nelts](idx),
             )
 
-        vectorize[vec_sigmoid_bw, nelts](ug_shape.num_elements())
+        vectorize[nelts](ug_shape.num_elements(), vec_sigmoid_bw)
 
         return res_grad^
 
@@ -92,13 +91,12 @@ struct RELU:
         # d(relu(x))/dx = 1 if x > 0 else 0. We also give 0 to x = 0 instead of undefined.
         var res_grad = Tensor[dtype](ug_shape)
 
-        @parameter
-        def vec_relu_bw[nelts: Int](idx: Int):
+        def vec_relu_bw[nelts: Int](idx: Int) {mut res_grad, read t1, read ug}:
             res_grad.store[nelts](
                 idx, Self.relu_bw(t1.load[nelts](idx)) * ug.load[nelts](idx)
             )
 
-        vectorize[vec_relu_bw, nelts](ug_shape.num_elements())
+        vectorize[nelts](ug_shape.num_elements(), vec_relu_bw)
 
         return res_grad^
 
@@ -146,14 +144,13 @@ struct LEAKYRELU:
 
         var res_grad = Tensor[dtype](ug_shape)
 
-        @parameter
-        def vec_leaky_relu_bw[nelts: Int](idx: Int):
+        def vec_leaky_relu_bw[nelts: Int](idx: Int) {mut res_grad, read t1, read ug}:
             res_grad.store[nelts](
                 idx,
                 leaky_relu_bw(t1.load[nelts](idx)) * ug.load[nelts](idx),
             )
 
-        vectorize[vec_leaky_relu_bw, nelts](ug_shape.num_elements())
+        vectorize[nelts](ug_shape.num_elements(), vec_leaky_relu_bw)
 
         return res_grad^
 
@@ -193,13 +190,12 @@ struct TANH:
         # d(tanh(x))/dx = 1 - tanh(x) ** 2
         var res_grad = Tensor[dtype](ug_shape)
 
-        @parameter
-        def vec_tanh_bw[nelts: Int](idx: Int):
+        def vec_tanh_bw[nelts: Int](idx: Int) {mut res_grad, read t1, read ug}:
             res_grad.store[nelts](
                 idx, Self.tanh_bw(t1.load[nelts](idx)) * ug.load[nelts](idx)
             )
 
-        vectorize[vec_tanh_bw, nelts](ug_shape.num_elements())
+        vectorize[nelts](ug_shape.num_elements(), vec_tanh_bw)
 
         return res_grad^
 
@@ -226,11 +222,10 @@ struct CLIP:
             dtype
         ]() if max_attr else max_finite[dtype]()
 
-        @parameter
-        def vec_clip[nelts: Int](i: Int):
+        def vec_clip[nelts: Int](i: Int) {mut res, read t, read min_val, read max_val}:
             res.store[nelts](i, max(min(t.load[nelts](i), max_val), min_val))
 
-        vectorize[vec_clip, nelts, size=t_shape.num_elements()]()
+        vectorize[nelts](t_shape.num_elements(), vec_clip)
 
     @staticmethod
     def backward[
@@ -251,8 +246,7 @@ struct CLIP:
 
         var res_grad = Tensor[dtype](t_shape)
 
-        @parameter
-        def vec_clip_bw[nelts: Int](i: Int):
+        def vec_clip_bw[nelts: Int](i: Int) {mut res_grad, read t, read ug, read min_val, read max_val}:
             var val = t.load[nelts](i)
             res_grad.store[nelts](
                 i,
@@ -261,7 +255,7 @@ struct CLIP:
                 ),
             )
 
-        vectorize[vec_clip_bw, nelts, size=t_shape.num_elements()]()
+        vectorize[nelts](t_shape.num_elements(), vec_clip_bw)
 
         return res_grad^
 
@@ -415,8 +409,7 @@ struct SLICE:
         # Reorder the starts (id=0), ends (id=1) or steps (id=2) to match the order of the axes
         var updated: List[Int]
 
-        @parameter
-        if id == 0:
+        comptime if id == 0:
             updated = Self.default_starts(t1_shape)
         elif id == 1:
             updated = Self.default_ends(t1_shape)
@@ -463,13 +456,9 @@ struct SLICE:
             comptime position = shape.rank() - 1
             comptime stride = t1_strides[position] * steps[position]
 
-            @parameter
-            def v_slice[nelts: Int](k: Int):
-                @parameter
-                if not backward_op:
-
-                    @parameter
-                    if steps[position] == 1:
+            def v_slice[nelts: Int](k: Int) {mut res, read t1, mut idx_original_temp, read idx_temp}:
+                comptime if not backward_op:
+                    comptime if steps[position] == 1:
                         res.store[nelts](
                             idx_temp + k, t1.load[nelts](idx_original_temp)
                         )
@@ -481,9 +470,7 @@ struct SLICE:
                             .strided_load[width=nelts](stride),
                         )
                 else:
-
-                    @parameter
-                    if steps[position] == 1:
+                    comptime if steps[position] == 1:
                         res.store[nelts](
                             idx_original_temp, t1.load[nelts](idx_temp + k)
                         )
@@ -494,7 +481,7 @@ struct SLICE:
 
                 idx_original_temp += stride * nelts
 
-            vectorize[v_slice, nelts](last_dims)
+            vectorize[nelts](last_dims, v_slice)
 
             return
 
