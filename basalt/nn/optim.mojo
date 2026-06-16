@@ -1,5 +1,5 @@
-from math import sqrt
-from algorithm import vectorize, parallelize
+from std.math import sqrt
+from std.algorithm import vectorize, parallelize
 
 from .model import Parameters
 from basalt import Graph, Tensor, TensorShape
@@ -74,8 +74,7 @@ struct Adam[
         def p_step(i: Int):
             var param = tr[i]
 
-            @parameter
-            def v_step[nelts: Int](j: Int):
+            def v_step[nelts: Int](j: Int) {mut self, read param}:
                 var momentum_grads = self.momentum_grads[param].load[nelts](j)
                 var rms_grads = self.rms_grads[param].load[nelts](j)
                 var grads = self.parameters[].grads[param].load[nelts](j)
@@ -109,7 +108,7 @@ struct Adam[
                 )
                 self.parameters[].tensors[param].store[nelts](j, params)
 
-            vectorize[v_step, 1](param.shape.num_elements())
+            vectorize[1](param.shape.num_elements(), v_step)
 
         parallelize[p_step](len(tr))
 

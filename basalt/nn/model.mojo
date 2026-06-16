@@ -1,7 +1,6 @@
-from collections.optional import Optional, OptionalReg
-from pathlib import Path
-
-from sys import env_get_int
+from std.collections.optional import Optional, OptionalReg
+from std.pathlib import Path
+from std.os.env import getenv
 
 from basalt import Graph, Symbol, Tensor, TensorShape
 from basalt.autograd.ops import forward_op, backward_op
@@ -14,8 +13,7 @@ from basalt.utils.onnx_utils import load_onnx_model, export_onnx_model
 
 # When runing mojo -D DEBUG=1 -I . file, a crash happens at some point at runtime because of an error in linking it seems (because of using -I .)
 # For now it seems one has to change this variable manually to be able to run model with performance metrics.
-comptime DEBUG = env_get_int["DEBUG", 0]()
-
+comptime DEBUG = getenv(name="DEBUG", default="0")
 
 # TODO: remove when ability to concatenate graphs (modules)
 def dv_contains(dv: List[Symbol], symbol: Symbol) -> Bool:
@@ -59,8 +57,7 @@ struct Model[
         self.parameters = Parameters()
         var graph = materialize[g]()
 
-        @parameter
-        if DEBUG == 1:
+        comptime if DEBUG == "1":
             self.perf_metrics = PerfMetrics(graph)
         else:
             self.perf_metrics = PerfMetrics()
@@ -75,7 +72,7 @@ struct Model[
                 "\n\n[WARNING]: No loss defined, model.forward()"
                 " unavailable!\n\n"
             )
-        if not n_inference_nodes:
+        if not Self.n_inference_nodes:
             print(
                 "\n\n[WARNING]: No graph out defined, model.inference()"
                 " unavailable!\n\n"
@@ -111,31 +108,29 @@ struct Model[
         # 2. Return outputs from allocated output memory
         # TODO: known copies (reference?)
         var outputs = List[Tensor[dtype]]()
-        for i in range(len(g.outputs)):
-            outputs.append(self.parameters.tensors[g.outputs[i]])
+        var graph = materialize[Self.g]()
+        for i in range(len(graph.outputs)):
+            outputs.append(self.parameters.tensors[graph.outputs[i]].copy())
         return outputs^
 
     def execute[
         num_nodes: Int
-    ](mut self, t_input: VariadicListMem[Tensor[dtype]]):
+    ](mut self, t_input: VariadicList[Tensor[dtype], _]):
         # 1. Write inputs to allocated input memory
         var graph = materialize[g]()
         for i in range(len(graph.inputs)):
             self.parameters.tensors[graph.inputs[i]] = t_input[i].copy()
 
         # 2. Loop over all nodes and execute forward operations
-        @parameter
-        for i in range(num_nodes):
-            comptime op = g.nodes[i].operator
-            comptime attrs = g.nodes[i].attributes
+        comptime for i in range(num_nodes):
+            comptime op = Self.g.nodes[i].operator
+            comptime attrs = Self.g.nodes[i].attributes
 
             # Save start time for performance metrics
-            @parameter
-            if DEBUG == 1:
+            comptime if DEBUG == "1":
                 self.perf_metrics.start_forward_pass()
 
-            @parameter
-            if op.dynamic:
+            comptime if op.dynamic:
                 forward_op[op, attrs](
                     graph.nodes[i].inputs,
                     graph.nodes[i].outputs,
@@ -147,8 +142,7 @@ struct Model[
                 comptime t1 = g.nodes[i].inputs[0]
                 comptime out = g.nodes[i].outputs[0]
 
-                @parameter
-                if num_operands == 1:
+                comptime if num_operands == 1:
                     # Unary operator
                     forward_op[op, t1.shape, attrs](
                         self.parameters.tensors[out],
@@ -174,8 +168,7 @@ struct Model[
                     )
 
             # Save end time for performance metrics
-            @parameter
-            if DEBUG == 1:
+            comptime if DEBUG == "1":
                 self.perf_metrics.end_forward_pass(i)
 
     def backward(mut self, *upper_grads: Tensor[dtype]):
@@ -198,26 +191,19 @@ struct Model[
                 self.parameters.grads[node_outputs[i]] = upper_grads[i].copy()
 
         # 2. Loop over all nodes in reverse order and execute backward operations
-        @parameter
-        for i in range(len(g.nodes)):
-            comptime reverse_i = len(g.nodes) - i - 1
-            comptime op = g.nodes[reverse_i].operator
-            comptime attrs = g.nodes[reverse_i].attributes
-            comptime num_operands = len(g.nodes[reverse_i].inputs)
+        comptime for i in range(len(Self.g.nodes)):
+            comptime reverse_i = len(Self.g.nodes) - i - 1
+            comptime op = Self.g.nodes[reverse_i].operator
+            comptime attrs = Self.g.nodes[reverse_i].attributes
+            comptime num_operands = len(Self.g.nodes[reverse_i].inputs)
 
             # Save start time for performance metrics
-            @parameter
-            if DEBUG == 1:
+            comptime if DEBUG == "1":
                 self.perf_metrics.start_backward_pass()
 
-            @parameter
-            if op.dynamic:
-
-                @parameter
-                for j in range(num_operands):
-
-                    @parameter
-                    if g.nodes[reverse_i].inputs[j].trainable:
+            comptime if op.dynamic:
+                comptime for j in range(num_operands):
+                    comptime if Self.g.nodes[reverse_i].inputs[j].trainable:
                         backward_op[j, op, attrs](
                             graph.nodes[reverse_i].inputs,
                             graph.nodes[reverse_i].outputs,
@@ -228,16 +214,14 @@ struct Model[
                         )
             else:
                 # Statically known shapes and number of operands
-                comptime out = g.nodes[reverse_i].outputs[
+                comptime out = Self.g.nodes[reverse_i].outputs[
                     0
                 ]  # or upper_grad symbol
-                comptime t1 = g.nodes[reverse_i].inputs[0]
+                comptime t1 = Self.g.nodes[reverse_i].inputs[0]
 
-                @parameter
-                if num_operands == 1:
+                comptime if num_operands == 1:
                     # Unary operator
-                    @parameter
-                    if t1.trainable:
+                    comptime if t1.trainable:
                         backward_op[0, op, out.shape, t1.shape, attrs](
                             self.parameters.grads[out],
                             self.parameters.tensors[t1],
@@ -250,8 +234,7 @@ struct Model[
                     # Binary operator
                     comptime t2 = g.nodes[reverse_i].inputs[1]
 
-                    @parameter
-                    if t1.trainable:
+                    comptime if t1.trainable:
                         backward_op[
                             0, op, out.shape, t1.shape, t2.shape, attrs
                         ](
@@ -263,8 +246,7 @@ struct Model[
                             ],  # grad to be updated: inputs[0]
                         )
 
-                    @parameter
-                    if t2.trainable:
+                    comptime if t2.trainable:
                         backward_op[
                             1, op, out.shape, t1.shape, t2.shape, attrs
                         ](
@@ -281,8 +263,7 @@ struct Model[
                     comptime t2 = g.nodes[reverse_i].inputs[1]
                     comptime t3 = g.nodes[reverse_i].inputs[2]
 
-                    @parameter
-                    if t1.trainable:
+                    comptime if t1.trainable:
                         backward_op[
                             0,
                             op,
@@ -301,8 +282,7 @@ struct Model[
                             ],  # grad to be updated: inputs[0]
                         )
 
-                    @parameter
-                    if t2.trainable:
+                    comptime if t2.trainable:
                         backward_op[
                             1,
                             op,
@@ -321,8 +301,7 @@ struct Model[
                             ],  # grad to be updated: inputs[1]
                         )
 
-                    @parameter
-                    if t3.trainable:
+                    comptime if t3.trainable:
                         backward_op[
                             2,
                             op,
@@ -342,12 +321,11 @@ struct Model[
                         )
 
             # Save end time for performance metrics
-            @parameter
-            if DEBUG == 1:
+            comptime if DEBUG == "1":
                 self.perf_metrics.end_backward_pass(i)
 
     def allocate_tensor_memory(mut self):
-        var graph = materialize[g]()
+        var graph = materialize[Self.g]()
         for i in range(len(graph.inputs)):
             self.parameters.tensors.append(
                 Tensor[dtype](graph.inputs[i].shape), graph.inputs[i]
@@ -386,7 +364,7 @@ struct Model[
 
     def allocate_grad_memory(mut self):
         # Gradient have same shape as the tensor
-        var graph = materialize[g]()
+        var graph = materialize[Self.g]()
         for i in range(len(graph.inputs)):
             if graph.inputs[i].trainable:
                 self.parameters.grads.append(
@@ -416,7 +394,7 @@ struct Model[
 
         try:
             if path.suffix() == ".onnx":
-                load_onnx_model(model_path, self.parameters, self.g)
+                load_onnx_model(model_path, self.parameters, materialize[Self.g]())
             else:
                 print("Model file format not supported:", path.suffix())
         except e:
@@ -428,7 +406,7 @@ struct Model[
 
         try:
             if path.suffix() == ".onnx":
-                export_onnx_model(model_path, self.parameters, self.g)
+                export_onnx_model(model_path, self.parameters, materialize[Self.g]())
             else:
                 print("Model file format not supported:", path.suffix())
         except e:

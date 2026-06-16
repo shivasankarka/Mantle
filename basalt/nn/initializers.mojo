@@ -1,4 +1,4 @@
-from math import sqrt
+from std.math import sqrt
 
 from basalt import dtype
 from basalt import Tensor, TensorShape
@@ -58,9 +58,9 @@ def calculate_fan(shape: TensorShape, mode: String) -> Scalar[dtype]:
     var fan_out = num_output_fmaps * receptive_field_size
 
     if mode == "fan_in":
-        return fan_in
+        return Float32(fan_in)
     else:
-        return fan_out
+        return Float32(fan_out)
 
 
 # # TODO: https://pytorch.org/docs/stable/_modules/torch/nn/init.html

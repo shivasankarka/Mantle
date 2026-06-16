@@ -29,6 +29,6 @@ def CrossEntropyLoss(
     # CrossEntropy (reduction Mean)
     var targets_log_softmax = g.op(OP.MUL, y_true, log_softmax)
     var ret = g.op(OP.SUM, targets_log_softmax)
-    var negDivN = g.op(OP.MUL, ret, -1.0 / y_pred.shape[0])
+    var negDivN = g.op(OP.MUL, ret, -1.0 / Float64(y_pred.shape[0]))
 
     return negDivN

@@ -4,12 +4,12 @@ from basalt.autograd.attributes import Attribute, AttributeVector
 
 
 # '''Activation functions.'''
-def ReLU(inoutg: Graph, input: Symbol) -> Symbol:
+def ReLU(mut g: Graph, input: Symbol) -> Symbol:
     return g.op(OP.RELU, input)
 
 
 def LeakyReLU(
-    inoutg: Graph, input: Symbol, negative_slope: Scalar[dtype]
+    mut g: Graph, input: Symbol, negative_slope: Scalar[dtype]
 ) -> Symbol:
     return g.op(
         OP.LEAKYRELU,
@@ -18,15 +18,15 @@ def LeakyReLU(
     )
 
 
-def Sigmoid(inoutg: Graph, input: Symbol) -> Symbol:
+def Sigmoid(mut g: Graph, input: Symbol) -> Symbol:
     return g.op(OP.SIGMOID, input)
 
 
-def Tanh(inoutg: Graph, input: Symbol) -> Symbol:
+def Tanh(mut g: Graph, input: Symbol) -> Symbol:
     return g.op(OP.TANH, input)
 
 
-def Softmax(inoutg: Graph, input: Symbol, axis: Int) -> Symbol:
+def Softmax(mut g: Graph, input: Symbol, axis: Int) -> Symbol:
     # softmax: exp(x_i) / sum(exp(x_j))
     # stable softmax: exp(x_i - max(x_j)) / sum(exp(x_j - max(x_j)))
 
@@ -42,7 +42,7 @@ def Softmax(inoutg: Graph, input: Symbol, axis: Int) -> Symbol:
     return g.op(OP.DIV, exp_values, sum_values)
 
 
-def LogSoftmax(inoutg: Graph, input: Symbol, axis: Int) -> Symbol:
+def LogSoftmax(mut g: Graph, input: Symbol, axis: Int) -> Symbol:
     # stable logsoftmax: log(exp(x_i - max(x_j)) / sum(exp(x_j - max(x_j))))
     # stable logsoftmax: x_i - max(x_j) - log(sum(exp(x_j - max(x_j))))
 
