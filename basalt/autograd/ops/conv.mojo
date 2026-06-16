@@ -165,7 +165,20 @@ struct CONV2D:
                     for uy in range(out_y):
                         var result: SIMD[dtype, nelts] = 0
 
-                        def v_im2col[_nelts: Int](in_ch_kx_ky: Int) {mut result, read col_ptr, read kernel, read batch, read out_ch, read ux, read uy, read col_strides, read kernel_strides, read col_y}:
+                        def v_im2col[
+                            _nelts: Int
+                        ](in_ch_kx_ky: Int) {
+                            mut result,
+                            read col_ptr,
+                            read kernel,
+                            read batch,
+                            read out_ch,
+                            read ux,
+                            read uy,
+                            read col_strides,
+                            read kernel_strides,
+                            read col_y,
+                        }:
                             var col_index = (
                                 batch * col_strides[0]
                                 + (ux * col_y + uy) * col_strides[1]
@@ -389,7 +402,9 @@ struct CONV2D:
                 for batch in range(ug_shape_0):
                     var batch_offset = batch * ug_strides_0 + channel_offset
 
-                    def vec_sum[Nelts: Int](ux_uy: Int) {mut sum, read ug, read batch_offset}:
+                    def vec_sum[
+                        Nelts: Int
+                    ](ux_uy: Int) {mut sum, read ug, read batch_offset}:
                         sum += ug.load[Nelts](batch_offset + ux_uy).reduce_add()
 
                     vectorize[nelts](ug_shape_2 * ug_shape_3, vec_sum)

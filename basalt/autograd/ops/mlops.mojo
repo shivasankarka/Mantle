@@ -43,7 +43,9 @@ struct SIGMOID(Copyable, Movable):
         # d(sigmod(x))/dx = sigmoid(x) * (1 - sigmoid(x))
         var res_grad = Tensor[dtype](ug_shape)
 
-        def vec_sigmoid_bw[nelts: Int](idx: Int) {mut res_grad, read t1, read ug}:
+        def vec_sigmoid_bw[
+            nelts: Int
+        ](idx: Int) {mut res_grad, read t1, read ug}:
             res_grad.store[nelts](
                 idx,
                 Self.sidmoid_bw(t1.load[nelts](idx)) * ug.load[nelts](idx),
@@ -144,7 +146,9 @@ struct LEAKYRELU:
 
         var res_grad = Tensor[dtype](ug_shape)
 
-        def vec_leaky_relu_bw[nelts: Int](idx: Int) {mut res_grad, read t1, read ug}:
+        def vec_leaky_relu_bw[
+            nelts: Int
+        ](idx: Int) {mut res_grad, read t1, read ug}:
             res_grad.store[nelts](
                 idx,
                 leaky_relu_bw(t1.load[nelts](idx)) * ug.load[nelts](idx),
@@ -222,7 +226,9 @@ struct CLIP:
             dtype
         ]() if max_attr else max_finite[dtype]()
 
-        def vec_clip[nelts: Int](i: Int) {mut res, read t, read min_val, read max_val}:
+        def vec_clip[
+            nelts: Int
+        ](i: Int) {mut res, read t, read min_val, read max_val}:
             res.store[nelts](i, max(min(t.load[nelts](i), max_val), min_val))
 
         vectorize[nelts](t_shape.num_elements(), vec_clip)
@@ -246,7 +252,9 @@ struct CLIP:
 
         var res_grad = Tensor[dtype](t_shape)
 
-        def vec_clip_bw[nelts: Int](i: Int) {mut res_grad, read t, read ug, read min_val, read max_val}:
+        def vec_clip_bw[
+            nelts: Int
+        ](i: Int) {mut res_grad, read t, read ug, read min_val, read max_val}:
             var val = t.load[nelts](i)
             res_grad.store[nelts](
                 i,
@@ -456,7 +464,9 @@ struct SLICE:
             comptime position = shape.rank() - 1
             comptime stride = t1_strides[position] * steps[position]
 
-            def v_slice[nelts: Int](k: Int) {mut res, read t1, mut idx_original_temp, read idx_temp}:
+            def v_slice[
+                nelts: Int
+            ](k: Int) {mut res, read t1, mut idx_original_temp, read idx_temp}:
                 comptime if not backward_op:
                     comptime if steps[position] == 1:
                         res.store[nelts](

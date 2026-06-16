@@ -37,7 +37,7 @@ from ..attributes import AttributeVector
 
 
 # Define operators as named parameter expression
-struct OP(Writable, TrivialRegisterPassable):
+struct OP(TrivialRegisterPassable, Writable):
     """
     Compile time Operators list.
     """
