@@ -1,8 +1,8 @@
-from basalt import Tensor
-from random import rand, randn
-from algorithm import vectorize
-from utils.static_tuple import StaticTuple
+from std.random import rand, randn
+from std.algorithm import vectorize
+from std.utils.static_tuple import StaticTuple
 
+from basalt import Tensor
 
 @always_inline
 def rand_uniform[dtype: DType](mut res: Tensor[dtype], low: Scalar[dtype], high: Scalar[dtype]):
@@ -10,11 +10,10 @@ def rand_uniform[dtype: DType](mut res: Tensor[dtype], low: Scalar[dtype], high:
 
     rand[dtype](res.data(), res.num_elements())
 
-    @parameter
-    def vecscale[nelts: Int](idx: Int):
+    def vecscale[nelts: Int](idx: Int) {mut res, read scale, read low}:
         res.store[nelts](idx, res.load[nelts](idx).fma(scale, low))
 
-    vectorize[vecscale, nelts](res.num_elements())
+    vectorize[nelts](res.num_elements(), vecscale)
 
 
 @always_inline
@@ -22,8 +21,7 @@ def rand_normal[dtype: DType](mut res: Tensor[dtype], mean: Float64, std: Float6
     randn[dtype](res.data(), res.num_elements(), mean, std**2)
 
 
-@register_passable("trivial")
-struct MersenneTwister:
+struct MersenneTwister(TrivialRegisterPassable):
     """
     Pseudo-random generator Mersenne Twister (MT19937-32bit).
     """
@@ -46,11 +44,11 @@ struct MersenneTwister:
 
         self.index = Self.N
         self.state = StaticTuple[Int32, Self.N]()
-        self.state[0] = seed & D
+        self.state[0] = Int32(seed) & D
 
         for i in range(1, Self.N):
             var prev = self.state[i - 1]
-            self.state[i] = (F * (prev ^ (prev >> (W - 2))) + i) & D
+            self.state[i] = (F * (prev ^ (prev >> Int32(W - 2))) + Int32(i)) & D
 
     def next(mut self) -> Int32:
         if self.index >= Self.N:
@@ -72,4 +70,4 @@ struct MersenneTwister:
         return y
 
     def next_ui8(mut self) -> UInt8:
-        return self.next().value & int(0xFF)
+        return UInt8(self.next() & Int32(0xFF))
