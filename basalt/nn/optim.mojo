@@ -53,7 +53,7 @@ struct Adam[
         self.epsilon = epsilon
         self.iter = 0
 
-        var tr = materialize[trainable_parameters]()
+        var tr = materialize[Self.trainable_parameters]()
         # Capacity of the collections should be the n of trainable parameters
         self.rms_grads = Collection(capacity=len(tr))
         self.momentum_grads = Collection(capacity=len(tr))
@@ -67,7 +67,7 @@ struct Adam[
     def step(mut self):
         """Update model parameters."""
         self.iter += 1
-        var tr = materialize[trainable_parameters]()
+        var tr = materialize[Self.trainable_parameters]()
 
         # Loop over all trainable parameters
         @parameter
@@ -115,7 +115,7 @@ struct Adam[
     def allocate_rms_and_momentum(mut self):
         # They are initialized to zero
         # Loop over all trainable parameters
-        var tr = materialize[trainable_parameters]()
+        var tr = materialize[Self.trainable_parameters]()
         for i in range(len(tr)):
             var param = tr[i]
             self.rms_grads.append(Tensor[dtype](param.shape), param)

@@ -3,10 +3,10 @@ from basalt.nn import Tensor, TensorShape
 from basalt.utils.tensorutils import fill, elwise_op, accumulate_op
 from basalt.utils.math_util import add
 
-from utils.index import IndexList
+from std.utils.index import IndexList
 
 
-fn generate_tensor(*shape: Int) -> Tensor[dtype]:
+def generate_tensor(*shape: Int) -> Tensor[dtype]:
     var A = Tensor[dtype](shape)
     var size = A.num_elements()
     for i in range(size):
@@ -14,7 +14,7 @@ fn generate_tensor(*shape: Int) -> Tensor[dtype]:
     return A ^
 
 
-fn generate_expected_tensor[
+def generate_expected_tensor[
     size: Int
 ](data: IndexList[size], *shape: Int) -> Tensor[dtype]:
     var A = Tensor[dtype](shape)
@@ -28,8 +28,8 @@ struct TransposeData:
     var expected: Tensor[dtype]
     var transpose_dims: VariadicList[Int]
 
-    fn __init__(
-        inout self,
+    def __init__(
+        mut self,
         A: Tensor[dtype],
         expected: Tensor[dtype],
         transpose_dims: VariadicList[Int],
@@ -39,7 +39,7 @@ struct TransposeData:
         self.transpose_dims = transpose_dims
 
     @staticmethod
-    fn generate_1_2dim_test_case() -> TransposeData:
+    def generate_1_2dim_test_case() -> TransposeData:
         var A = generate_tensor(2, 3)
         var expected = IndexList[6](1, 4, 2, 5, 3, 6)
         var tranpose_dims = VariadicList[Int](1, 0)
@@ -48,7 +48,7 @@ struct TransposeData:
         return TransposeData(A, B, tranpose_dims)
 
     @staticmethod
-    fn generate_2_2dim_test_case() -> TransposeData:
+    def generate_2_2dim_test_case() -> TransposeData:
         var A = generate_tensor(2, 3, 2)
         var expected = IndexList[12](1, 7, 3, 9, 5, 11, 2, 8, 4, 10, 6, 12)
         var tranpose_dims = VariadicList[Int](2, 1, 0)
@@ -57,7 +57,7 @@ struct TransposeData:
         return TransposeData(A, B, tranpose_dims)
 
     @staticmethod
-    fn generate_3_2dim_test_case() -> TransposeData:
+    def generate_3_2dim_test_case() -> TransposeData:
         var A = generate_tensor(2, 3, 2, 3)
         var expected = IndexList[36](
             1,
@@ -103,7 +103,7 @@ struct TransposeData:
         return TransposeData(A, B, tranpose_dims)
 
     @staticmethod
-    fn generate_4_2dim_test_case() -> TransposeData:
+    def generate_4_2dim_test_case() -> TransposeData:
         var A = generate_tensor(3, 2, 3, 2, 3)
         var expected = IndexList[108](
             1,
@@ -221,7 +221,7 @@ struct TransposeData:
         return TransposeData(A, B, tranpose_dims)
 
     @staticmethod
-    fn generate_1_alldim_test_case() -> TransposeData:
+    def generate_1_alldim_test_case() -> TransposeData:
         var A = generate_tensor(2, 3, 2, 3)
         var expected = IndexList[36](
             1,
@@ -267,7 +267,7 @@ struct TransposeData:
         return TransposeData(A, B, tranpose_dims)
 
     @staticmethod
-    fn generate_2_alldim_test_case() -> TransposeData:
+    def generate_2_alldim_test_case() -> TransposeData:
         var A = generate_tensor(2, 3, 4)
         var expected = IndexList[24](
             1,
@@ -302,7 +302,7 @@ struct TransposeData:
         return TransposeData(A, B, tranpose_dims)
 
     @staticmethod
-    fn generate_1_transpose_test_case() -> TransposeData:
+    def generate_1_transpose_test_case() -> TransposeData:
         var A = generate_tensor(2, 3, 2, 3)
         var expected = IndexList[36](
             1,
@@ -353,8 +353,8 @@ struct PaddingData:
     var expected: Tensor[dtype]
     var pad_with: List[Int]
 
-    fn __init__(
-        inout self,
+    def __init__(
+        mut self,
         A: Tensor[dtype],
         expected: Tensor[dtype],
         pad_with: List[Int],
@@ -364,7 +364,7 @@ struct PaddingData:
         self.pad_with = pad_with
 
     @staticmethod
-    fn generate_1d_test_case_after() -> PaddingData:
+    def generate_1d_test_case_after() -> PaddingData:
         var A = generate_tensor(2)
 
         var expected = IndexList[4](1, 2, 0, 0)
@@ -377,7 +377,7 @@ struct PaddingData:
         return PaddingData(A, B, pad_with)
 
     @staticmethod
-    fn generate_1d_test_case_before_after() -> PaddingData:
+    def generate_1d_test_case_before_after() -> PaddingData:
         var A = generate_tensor(3)
 
         var expected = IndexList[6](0, 0, 1, 2, 3, 0)
@@ -390,7 +390,7 @@ struct PaddingData:
         return PaddingData(A, B, pad_with)
 
     @staticmethod
-    fn generate_2d_test_case() -> PaddingData:
+    def generate_2d_test_case() -> PaddingData:
         var A = generate_tensor(2, 2)
 
         var expected = IndexList[45](
@@ -451,7 +451,7 @@ struct PaddingData:
         return PaddingData(A, B, pad_with)
 
     @staticmethod
-    fn generate_3d_test_case_simple() -> PaddingData:
+    def generate_3d_test_case_simple() -> PaddingData:
         var A = generate_tensor(2, 2, 2)
 
         var expected = IndexList[16](
@@ -470,7 +470,7 @@ struct PaddingData:
         return PaddingData(A, B, pad_with)
 
     @staticmethod
-    fn generate_3d_test_case() -> PaddingData:
+    def generate_3d_test_case() -> PaddingData:
         var A = generate_tensor(1, 2, 3)
 
         var expected = IndexList[45](
@@ -533,7 +533,7 @@ struct PaddingData:
         return PaddingData(A, B, pad_with)
 
     @staticmethod
-    fn generate_4d_test_case() -> PaddingData:
+    def generate_4d_test_case() -> PaddingData:
         var A = generate_tensor(2, 2, 2, 2)
 
         var expected = IndexList[81](
@@ -642,8 +642,8 @@ struct SumMeanStdData:
     var expected_mean: Tensor[dtype]
     var expected_std: Tensor[dtype]
 
-    fn __init__(
-        inout self,
+    def __init__(
+        mut self,
         A: Tensor[dtype],
         axis: Int,
         expected_sum: Tensor[dtype],
@@ -657,7 +657,7 @@ struct SumMeanStdData:
         self.expected_std = expected_std
 
     @staticmethod
-    fn generate_3d_axis_0() -> SumMeanStdData:
+    def generate_3d_axis_0() -> SumMeanStdData:
         var A = generate_tensor(3, 4, 5)
         var axis = 0
 
@@ -716,7 +716,7 @@ struct SumMeanStdData:
         return SumMeanStdData(A, axis, B, C, expected_std)
 
     @staticmethod
-    fn generate_3d_axis_1() -> SumMeanStdData:
+    def generate_3d_axis_1() -> SumMeanStdData:
         var A = generate_tensor(3, 4, 5)
         var axis = 1
 
@@ -766,7 +766,7 @@ struct SumMeanStdData:
         return SumMeanStdData(A, axis, B, C, expected_std)
 
     @staticmethod
-    fn generate_3d_axis_2() -> SumMeanStdData:
+    def generate_3d_axis_2() -> SumMeanStdData:
         var A = generate_tensor(3, 4, 5)
         var axis = 2
 

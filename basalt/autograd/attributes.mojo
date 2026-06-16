@@ -206,32 +206,32 @@ struct Attribute(Copyable, Movable, TrivialRegisterPassable, Writable):
     def json(self) -> String:
         var result = '{"name": "' + String(self.name) + '", '
 
-        var type: String = ""
-        var value: String = ""
+        var attr_type: String
+        var attr_value: String
 
         if self.type == AttributeType.STRING:
-            type = "STRING"
-            value = '"' + self.to_string() + '"'
+            attr_type = "STRING"
+            attr_value = '"' + self.to_string() + '"'
         elif self.type == AttributeType.INTS:
-            type = "INTS"
+            attr_type = "INTS"
 
             var value_temp = self.to_shape()
-            value = "["
+            attr_value = "["
             for i in range(value_temp.rank()):
-                value += String(value_temp._shape[i])
+                attr_value += String(value_temp._shape[i])
                 if i < value_temp.rank() - 1:
-                    value += ", "
-            value += "]"
+                    attr_value += ", "
+            attr_value += "]"
         elif self.type == AttributeType.FLOAT:
-            type = "FLOAT"
-            value = String(self.to_scalar[DType.float64]())
+            attr_type = "FLOAT"
+            attr_value = String(self.to_scalar[DType.float64]())
         elif self.type == AttributeType.INT:
-            type = "INT"
-            value = String(self.to_int())
+            attr_type = "INT"
+            attr_value = String(self.to_int())
         else:
-            type = "UNKNOWN"
-            value = "UNKNOWN"
+            attr_type = "UNKNOWN"
+            attr_value = "UNKNOWN"
 
-        result += '"type": "' + type + '", ' + '"value": ' + value
+        result += '"type": "' + attr_type + '", ' + '"value": ' + attr_value
 
         return result + "}"

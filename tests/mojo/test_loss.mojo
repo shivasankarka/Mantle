@@ -1,4 +1,4 @@
-from testing import assert_equal, assert_almost_equal
+from std.testing import assert_equal, assert_almost_equal
 
 from basalt import dtype, nelts
 from basalt.autograd import Graph, Symbol, OP
@@ -6,11 +6,11 @@ from basalt.nn import Model, Tensor, TensorShape, MSELoss, CrossEntropyLoss
 from basalt.utils.tensorutils import fill
 
 
-fn test_MSE_perfect() raises:
-    alias y_pred_shape = TensorShape(2, 10)  # batch of 2, 10 classes
-    alias y_true_shape = TensorShape(2, 10)
+def test_MSE_perfect() raises:
+    comptime y_pred_shape = TensorShape(2, 10)  # batch of 2, 10 classes
+    comptime y_true_shape = TensorShape(2, 10)
 
-    fn create_graph() -> Graph:
+    def create_graph() -> Graph:
         var g = Graph()
 
         var y_pred = g.input(y_pred_shape)
@@ -22,7 +22,7 @@ fn test_MSE_perfect() raises:
 
         return g ^
 
-    alias graph = create_graph()
+    comptime graph = create_graph()
     assert_equal(len(graph.nodes), 3)
 
     var y_pred = Tensor[dtype](y_pred_shape)
@@ -39,11 +39,11 @@ fn test_MSE_perfect() raises:
     assert_equal(loss[0], 0)  # loss is 0
 
 
-fn test_MSE_imperfect() raises:
-    alias y_pred_shape = TensorShape(1, 10)  # batch of 1, 10 classes
-    alias y_true_shape = TensorShape(1, 10)
+def test_MSE_imperfect() raises:
+    comptime y_pred_shape = TensorShape(1, 10)  # batch of 1, 10 classes
+    comptime y_true_shape = TensorShape(1, 10)
 
-    fn create_graph() -> Graph:
+    def create_graph() -> Graph:
         var g = Graph()
 
         var y_pred = g.input(y_pred_shape)
@@ -55,7 +55,7 @@ fn test_MSE_imperfect() raises:
 
         return g ^
 
-    alias graph = create_graph()
+    comptime graph = create_graph()
     assert_equal(len(graph.nodes), 3)
 
     var y_pred = Tensor[dtype](y_pred_shape)
@@ -80,11 +80,11 @@ fn test_MSE_imperfect() raises:
     assert_almost_equal(loss[0], expected_loss)
 
 
-fn test_CrossEntropy_perfect() raises:
-    alias y_pred_shape = TensorShape(2, 3)  # batch of 2, 3 classes
-    alias y_true_shape = TensorShape(2, 3)
+def test_CrossEntropy_perfect() raises:
+    comptime y_pred_shape = TensorShape(2, 3)  # batch of 2, 3 classes
+    comptime y_true_shape = TensorShape(2, 3)
 
-    fn create_graph() -> Graph:
+    def create_graph() -> Graph:
         var g = Graph()
 
         var y_pred = g.input(y_pred_shape)
@@ -96,7 +96,7 @@ fn test_CrossEntropy_perfect() raises:
 
         return g ^
 
-    alias graph = create_graph()
+    comptime graph = create_graph()
     assert_equal(len(graph.nodes), 9)
 
     var y_pred = Tensor[dtype](y_pred_shape)
@@ -124,11 +124,11 @@ fn test_CrossEntropy_perfect() raises:
     assert_almost_equal(loss[0], 0.76794958)
 
 
-fn test_CrossEntropy_imperfect() raises:
-    alias y_pred_shape = TensorShape(2, 3)  # batch of 2, 3 classes
-    alias y_true_shape = TensorShape(2, 3)
+def test_CrossEntropy_imperfect() raises:
+    comptime y_pred_shape = TensorShape(2, 3)  # batch of 2, 3 classes
+    comptime y_true_shape = TensorShape(2, 3)
 
-    fn create_graph() -> Graph:
+    def create_graph() -> Graph:
         var g = Graph()
 
         var y_pred = g.input(y_pred_shape)
@@ -140,7 +140,7 @@ fn test_CrossEntropy_imperfect() raises:
 
         return g ^
 
-    alias graph = create_graph()
+    comptime graph = create_graph()
 
     var y_pred = Tensor[dtype](y_pred_shape)
     var y_true = Tensor[dtype](y_true_shape)
@@ -167,7 +167,7 @@ fn test_CrossEntropy_imperfect() raises:
     assert_almost_equal(loss[0], 1.31794953)
 
 
-fn main():
+def main():
     try:
         test_MSE_perfect()
         test_MSE_imperfect()

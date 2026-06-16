@@ -46,7 +46,7 @@ struct BostonHousing:
 
         # Normalize data
         # TODO: redo when tensorutils tmean2 and tstd2 are implemented
-        comptime nelts = simdwidthof[dtype]()
+        comptime nelts = simd_width_of[dtype]()
         var col = Tensor[dtype](N)
         for j in range(self.n_inputs):
             for k in range(N):
@@ -77,15 +77,15 @@ struct MNIST:
         # Load data in Tensor
         for item in range(N):
             var line = list_of_lines[item].split(",")
-            self.labels[item] = atol(String(line[0]))
+            self.labels[item] = Scalar[dtype](atol(String(line[0])))
             for i in range(self.data.shape()[2]):
                 for j in range(self.data.shape()[3]):
-                    self.data[item * 28 * 28 + i * 28 + j] = atol(
+                    self.data[item * 28 * 28 + i * 28 + j] = Scalar[dtype](atol(
                         String(line[i * 28 + j + 1])
-                    )
+                    ))
 
         # Normalize data
-        comptime nelts = simdwidthof[dtype]()
+        comptime nelts = simd_width_of[dtype]()
 
         def vecdiv[nelts: Int](idx: Int) {mut self}:
             self.data.store[nelts](idx, div(self.data.load[nelts](idx), 255.0))
@@ -113,16 +113,16 @@ def cast_string[dtype: DType](s: String) raises -> Scalar[dtype]:
     """
 
     var idx = find_first(s, delimiter=".")
-    var x: Scalar[dtype] = -1
+    var result: Scalar[dtype] = -1
 
     if idx == -1:
         # No decimal point
-        x = atol(s)
-        return x
+        result = Scalar[dtype](atol(s))
+        return result
     else:
         var c_int: Scalar[dtype]
         var c_frac: Scalar[dtype]
-        c_int = atol(s[:idx])
-        c_frac = atol(s[idx + 1 :])
-        x = c_int + c_frac / (10 ** len(s[idx + 1 :]))
-        return x
+        c_int = Scalar[dtype](atol(s[byte=:idx]))
+        c_frac = Scalar[dtype](atol(s[byte=idx + 1 :]))
+        x = c_int + c_frac / Scalar[dtype](10 ** s[byte=idx + 1 :].byte_length())
+        return result

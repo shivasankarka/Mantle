@@ -1,8 +1,8 @@
-from random import rand
-from python import Python
-from utils.numerics import max_finite
-from testing import assert_almost_equal
-import math
+from std.random import rand
+from std.python import Python
+from std.utils.numerics import max_finite
+from std.testing import assert_almost_equal
+import std.math as math
 
 from basalt import dtype
 from basalt.autograd import Graph, OP
@@ -13,7 +13,7 @@ from basalt.autograd.params import Param
 from tests import to_numpy, to_tensor
 
 
-fn create_simple_nn(
+def create_simple_nn(
     batch_size: Int,
     linear1_weights: List[Scalar[dtype]],
     linear1_bias: List[Scalar[dtype]],
@@ -58,7 +58,7 @@ fn create_simple_nn(
     return g ^
 
 
-fn run_mojo[
+def run_mojo[
     batch_size: Int,
     linear1_weights: List[Scalar[dtype]],
     linear1_bias: List[Scalar[dtype]],
@@ -72,7 +72,7 @@ fn run_mojo[
     inputs: Tensor[dtype],
     labels: Tensor[dtype],
 ) -> List[Scalar[dtype]]:
-    alias graph = create_simple_nn(
+    comptime graph = create_simple_nn(
         batch_size,
         linear1_weights,
         linear1_bias,
@@ -100,7 +100,7 @@ fn run_mojo[
     return losses
 
 
-fn run_torch(
+def run_torch(
     epochs: Int,
     learning_rate: Float64,
     inputs: Tensor,
@@ -167,7 +167,7 @@ fn run_torch(
         return out
 
 
-fn create_weights(num_elements: Int, zero: Bool) -> List[Scalar[dtype]]:
+def create_weights(num_elements: Int, zero: Bool) -> List[Scalar[dtype]]:
     var prng = MersenneTwister(123456)
     var weights = List[Scalar[dtype]](capacity=num_elements)
     for i in range(num_elements):
@@ -181,7 +181,7 @@ fn create_weights(num_elements: Int, zero: Bool) -> List[Scalar[dtype]]:
     return weights ^
 
 
-fn dv_to_tensor(dv: List[Scalar[dtype]], shape: TensorShape) -> Tensor[dtype]:
+def dv_to_tensor(dv: List[Scalar[dtype]], shape: TensorShape) -> Tensor[dtype]:
     var t = Tensor[dtype](shape)
     if t.num_elements() != len(dv):
         print("[WARNING] tensor and dv not the shame shape")
@@ -190,11 +190,11 @@ fn dv_to_tensor(dv: List[Scalar[dtype]], shape: TensorShape) -> Tensor[dtype]:
     return t ^
 
 
-fn main():
-    alias learning_rate = 1e-3
-    alias epochs = 100
-    alias batch_size = 64
-    alias n_outputs = 10
+def main():
+    comptime learning_rate = 1e-3
+    comptime epochs = 100
+    comptime batch_size = 64
+    comptime n_outputs = 10
 
     var x_data = Tensor[dtype](batch_size, 1)
     rand[dtype](x_data.data(), x_data.num_elements())
@@ -203,19 +203,19 @@ fn main():
         x_data[j] = x_data[j] * 2 - 1
         y_data[j] = math.sin(x_data[j])
 
-    alias l1_w_shape = TensorShape(1, 32)
-    alias l1_b_shape = TensorShape(32)
-    alias l2_w_shape = TensorShape(32, 32)
-    alias l2_b_shape = TensorShape(32)
-    alias l3_w_shape = TensorShape(32, 1)
-    alias l3_b_shape = TensorShape(1)
+    comptime l1_w_shape = TensorShape(1, 32)
+    comptime l1_b_shape = TensorShape(32)
+    comptime l2_w_shape = TensorShape(32, 32)
+    comptime l2_b_shape = TensorShape(32)
+    comptime l3_w_shape = TensorShape(32, 1)
+    comptime l3_b_shape = TensorShape(1)
 
-    alias linear1_weights = create_weights(l1_w_shape.num_elements(), zero=False)
-    alias linear1_bias = create_weights(l1_b_shape.num_elements(), zero=False)
-    alias linear2_weights = create_weights(l2_w_shape.num_elements(), zero=False)
-    alias linear2_bias = create_weights(l2_b_shape.num_elements(), zero=False)
-    alias linear3_weights = create_weights(l3_w_shape.num_elements(), zero=False)
-    alias linear3_bias = create_weights(l3_b_shape.num_elements(), zero=False)
+    comptime linear1_weights = create_weights(l1_w_shape.num_elements(), zero=False)
+    comptime linear1_bias = create_weights(l1_b_shape.num_elements(), zero=False)
+    comptime linear2_weights = create_weights(l2_w_shape.num_elements(), zero=False)
+    comptime linear2_bias = create_weights(l2_b_shape.num_elements(), zero=False)
+    comptime linear3_weights = create_weights(l3_w_shape.num_elements(), zero=False)
+    comptime linear3_bias = create_weights(l3_b_shape.num_elements(), zero=False)
 
     var losses_mojo = run_mojo[
         batch_size,

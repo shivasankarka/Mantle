@@ -1,6 +1,6 @@
-from random import rand
-from time.time import monotonic as now
-import math
+from std.random import rand
+from std.time import now
+import std.math as math
 
 import basalt.nn as nn
 from basalt import Tensor, TensorShape
@@ -9,7 +9,7 @@ from basalt import Graph, Symbol, OP
 from basalt.utils.tensorutils import fill
 
 
-fn create_simple_nn(batch_size: Int, n_inputs: Int, n_outputs: Int) -> Graph:
+def create_simple_nn(batch_size: Int, n_inputs: Int, n_outputs: Int) -> Graph:
     var g = Graph()
 
     var x = g.input(TensorShape(batch_size, n_inputs))
@@ -25,20 +25,18 @@ fn create_simple_nn(batch_size: Int, n_inputs: Int, n_outputs: Int) -> Graph:
     var loss = nn.MSELoss(g, y_pred, y_true)
     g.loss(loss)
 
-    g.compile()
-
     return g ^
 
 
-fn main():
-    alias batch_size = 32
-    alias n_inputs = 1
-    alias n_outputs = 1
-    alias learning_rate = 0.01
+def main():
+    comptime batch_size = 32
+    comptime n_inputs = 1
+    comptime n_outputs = 1
+    comptime learning_rate = 0.01
 
-    alias epochs = 20000
+    comptime epochs = 20000
 
-    alias graph = create_simple_nn(batch_size, n_inputs, n_outputs)
+    comptime graph = create_simple_nn(batch_size, n_inputs, n_outputs)
 
     # try: graph.render("operator")
     # except: print("Could not render graph")

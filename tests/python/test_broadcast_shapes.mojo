@@ -1,18 +1,18 @@
-from python.python import Python, PythonObject
-from testing import assert_true
+from std.python import Python, PythonObject
+from std.testing import assert_true
 
 from basalt.nn import Tensor, TensorShape
 from basalt.utils.tensorutils import broadcast_shapes
 
 
-fn to_tensor_shape(owned shape: PythonObject) raises -> TensorShape:
+def to_tensor_shape(owned shape: PythonObject) raises -> TensorShape:
     var tensor_shape = List[Int]()
     for dim in shape:
         tensor_shape.append(int(float(dim)))
     return TensorShape(tensor_shape)
 
 
-fn np_broadcast_shapes(s1: TensorShape, s2: TensorShape) raises -> TensorShape:
+def np_broadcast_shapes(s1: TensorShape, s2: TensorShape) raises -> TensorShape:
     var np = Python.import_module("numpy")
     var s1_py: PythonObject = []
     var s2_py: PythonObject = []
@@ -26,7 +26,7 @@ fn np_broadcast_shapes(s1: TensorShape, s2: TensorShape) raises -> TensorShape:
     return to_tensor_shape(py_shape)
 
 
-fn test_broadcast_shapes() raises:
+def test_broadcast_shapes() raises:
     var s1 = TensorShape(3, 5, 2)
     var s2 = TensorShape(3, 5, 2)
     var s3 = broadcast_shapes(s1, s2)
@@ -82,7 +82,7 @@ fn test_broadcast_shapes() raises:
     #     print("Numpy:", e)
 
 
-fn test_broadcast_shapes_multiple() raises:
+def test_broadcast_shapes_multiple() raises:
     var np = Python.import_module("numpy")
 
     var s1 = TensorShape(1, 2)
@@ -101,7 +101,7 @@ fn test_broadcast_shapes_multiple() raises:
     assert_true(res == res_np)
 
 
-fn main():
+def main():
     try:
         test_broadcast_shapes()
         test_broadcast_shapes_multiple()

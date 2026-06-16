@@ -1,8 +1,8 @@
-from random import rand
-from testing import assert_equal, assert_almost_equal
-from math import sqrt, exp
+from std.random import rand
+from std.testing import assert_equal, assert_almost_equal
+from std.math import sqrt, exp
 
-from utils.index import IndexList
+from std.utils.index import IndexList
 
 from basalt import dtype, nelts
 from basalt.autograd.ops.matmul import dot
@@ -27,7 +27,7 @@ from basalt.utils.math_util import add, sub, mul, div, round_simd
 from tests import assert_tensors_equal
 
 
-fn test_zero() raises:
+def test_zero() raises:
     var A = Tensor[dtype](2, 3)
     var B = Tensor[dtype](2, 3)
     rand[dtype](B.data(), B.num_elements())
@@ -35,7 +35,7 @@ fn test_zero() raises:
     assert_tensors_equal(A, B)
 
 
-fn test_fill() raises:
+def test_fill() raises:
     var A = Tensor[dtype](2, 3)
     var B = Tensor[dtype](2, 3)
     for i in range(A.num_elements()):
@@ -44,9 +44,9 @@ fn test_fill() raises:
     assert_tensors_equal(A, B)
 
 
-fn test_dot() raises:
-    alias a_shape = TensorShape(2, 3)
-    alias b_shape = TensorShape(3, 2)
+def test_dot() raises:
+    comptime a_shape = TensorShape(2, 3)
+    comptime b_shape = TensorShape(3, 2)
     var A = Tensor[dtype](a_shape)
     var B = Tensor[dtype](b_shape)
     fill(A, 1.0)
@@ -65,7 +65,7 @@ fn test_dot() raises:
     assert_tensors_equal(D, D_expected)
 
 
-fn test_elwise_transform() raises:
+def test_elwise_transform() raises:
     var A = Tensor[dtype](2, 10)
     var B = Tensor[dtype](2, 10)
     var C = Tensor[dtype](2, 10)
@@ -88,7 +88,7 @@ fn test_elwise_transform() raises:
     assert_tensors_equal(C_res, D)
 
 
-fn test_elwise_pow() raises:
+def test_elwise_pow() raises:
     var A = Tensor[dtype](1, 10)
     var B = Tensor[dtype](1, 10)
     for i in range(10):
@@ -100,9 +100,9 @@ fn test_elwise_pow() raises:
     assert_tensors_equal(A_res, B)
 
 
-fn test_elwise_tensor_tensor() raises:
-    alias t1_shape = TensorShape(2, 10)
-    alias t2_shape = TensorShape(2, 10)
+def test_elwise_tensor_tensor() raises:
+    comptime t1_shape = TensorShape(2, 10)
+    comptime t2_shape = TensorShape(2, 10)
     var t1 = Tensor[dtype](t1_shape)
     var t2 = Tensor[dtype](t2_shape)
     fill(t1, 3.0)
@@ -132,7 +132,7 @@ fn test_elwise_tensor_tensor() raises:
     assert_tensors_equal(result4, result4_expected)
 
 
-fn test_elwise_tensor_scalar() raises:
+def test_elwise_tensor_scalar() raises:
     var a: Scalar[dtype] = 2.0
     var t1 = Tensor[dtype](2, 10)
     fill(t1, 1.0)
@@ -162,10 +162,10 @@ fn test_elwise_tensor_scalar() raises:
     assert_tensors_equal(result, result5_expected)
 
 
-fn test_elwise_broadcast_tensor() raises:
-    alias t1_shape = TensorShape(2, 3, 4)
-    alias t2_shape = TensorShape(5, 2, 1, 4)
-    alias res_shape = broadcast_shapes(t1_shape, t2_shape)
+def test_elwise_broadcast_tensor() raises:
+    comptime t1_shape = TensorShape(2, 3, 4)
+    comptime t2_shape = TensorShape(5, 2, 1, 4)
+    comptime res_shape = broadcast_shapes(t1_shape, t2_shape)
     var t1 = Tensor[dtype](t1_shape)
     var t2 = Tensor[dtype](t2_shape)
 
@@ -187,7 +187,7 @@ fn test_elwise_broadcast_tensor() raises:
 from test_tensorutils_data import SumMeanStdData
 
 
-fn test_sum_mean_std() raises:
+def test_sum_mean_std() raises:
     var t = Tensor[dtype](2, 10)
     var s = 0
     for i in range(20):
@@ -252,7 +252,7 @@ fn test_sum_mean_std() raises:
     assert_tensors_equal(batch_std_1, expected_batch_std_1)
 
 
-fn test_sum_mean_std_n() raises:
+def test_sum_mean_std_n() raises:
     var t = Tensor[dtype](3, 4, 5)
     var s = 0
     for i in range(60):
@@ -319,7 +319,7 @@ fn test_sum_mean_std_n() raises:
     assert_tensors_equal(batch_std_2, data.expected_std)
 
 
-fn test_max() raises:
+def test_max() raises:
     var t = Tensor[dtype](2, 3, 2)
     for i in range(12):
         t[i] = i + 1
@@ -327,10 +327,9 @@ fn test_max() raises:
     var tensor_max = tmax(t)
     assert_equal(tensor_max, 12)
 
-    @parameter
-    fn fill_tensor[
+    def fill_tensor[
         size: Int
-    ](inout tensor: Tensor[dtype], values: IndexList[size]):
+    ](mut tensor: Tensor[dtype], values: IndexList[size]):
         for i in range(tensor.num_elements()):
             tensor[i] = values[i]
 
@@ -359,7 +358,7 @@ fn test_max() raises:
 from test_tensorutils_data import TransposeData
 
 
-fn test_transpose() raises:
+def test_transpose() raises:
     # Transpose 2D
     var data = TransposeData.generate_1_2dim_test_case()
     var transposed = transpose(data.A, TensorShape(data.transpose_dims))
@@ -395,9 +394,9 @@ fn test_transpose() raises:
     assert_tensors_equal(transposed, data.expected)
 
 
-fn test_accumulate_grad() raises:
-    alias A_shape = TensorShape(2, 3, 4)
-    alias B_shape = TensorShape(2, 1, 1)
+def test_accumulate_grad() raises:
+    comptime A_shape = TensorShape(2, 3, 4)
+    comptime B_shape = TensorShape(2, 1, 1)
     var A = Tensor[dtype](A_shape)
     var B = Tensor[dtype](B_shape)
     fill(A, 3.0)
@@ -407,7 +406,7 @@ fn test_accumulate_grad() raises:
     fill(expected, 36)
     assert_tensors_equal(B, expected)
 
-    alias B_shape_2 = TensorShape(2, 1)
+    comptime B_shape_2 = TensorShape(2, 1)
     B = Tensor[dtype](B_shape_2)
     accumulate_grad[B_shape_2, A_shape](B, A)
     expected = Tensor[dtype](2, 1)
@@ -417,7 +416,7 @@ fn test_accumulate_grad() raises:
 
 # from test_tensorutils_data import PaddingData
 
-# fn test_padding() raises:
+# def test_padding() raises:
 #     # 1D padding (only after)
 #     var data = PaddingData.generate_1d_test_case_after()
 #     var padded_data = pad_zeros[dtype, nelts](data.A, data.pad_with)
@@ -449,7 +448,7 @@ fn test_accumulate_grad() raises:
 #     assert_tensors_equal(padded_data, data.expected)
 
 
-fn main():
+def main():
     try:
         test_zero()
         test_fill()

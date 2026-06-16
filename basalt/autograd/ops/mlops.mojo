@@ -2,8 +2,10 @@ from std.algorithm import vectorize, parallelize
 from std.math import exp
 from std.utils.numerics import min_finite, max_finite
 from std.memory import memcpy
+from std.utils.index import IndexList
 
 from basalt import Tensor, TensorShape
+from basalt.nn.tensor import MAX_RANK
 from basalt.utils.tensorutils import elwise_transform
 from basalt.autograd.attributes import Attribute, AttributeVector
 
@@ -17,14 +19,14 @@ struct SIGMOID(Copyable, Movable):
     @always_inline
     def sigmoid[
         type: DType, simd_width: Int
-    ](x: SIMD[type, simd_width]) -> SIMD[type, simd_width]:
+    ](x: SIMD[type, simd_width]) -> SIMD[type, simd_width] where type.is_floating_point():
         return 1 / (1 + exp(-x))
 
     @staticmethod
     @always_inline
     def sidmoid_bw[
         type: DType, simd_width: Int
-    ](x: SIMD[type, simd_width]) -> SIMD[type, simd_width]:
+    ](x: SIMD[type, simd_width]) -> SIMD[type, simd_width] where type.is_floating_point():
         return Self.sigmoid(x) * (1 - Self.sigmoid(x))
 
     @staticmethod
@@ -67,7 +69,7 @@ struct RELU:
         type: DType, simd_width: Int
     ](x: SIMD[type, simd_width]) -> SIMD[type, simd_width]:
         # x if x > 0 else 0
-        return (x > 0).select(x, 0)
+        return x.gt(0).select[type](x, SIMD[type, simd_width](0))
 
     @staticmethod
     @always_inline
@@ -75,7 +77,7 @@ struct RELU:
         type: DType, simd_width: Int
     ](x: SIMD[type, simd_width]) -> SIMD[type, simd_width]:
         # 1 if x > 0 else 0
-        return (x > 0).select[type](1, 0)
+        return x.gt(0).select[type](SIMD[type, simd_width](1), SIMD[type, simd_width](0))
 
     @staticmethod
     def forward[
@@ -122,7 +124,7 @@ struct LEAKYRELU:
             var negative_slope = (
                 attributes["negative_slope"].value().to_scalar[type]()
             )
-            return (x > 0).select(x, x * negative_slope)
+            return x.gt(0).select[type](x, SIMD[type, simd_width](x * negative_slope))
 
         elwise_transform[leaky_relu](res, t1)
 
@@ -142,7 +144,7 @@ struct LEAKYRELU:
                 attributes["negative_slope"].value().to_scalar[type]()
             )
 
-            return (x > 0).select[type](1, negative_slope)
+            return x.gt(0).select[type](SIMD[type, simd_width](1), SIMD[type, simd_width](negative_slope))
 
         var res_grad = Tensor[dtype](ug_shape)
 
@@ -168,14 +170,14 @@ struct TANH:
     @always_inline
     def tanh[
         type: DType, simd_width: Int
-    ](x: SIMD[type, simd_width]) -> SIMD[type, simd_width]:
+    ](x: SIMD[type, simd_width]) -> SIMD[type, simd_width] where type.is_floating_point():
         return (exp(x) - exp(-x)) / (exp(x) + exp(-x))
 
     @staticmethod
     @always_inline
     def tanh_bw[
         type: DType, simd_width: Int
-    ](x: SIMD[type, simd_width]) -> SIMD[type, simd_width]:
+    ](x: SIMD[type, simd_width]) -> SIMD[type, simd_width] where type.is_floating_point():
         return 1 - pow(Self.tanh(x), 2)
 
     @staticmethod
@@ -258,8 +260,8 @@ struct CLIP:
             var val = t.load[nelts](i)
             res_grad.store[nelts](
                 i,
-                ((val >= min_val) * (val <= max_val)).select(
-                    ug.load[nelts](i), 0
+                (val.ge(min_val) & val.le(max_val)).select[dtype](
+                    ug.load[nelts](i), SIMD[dtype, nelts](0)
                 ),
             )
 
@@ -291,7 +293,7 @@ struct SQUEEZE:
         t1_shape: TensorShape,
         attributes: AttributeVector,
     ](mut res: Tensor[dtype], t1: Tensor[dtype]):
-        memcpy(res.data(), t1.data(), t1.num_elements())
+        memcpy(dest=res.data(), src=t1.data(), count=t1.num_elements())
 
     @staticmethod
     def backward[
@@ -299,7 +301,7 @@ struct SQUEEZE:
         t1_shape: TensorShape,
     ](ug: Tensor[dtype], t1: Tensor[dtype]) -> Tensor[dtype]:
         var res_grad = Tensor[dtype](t1_shape)
-        memcpy(res_grad.data(), ug.data(), ug.num_elements())
+        memcpy(dest=res_grad.data(), src=ug.data(), count=ug.num_elements())
         return res_grad^
 
 
@@ -330,7 +332,7 @@ struct UNSQUEEZE:
         t1_shape: TensorShape,
         attributes: AttributeVector,
     ](mut res: Tensor[dtype], t1: Tensor[dtype]):
-        memcpy(res.data(), t1.data(), t1.num_elements())
+        memcpy(dest=res.data(), src=t1.data(), count=t1.num_elements())
 
     @staticmethod
     def backward[
@@ -338,7 +340,7 @@ struct UNSQUEEZE:
         t1_shape: TensorShape,
     ](ug: Tensor[dtype], t1: Tensor[dtype]) -> Tensor[dtype]:
         var res_grad = Tensor[dtype](t1_shape)
-        memcpy(res_grad.data(), ug.data(), ug.num_elements())
+        memcpy(dest=res_grad.data(), src=ug.data(), count=ug.num_elements())
         return res_grad^
 
 
@@ -352,7 +354,7 @@ struct SLICE:
     @staticmethod
     def default_starts(shape: List[Int]) -> List[Int]:
         var starts = List[Int]()
-        for i in range(len(shape)):
+        for _ in range(len(shape)):
             starts.append(0)
         return starts^
 
@@ -366,9 +368,16 @@ struct SLICE:
     @staticmethod
     def default_steps(shape: List[Int]) -> List[Int]:
         var steps = List[Int]()
-        for i in range(len(shape)):
+        for _ in range(len(shape)):
             steps.append(1)
         return steps^
+
+    @staticmethod
+    def to_index_list(lst: List[Int]) -> IndexList[MAX_RANK]:
+        var result = IndexList[MAX_RANK]()
+        for i in range(len(lst)):
+            result[i] = lst[i]
+        return result
 
     @staticmethod
     def default_axes(shape: TensorShape) -> List[Int]:
@@ -413,16 +422,16 @@ struct SLICE:
     @staticmethod
     def reorder_positions[
         id: Int
-    ](original: List[Int], axes: List[Int], t1_shape: List[Int]) -> List[Int]:
+    ](original: List[Int], axes: List[Int], t1_shape: List[Int]) -> IndexList[MAX_RANK]:
         # Reorder the starts (id=0), ends (id=1) or steps (id=2) to match the order of the axes
-        var updated: List[Int]
+        var updated: IndexList[MAX_RANK]
 
         comptime if id == 0:
-            updated = Self.default_starts(t1_shape)
+            updated = Self.to_index_list(Self.default_starts(t1_shape))
         elif id == 1:
-            updated = Self.default_ends(t1_shape)
+            updated = Self.to_index_list(Self.default_ends(t1_shape))
         else:
-            updated = Self.default_steps(t1_shape)
+            updated = Self.to_index_list(Self.default_steps(t1_shape))
 
         for i in range(len(axes)):
             var axis = axes[i]
@@ -430,7 +439,7 @@ struct SLICE:
                 original[i], t1_shape[axis]
             )
 
-        return updated^
+        return updated
 
     # NOTE: For now you can't have recursive function as parameter functions.
     # NOTE: From testing it seems a recursive function is almost the same speed as doing multiple nested for loops.
@@ -438,9 +447,9 @@ struct SLICE:
     def recursive_iters_slice[
         shape: TensorShape,
         original_shape: TensorShape,
-        steps: List[Int],
-        starts: List[Int],
-        ends: List[Int],
+        steps: IndexList[MAX_RANK],
+        starts: IndexList[MAX_RANK],
+        ends: IndexList[MAX_RANK],
         backward_op: Bool = False,
     ](
         mut res: Tensor[dtype],
@@ -475,9 +484,7 @@ struct SLICE:
                     else:
                         res.store[nelts](
                             idx_temp + k,
-                            t1.data()
-                            .offset(idx_original_temp)
-                            .strided_load[width=nelts](stride),
+                            (t1.data() + idx_original_temp).strided_load[width=nelts](stride),
                         )
                 else:
                     comptime if steps[position] == 1:
@@ -485,9 +492,7 @@ struct SLICE:
                             idx_original_temp, t1.load[nelts](idx_temp + k)
                         )
                     else:
-                        res.data().offset(idx_original_temp).strided_store[
-                            width=nelts
-                        ](t1.load[nelts](idx_temp + k), stride)
+                        (res.data() + idx_original_temp).strided_store[width=nelts](t1.load[nelts](idx_temp + k), stride)
 
                 idx_original_temp += stride * nelts
 
@@ -515,9 +520,9 @@ struct SLICE:
     def slice_kernel[
         res_shape: TensorShape,
         original_shape: TensorShape,
-        steps: List[Int],
-        starts: List[Int],
-        ends: List[Int],
+        steps: IndexList[MAX_RANK],
+        starts: IndexList[MAX_RANK],
+        ends: IndexList[MAX_RANK],
         backward_op: Bool = False,
     ](mut res: Tensor[dtype], t1: Tensor[dtype]):
         comptime strides = original_shape.strides()
@@ -576,7 +581,7 @@ struct SLICE:
         )
         comptime steps = Self.reorder_positions[2](
             attributes["steps"].value().to_list(), axes, t1_shape.to_list()
-        ) if attributes["steps"] else Self.default_steps(t1_shape.to_list())
+        ) if attributes["steps"] else Self.to_index_list(Self.default_steps(t1_shape.to_list()))
 
         comptime res_shape = Self.result_shape(t1_shape, attributes)
 
@@ -601,7 +606,7 @@ struct SLICE:
         )
         comptime steps = Self.reorder_positions[2](
             attributes["steps"].value().to_list(), axes, t1_shape.to_list()
-        ) if attributes["steps"] else Self.default_steps(t1_shape.to_list())
+        ) if attributes["steps"] else Self.to_index_list(Self.default_steps(t1_shape.to_list()))
 
         var res_grad = Tensor[dtype](t1_shape)
 

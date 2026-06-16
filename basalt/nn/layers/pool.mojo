@@ -1,6 +1,6 @@
 from basalt import Tensor, TensorShape
-from collections.optional import Optional
-from utils.index import IndexList
+from std.collections.optional import Optional
+from std.utils.index import IndexList
 
 from basalt import Graph, Symbol, OP
 from basalt.autograd.attributes import AttributeVector, Attribute
@@ -20,8 +20,8 @@ def MaxPool2d(
     inputs: Symbol,
     kernel_size: IndexList[2],
     stride: Optional[Int] = None,
-    padding: IndexList[2] = 0,
-    dilation: IndexList[2] = 1,
+    padding: IndexList[2] = IndexList[2](0, 0),
+    dilation: IndexList[2] = IndexList[2](1, 1),
 ) -> Symbol:
     """
     A 2D Max Pooling Layer.
@@ -42,8 +42,8 @@ def MaxPool2d(
     inputs: Symbol,
     kernel_size: IndexList[2],
     stride: IndexList[2],  # stride should be 1 or more
-    padding: IndexList[2] = 0,
-    dilation: IndexList[2] = 1,
+    padding: IndexList[2] = IndexList[2](0, 0),
+    dilation: IndexList[2] = IndexList[2](1, 1),
 ) -> Symbol:
     """
     A 2D Max Pooling Layer.

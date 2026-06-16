@@ -7,12 +7,12 @@ from basalt.utils.tensorutils import fill
 from tests import assert_tensors_equal, create_graph_concat, create_graph_split
 
 
-fn test_CONCAT_0() raises:
+def test_CONCAT_0() raises:
     # default: dim = 0
     # FORWARD
-    alias t1_shape = TensorShape(1, 2, 3)
-    alias t2_shape = TensorShape(1, 2, 3)
-    alias t3_shape = TensorShape(2, 2, 3)
+    comptime t1_shape = TensorShape(1, 2, 3)
+    comptime t2_shape = TensorShape(1, 2, 3)
+    comptime t3_shape = TensorShape(2, 2, 3)
     var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
     var t2: Tensor[dtype] = Tensor[dtype](t2_shape)
     var t3: Tensor[dtype] = Tensor[dtype](t3_shape)
@@ -31,7 +31,7 @@ fn test_CONCAT_0() raises:
                 else:
                     expected[i * 2 * 3 + j * 3 + k] = 15.0
 
-    alias graph = create_graph_concat(t1_shape, t2_shape, t3_shape, dim=0)
+    comptime graph = create_graph_concat(t1_shape, t2_shape, t3_shape, dim=0)
     var model = Model[graph]()
     var res = model.forward(t1, t2, t3)
     assert_tensors_equal["almost"](res, expected)
@@ -69,11 +69,11 @@ fn test_CONCAT_0() raises:
     )
 
 
-fn test_CONCAT_1() raises:
+def test_CONCAT_1() raises:
     # dim = 1
-    alias t1_shape = TensorShape(2, 2, 5)
-    alias t2_shape = TensorShape(2, 4, 5)
-    alias t3_shape = TensorShape(2, 1, 5)
+    comptime t1_shape = TensorShape(2, 2, 5)
+    comptime t2_shape = TensorShape(2, 4, 5)
+    comptime t3_shape = TensorShape(2, 1, 5)
     var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
     var t2: Tensor[dtype] = Tensor[dtype](t2_shape)
     var t3: Tensor[dtype] = Tensor[dtype](t3_shape)
@@ -92,7 +92,7 @@ fn test_CONCAT_1() raises:
                 else:
                     expected[i * 7 * 5 + j * 5 + k] = 15.0
 
-    alias graph = create_graph_concat(t1_shape, t2_shape, t3_shape, dim=1)
+    comptime graph = create_graph_concat(t1_shape, t2_shape, t3_shape, dim=1)
     var model = Model[graph]()
     var res = model.forward(t1, t2, t3)
     assert_tensors_equal["almost"](res, expected)
@@ -130,11 +130,11 @@ fn test_CONCAT_1() raises:
     )
 
 
-fn test_CONCAT_2() raises:
+def test_CONCAT_2() raises:
     # dim = 2
-    alias t1_shape = TensorShape(2, 3, 1)
-    alias t2_shape = TensorShape(2, 3, 2)
-    alias t3_shape = TensorShape(2, 3, 3)
+    comptime t1_shape = TensorShape(2, 3, 1)
+    comptime t2_shape = TensorShape(2, 3, 2)
+    comptime t3_shape = TensorShape(2, 3, 3)
     var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
     var t2: Tensor[dtype] = Tensor[dtype](t2_shape)
     var t3: Tensor[dtype] = Tensor[dtype](t3_shape)
@@ -153,7 +153,7 @@ fn test_CONCAT_2() raises:
                 else:
                     expected[i * 3 * 6 + j * 6 + k] = 15.0
 
-    alias graph = create_graph_concat(t1_shape, t2_shape, t3_shape, dim=2)
+    comptime graph = create_graph_concat(t1_shape, t2_shape, t3_shape, dim=2)
     var model = Model[graph]()
     var res = model.forward(t1, t2, t3)
     assert_tensors_equal["almost"](res, expected)
@@ -190,9 +190,9 @@ fn test_CONCAT_2() raises:
     )
 
 
-fn test_SPLIT_0() raises:
-    alias t_shape = TensorShape(4, 5, 6)
-    alias sections = List[Int](1, 2, 1)
+def test_SPLIT_0() raises:
+    comptime t_shape = TensorShape(4, 5, 6)
+    comptime sections = List[Int](1, 2, 1)
 
     var t: Tensor[dtype] = Tensor[dtype](t_shape)
     for i in range(4):
@@ -212,7 +212,7 @@ fn test_SPLIT_0() raises:
     fill(expected2, 10.0)
     fill(expected3, 15.0)
 
-    alias graph = create_graph_split(t_shape, sections, dim=0)
+    comptime graph = create_graph_split(t_shape, sections, dim=0)
     var model = Model[graph]()
     var results = model.inference(t)
 
@@ -246,9 +246,9 @@ fn test_SPLIT_0() raises:
     )
 
 
-fn test_SPLIT_1() raises:
-    alias t_shape = TensorShape(4, 5, 6)
-    alias sections = List[Int](1, 3, 1)
+def test_SPLIT_1() raises:
+    comptime t_shape = TensorShape(4, 5, 6)
+    comptime sections = List[Int](1, 3, 1)
 
     var t: Tensor[dtype] = Tensor[dtype](t_shape)
     for i in range(4):
@@ -268,7 +268,7 @@ fn test_SPLIT_1() raises:
     fill(expected2, 10.0)
     fill(expected3, 15.0)
 
-    alias graph = create_graph_split(t_shape, sections, dim=1)
+    comptime graph = create_graph_split(t_shape, sections, dim=1)
     var model = Model[graph]()
     var results = model.inference(t)
 
@@ -302,9 +302,9 @@ fn test_SPLIT_1() raises:
     )
 
 
-fn test_SPLIT_2() raises:
-    alias t_shape = TensorShape(4, 5, 6)
-    alias sections = List[Int](1, 4, 1)
+def test_SPLIT_2() raises:
+    comptime t_shape = TensorShape(4, 5, 6)
+    comptime sections = List[Int](1, 4, 1)
 
     var t: Tensor[dtype] = Tensor[dtype](t_shape)
     for i in range(4):
@@ -324,7 +324,7 @@ fn test_SPLIT_2() raises:
     fill(expected2, 10.0)
     fill(expected3, 15.0)
 
-    alias graph = create_graph_split(t_shape, sections, dim=2)
+    comptime graph = create_graph_split(t_shape, sections, dim=2)
     var model = Model[graph]()
     var results = model.inference(t)
 
@@ -358,7 +358,7 @@ fn test_SPLIT_2() raises:
     )
 
 
-fn main():
+def main():
     try:
         test_CONCAT_0()
         test_CONCAT_1()

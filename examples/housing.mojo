@@ -1,4 +1,4 @@
-from time.time import monotonic as now
+from std.time import perf_counter_ns as now
 
 import basalt.nn as nn
 from basalt import Tensor, TensorShape
@@ -8,7 +8,7 @@ from basalt.utils.dataloader import DataLoader
 from basalt.nn.model import Parameters
 
 
-fn linear_regression(batch_size: Int, n_inputs: Int, n_outputs: Int) -> Graph:
+def linear_regression(batch_size: Int, n_inputs: Int, n_outputs: Int) -> Graph:
     var g = Graph()
 
     var x = g.input(TensorShape(batch_size, n_inputs))
@@ -23,13 +23,13 @@ fn linear_regression(batch_size: Int, n_inputs: Int, n_outputs: Int) -> Graph:
     return g ^
 
 
-fn main():
+def main():
     # Train Parameters
-    alias batch_size = 32
-    alias num_epochs = 20
-    alias learning_rate = 0.02
+    comptime batch_size = 32
+    comptime num_epochs = 20
+    comptime learning_rate = 0.02
 
-    alias graph = linear_regression(batch_size, 13, 1)
+    comptime graph = linear_regression(batch_size, 13, 1)
 
     # try: graph.render("operator")
     # except: print("Could not render graph")
@@ -55,7 +55,7 @@ fn main():
     for epoch in range(num_epochs):
         var num_batches: Int = 0
         var epoch_loss: Float32 = 0.0
-        for ref batch in training_loader:
+        for batch in training_loader:
             # Forward pass
             var loss = model.forward(batch.data.copy(), batch.labels.copy()).copy()
 

@@ -11,6 +11,7 @@ test = { cmd = "mojo test -I . tests" }
 test_mojo = { cmd = "mojo test -I . tests/mojo" }
 test_python = { cmd = "mojo test -I . tests/python" }
 format = { cmd = "mojo format basalt/" }
+package = { cmd = "mojo package basalt"}
 
 [dependencies]
 max = ">=26.3.0,<27"

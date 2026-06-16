@@ -4,7 +4,7 @@ from basalt.utils import q_sqrt
 from basalt.autograd.params import Param
 from basalt.autograd.attributes import AttributeVector, Attribute
 
-from utils.index import IndexList
+from std.utils.index import IndexList
 
 
 def Conv2d(
@@ -12,9 +12,9 @@ def Conv2d(
     inputs: Symbol,
     out_channels: Int,
     kernel_size: IndexList[2],
-    padding: IndexList[2] = 0,
-    stride: IndexList[2] = 1,
-    dilation: IndexList[2] = 1,
+    padding: IndexList[2] = IndexList[2](0, 0),
+    stride: IndexList[2] = IndexList[2](1, 1),
+    dilation: IndexList[2] = IndexList[2](1, 1),
 ) -> Symbol:
     """
     A 2D Convolution Layer.
@@ -27,7 +27,7 @@ def Conv2d(
     """
 
     var in_channels: Int = inputs.shape[1]
-    var fan_in: Scalar[dtype] = in_channels * kernel_size[0] * kernel_size[1]
+    var fan_in: Scalar[dtype] = Scalar[dtype](in_channels * kernel_size[0] * kernel_size[1])
     var bound = q_sqrt(fan_in)
     var weights = g.param(
         TensorShape(out_channels, in_channels, kernel_size[0], kernel_size[1]),

@@ -21,8 +21,8 @@ struct Node(Copyable, Movable, Writable):
         attributes: AttributeVector = AttributeVector(),
     ):
         self.operator = operator
-        self.inputs = inputs
-        self.outputs = outputs
+        self.inputs = inputs.copy()
+        self.outputs = outputs.copy()
         self.attributes = attributes
 
     def __str__(self) -> String:

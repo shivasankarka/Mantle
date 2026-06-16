@@ -6,12 +6,13 @@ from basalt.utils.tensorutils import transpose_2D
 
 
 @always_inline
-def calculate_block[
+def calculate_block[mut1: Bool, mut2: Bool, origin_res: MutOrigin, origin_t1: Origin[mut=mut1], origin_t2: Origin[mut=mut2],
+    //,
     M: Int, N: Int, K: Int, BLOCK_M: Int, BLOCK_N: Int, nelts: Int
 ](
-    res: UnsafePointer[Scalar[dtype], _],
-    t1: UnsafePointer[Scalar[dtype], _],
-    t2: UnsafePointer[Scalar[dtype], _],
+    res: UnsafePointer[Scalar[dtype], origin_res],
+    t1: UnsafePointer[Scalar[dtype], origin_t1],
+    t2: UnsafePointer[Scalar[dtype], origin_t2],
     bm: Int,
     bn: Int,
 ):
@@ -40,7 +41,7 @@ def calculate_block[
 
         def vec_store[
             nelts: Int
-        ](n: Int) {mut res, read acc, read bm, read bn, read m}:
+        ](n: Int) {read res, read acc, read bm, read bn, read m}:
             res.store(
                 (bm + m) * N + (bn + n), acc.load[width=nelts](m * BLOCK_N + n)
             )
@@ -57,18 +58,19 @@ def dot[
 
 @always_inline
 def dot[
+    mut1: Bool, mut2: Bool, origin_res: MutOrigin, origin_t1: Origin[mut=mut1], origin_t2: Origin[mut=mut2], //,
     t1_shape: TensorShape, t2_shape: TensorShape
 ](
-    res: UnsafePointer[Scalar[dtype], _],
-    t1: UnsafePointer[Scalar[dtype], _],
-    t2: UnsafePointer[Scalar[dtype], _],
+    res: UnsafePointer[Scalar[dtype], origin_res],
+    t1: UnsafePointer[Scalar[dtype], origin_t1],
+    t2: UnsafePointer[Scalar[dtype], origin_t2],
 ):
     comptime M = t1_shape[0]  # t1[0]
     comptime K = t1_shape[1]  # t1[1], t2[0]
     comptime N = t2_shape[1]  # t2[1]
 
-    # simdwidthof[dtype]() = 8 for float32
-    comptime nelts = simdwidthof[dtype]()
+    # simd_width_of[dtype]() = 8 for float32
+    comptime nelts = simd_width_of[dtype]()
     comptime BLOCK_N = 8 * 2
     comptime BLOCK_M = 6
     comptime THREADS = 6  # num_logical_cores()
@@ -119,11 +121,12 @@ def dot[
 
 
 def dot_transpose_t2[
+    mut1: Bool, mut2: Bool, origin_res: MutOrigin, origin_t1: Origin[mut=mut1], origin_t2: Origin[mut=mut2], //,
     A_shape: TensorShape, B_shape: TensorShape
 ](
-    mut C: UnsafePointer[Scalar[dtype], _],
-    A: UnsafePointer[Scalar[dtype], _],
-    B: UnsafePointer[Scalar[dtype], _],
+    mut C: UnsafePointer[Scalar[dtype], origin_res],
+    A: UnsafePointer[Scalar[dtype], origin_t1],
+    B: UnsafePointer[Scalar[dtype], origin_t2],
 ):
     dot[A_shape, TensorShape(B_shape[1], B_shape[0])](
         C, A, transpose_2D[B_shape](B)

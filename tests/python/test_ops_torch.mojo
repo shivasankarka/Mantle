@@ -1,7 +1,7 @@
-from random import rand
-from math import exp, log
-from python.python import Python, PythonObject
-from collections.optional import Optional
+from std.random import rand
+from std.math import exp, log
+from std.python import Python, PythonObject
+from std.collections.optional import Optional
 
 from basalt import dtype, nelts
 from basalt.autograd import OP
@@ -28,7 +28,7 @@ struct torch_output_binary_op:
     var grad_2: Tensor[dtype]
 
 
-fn torch_binary_op(
+def torch_binary_op(
     op: OP, input_1: Tensor, input_2: Tensor, upper_grad: Tensor
 ) -> torch_output_binary_op:
     try:
@@ -70,10 +70,10 @@ fn torch_binary_op(
         return torch_output_binary_op(d, d, d)
 
 
-fn test_ADD() raises:
-    alias t1_shape = TensorShape(37, 63, 107)
-    alias t2_shape = TensorShape(37, 63, 107)
-    alias ug_shape = TensorShape(37, 63, 107)
+def test_ADD() raises:
+    comptime t1_shape = TensorShape(37, 63, 107)
+    comptime t2_shape = TensorShape(37, 63, 107)
+    comptime ug_shape = TensorShape(37, 63, 107)
     var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
     var t2: Tensor[dtype] = Tensor[dtype](t2_shape)
     rand(t1.data(), t1.num_elements())
@@ -91,9 +91,9 @@ fn test_ADD() raises:
 
     # broadcasting
 
-    alias t1_shape_2 = TensorShape(37, 63, 107)
-    alias t2_shape_2 = TensorShape(37, 63, 1)
-    alias ug_shape_2 = TensorShape(37, 63, 107)
+    comptime t1_shape_2 = TensorShape(37, 63, 107)
+    comptime t2_shape_2 = TensorShape(37, 63, 1)
+    comptime ug_shape_2 = TensorShape(37, 63, 107)
 
     t1 = Tensor[dtype](t1_shape_2)
     t2 = Tensor[dtype](t2_shape_2)
@@ -111,10 +111,10 @@ fn test_ADD() raises:
     )
 
 
-fn test_SUB() raises:
-    alias t1_shape = TensorShape(37, 63, 107)
-    alias t2_shape = TensorShape(37, 63, 107)
-    alias ug_shape = TensorShape(37, 63, 107)
+def test_SUB() raises:
+    comptime t1_shape = TensorShape(37, 63, 107)
+    comptime t2_shape = TensorShape(37, 63, 107)
+    comptime ug_shape = TensorShape(37, 63, 107)
     var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
     var t2: Tensor[dtype] = Tensor[dtype](t2_shape)
     rand(t1.data(), t1.num_elements())
@@ -132,9 +132,9 @@ fn test_SUB() raises:
 
     # broadcasting
 
-    alias t1_shape_2 = TensorShape(37, 63, 107)
-    alias t2_shape_2 = TensorShape(37, 63, 1)
-    alias ug_shape_2 = TensorShape(37, 63, 107)
+    comptime t1_shape_2 = TensorShape(37, 63, 107)
+    comptime t2_shape_2 = TensorShape(37, 63, 1)
+    comptime ug_shape_2 = TensorShape(37, 63, 107)
 
     t1 = Tensor[dtype](t1_shape_2)
     t2 = Tensor[dtype](t2_shape_2)
@@ -152,10 +152,10 @@ fn test_SUB() raises:
     )
 
 
-fn test_MUL() raises:
-    alias t1_shape = TensorShape(37, 63, 107)
-    alias t2_shape = TensorShape(37, 63, 107)
-    alias ug_shape = TensorShape(37, 63, 107)
+def test_MUL() raises:
+    comptime t1_shape = TensorShape(37, 63, 107)
+    comptime t2_shape = TensorShape(37, 63, 107)
+    comptime ug_shape = TensorShape(37, 63, 107)
     var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
     var t2: Tensor[dtype] = Tensor[dtype](t2_shape)
     rand(t1.data(), t1.num_elements())
@@ -172,9 +172,9 @@ fn test_MUL() raises:
     )
 
     # broadcasting
-    alias t1_shape_2 = TensorShape(37, 63, 107)
-    alias t2_shape_2 = TensorShape(37, 63, 1)
-    alias ug_shape_2 = TensorShape(37, 63, 107)
+    comptime t1_shape_2 = TensorShape(37, 63, 107)
+    comptime t2_shape_2 = TensorShape(37, 63, 1)
+    comptime ug_shape_2 = TensorShape(37, 63, 107)
 
     t1 = Tensor[dtype](t1_shape_2)
     t2 = Tensor[dtype](t2_shape_2)
@@ -192,10 +192,10 @@ fn test_MUL() raises:
     )
 
 
-fn test_DIV() raises:
-    alias t1_shape = TensorShape(37, 63, 107)
-    alias t2_shape = TensorShape(37, 63, 107)
-    alias ug_shape = TensorShape(37, 63, 107)
+def test_DIV() raises:
+    comptime t1_shape = TensorShape(37, 63, 107)
+    comptime t2_shape = TensorShape(37, 63, 107)
+    comptime ug_shape = TensorShape(37, 63, 107)
     var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
     var t2: Tensor[dtype] = Tensor[dtype](t2_shape)
     rand(t1.data(), t1.num_elements())
@@ -212,9 +212,9 @@ fn test_DIV() raises:
     )
 
     # broadcasting
-    alias t1_shape_2 = TensorShape(37, 63, 107)
-    alias t2_shape_2 = TensorShape(37, 63, 1)
-    alias ug_shape_2 = TensorShape(37, 63, 107)
+    comptime t1_shape_2 = TensorShape(37, 63, 107)
+    comptime t2_shape_2 = TensorShape(37, 63, 1)
+    comptime ug_shape_2 = TensorShape(37, 63, 107)
 
     t1 = Tensor[dtype](t1_shape_2)
     t2 = Tensor[dtype](t2_shape_2)
@@ -231,9 +231,9 @@ fn test_DIV() raises:
         t1, t2, ug, expected_and_grad.grad_1, expected_and_grad.grad_2
     )
 
-    alias t1_shape_3 = TensorShape(37, 63, 1)
-    alias t2_shape_3 = TensorShape(37, 63, 107)
-    alias ug_shape_3 = TensorShape(37, 63, 107)
+    comptime t1_shape_3 = TensorShape(37, 63, 1)
+    comptime t2_shape_3 = TensorShape(37, 63, 107)
+    comptime ug_shape_3 = TensorShape(37, 63, 107)
 
     t1 = Tensor[dtype](t1_shape_3)
     t2 = Tensor[dtype](t2_shape_3)
@@ -251,10 +251,10 @@ fn test_DIV() raises:
     )
 
 
-fn test_DOT() raises:
-    alias t1_shape = TensorShape(107, 203)
-    alias t2_shape = TensorShape(203, 139)
-    alias ug_shape = TensorShape(107, 139)
+def test_DOT() raises:
+    comptime t1_shape = TensorShape(107, 203)
+    comptime t2_shape = TensorShape(203, 139)
+    comptime ug_shape = TensorShape(107, 139)
     var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
     var t2: Tensor[dtype] = Tensor[dtype](t2_shape)
     rand(t1.data(), t1.num_elements())
@@ -271,9 +271,9 @@ fn test_DOT() raises:
     )
 
     # Test same M and N values
-    alias t1_shape_2 = TensorShape(107, 186)
-    alias t2_shape_2 = TensorShape(186, 107)
-    alias ug_shape_2 = TensorShape(107, 107)
+    comptime t1_shape_2 = TensorShape(107, 186)
+    comptime t2_shape_2 = TensorShape(186, 107)
+    comptime ug_shape_2 = TensorShape(107, 107)
     t1 = Tensor[dtype](t1_shape_2)
     t2 = Tensor[dtype](t2_shape_2)
     rand(t1.data(), t1.num_elements())
@@ -290,9 +290,9 @@ fn test_DOT() raises:
     )
 
     # Test square matrix
-    alias t1_shape_3 = TensorShape(207, 207)
-    alias t2_shape_3 = TensorShape(207, 207)
-    alias ug_shape_3 = TensorShape(207, 207)
+    comptime t1_shape_3 = TensorShape(207, 207)
+    comptime t2_shape_3 = TensorShape(207, 207)
+    comptime ug_shape_3 = TensorShape(207, 207)
     t1 = Tensor[dtype](t1_shape_3)
     t2 = Tensor[dtype](t2_shape_3)
     rand(t1.data(), t1.num_elements())
@@ -309,9 +309,9 @@ fn test_DOT() raises:
     )
 
     # Test with power of 2 values
-    alias t1_shape_4 = TensorShape(64, 128)
-    alias t2_shape_4 = TensorShape(128, 256)
-    alias ug_shape_4 = TensorShape(64, 256)
+    comptime t1_shape_4 = TensorShape(64, 128)
+    comptime t2_shape_4 = TensorShape(128, 256)
+    comptime ug_shape_4 = TensorShape(64, 256)
     t1 = Tensor[dtype](t1_shape_4)
     t2 = Tensor[dtype](t2_shape_4)
     rand(t1.data(), t1.num_elements())
@@ -335,7 +335,7 @@ struct torch_output_unary_op:
     var grad_1: Tensor[dtype]
 
 
-fn torch_unary_op(op: OP, input_1: Tensor, upper_grad: Tensor) -> torch_output_unary_op:
+def torch_unary_op(op: OP, input_1: Tensor, upper_grad: Tensor) -> torch_output_unary_op:
     try:
         var torch = Python.import_module("torch")
         var np = Python.import_module("numpy")
@@ -367,9 +367,9 @@ fn torch_unary_op(op: OP, input_1: Tensor, upper_grad: Tensor) -> torch_output_u
         return torch_output_unary_op(d, d)
 
 
-fn test_EXP() raises:
-    alias t1_shape = TensorShape(37, 63, 107)
-    alias ug_shape = TensorShape(37, 63, 107)
+def test_EXP() raises:
+    comptime t1_shape = TensorShape(37, 63, 107)
+    comptime ug_shape = TensorShape(37, 63, 107)
     var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
     rand(t1.data(), t1.num_elements())
 
@@ -382,9 +382,9 @@ fn test_EXP() raises:
     test_unary_op_backward[OP.EXP, t1_shape, ug_shape](t1, ug, expected_and_grad.grad_1)
 
 
-fn test_LOG() raises:
-    alias t1_shape = TensorShape(37, 63, 107)
-    alias ug_shape = TensorShape(37, 63, 107)
+def test_LOG() raises:
+    comptime t1_shape = TensorShape(37, 63, 107)
+    comptime ug_shape = TensorShape(37, 63, 107)
     var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
     rand(t1.data(), t1.num_elements())
 
@@ -405,7 +405,7 @@ struct torch_output_pow_op:
     var grad_2: Tensor[dtype]
 
 
-fn torch_pow_op(
+def torch_pow_op(
     op: OP, input_1: Tensor, input_2: Tensor, upper_grad: Tensor
 ) -> torch_output_pow_op:
     try:
@@ -439,17 +439,17 @@ fn torch_pow_op(
         return torch_output_pow_op(d, d, d)
 
 
-fn test_POW() raises:
-    alias t1_shape = TensorShape(37, 63, 107)
-    alias t2_shape = TensorShape(1)
-    alias ug_shape = TensorShape(37, 63, 107)
+def test_POW() raises:
+    comptime t1_shape = TensorShape(37, 63, 107)
+    comptime t2_shape = TensorShape(1)
+    comptime ug_shape = TensorShape(37, 63, 107)
     var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
     rand(t1.data(), t1.num_elements())
 
     var ug = Tensor[dtype](ug_shape)
     rand(ug.data(), ug.num_elements())
 
-    alias exponent = 3
+    comptime exponent = 3
     var t2 = Tensor[dtype](1)
     t2[0] = exponent
 
@@ -467,7 +467,7 @@ struct torch_output_reduction_op:
     var grad_1: Tensor[dtype]
 
 
-fn torch_reduction_op(
+def torch_reduction_op(
     op: OP, input_1: Tensor, upper_grad: Tensor, axis: Optional[Int] = None
 ) -> torch_output_reduction_op:
     try:
@@ -522,9 +522,9 @@ fn torch_reduction_op(
         return torch_output_reduction_op(d, d)
 
 
-fn test_SUM() raises:
-    alias t1_shape = TensorShape(87, 73, 107)
-    alias ug_shape = TensorShape(87, 1, 107)
+def test_SUM() raises:
+    comptime t1_shape = TensorShape(87, 73, 107)
+    comptime ug_shape = TensorShape(87, 1, 107)
     var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
     rand(t1.data(), t1.num_elements())
 
@@ -532,8 +532,8 @@ fn test_SUM() raises:
     rand(ug.data(), ug.num_elements())
 
     # 1 axis
-    alias axis = 1
-    alias attrs = AttributeVector(Attribute("axis", axis))
+    comptime axis = 1
+    comptime attrs = AttributeVector(Attribute("axis", axis))
 
     var expected_and_grad = torch_reduction_op(OP.SUM, t1, ug, axis)
     test_unary_op[OP.SUM, t1_shape, attrs](t1, expected_and_grad.expected)
@@ -542,12 +542,12 @@ fn test_SUM() raises:
     )
 
     # 2 axis
-    alias ug_shape_2 = TensorShape(87, 73, 1)
+    comptime ug_shape_2 = TensorShape(87, 73, 1)
     ug = Tensor[dtype](ug_shape_2)
     rand(ug.data(), ug.num_elements())
 
-    alias axis_2 = 2
-    alias attrs_2 = AttributeVector(Attribute("axis", axis_2))
+    comptime axis_2 = 2
+    comptime attrs_2 = AttributeVector(Attribute("axis", axis_2))
 
     expected_and_grad = torch_reduction_op(OP.SUM, t1, ug, axis_2)
     test_unary_op[OP.SUM, t1_shape, attrs_2](t1, expected_and_grad.expected)
@@ -556,12 +556,12 @@ fn test_SUM() raises:
     )
 
     # 0 axis
-    alias ug_shape_3 = TensorShape(1, 73, 107)
+    comptime ug_shape_3 = TensorShape(1, 73, 107)
     ug = Tensor[dtype](ug_shape_3)
     rand(ug.data(), ug.num_elements())
 
-    alias axis_3 = 0
-    alias attrs_3 = AttributeVector(Attribute("axis", axis_3))
+    comptime axis_3 = 0
+    comptime attrs_3 = AttributeVector(Attribute("axis", axis_3))
 
     expected_and_grad = torch_reduction_op(OP.SUM, t1, ug, axis_3)
     test_unary_op[OP.SUM, t1_shape, attrs_3](t1, expected_and_grad.expected)
@@ -570,7 +570,7 @@ fn test_SUM() raises:
     )
 
     # all dims
-    alias ug_shape_4 = TensorShape(1)
+    comptime ug_shape_4 = TensorShape(1)
     ug = Tensor[dtype](ug_shape_4)
     rand(ug.data(), ug.num_elements())
 
@@ -582,9 +582,9 @@ fn test_SUM() raises:
     )
 
 
-fn test_MAX() raises:
-    alias t1_shape = TensorShape(87, 73, 107)
-    alias ug_shape = TensorShape(87, 1, 107)
+def test_MAX() raises:
+    comptime t1_shape = TensorShape(87, 73, 107)
+    comptime ug_shape = TensorShape(87, 1, 107)
     var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
     rand(t1.data(), t1.num_elements())
 
@@ -592,8 +592,8 @@ fn test_MAX() raises:
     rand(ug.data(), ug.num_elements())
 
     # 1 axis
-    alias axis = 1
-    alias attrs = AttributeVector(Attribute("axis", axis))
+    comptime axis = 1
+    comptime attrs = AttributeVector(Attribute("axis", axis))
 
     var expected_and_grad = torch_reduction_op(OP.MAX, t1, ug, axis)
     test_unary_op[OP.MAX, t1_shape, attrs](t1, expected_and_grad.expected)
@@ -602,12 +602,12 @@ fn test_MAX() raises:
     )
 
     # 2 axis
-    alias ug_shape_2 = TensorShape(87, 73, 1)
+    comptime ug_shape_2 = TensorShape(87, 73, 1)
     ug = Tensor[dtype](ug_shape_2)
     rand(ug.data(), ug.num_elements())
 
-    alias axis_2 = 2
-    alias attrs_2 = AttributeVector(Attribute("axis", axis_2))
+    comptime axis_2 = 2
+    comptime attrs_2 = AttributeVector(Attribute("axis", axis_2))
 
     expected_and_grad = torch_reduction_op(OP.MAX, t1, ug, axis_2)
     test_unary_op[OP.MAX, t1_shape, attrs_2](t1, expected_and_grad.expected)
@@ -616,12 +616,12 @@ fn test_MAX() raises:
     )
 
     # 0 axis
-    alias ug_shape_3 = TensorShape(1, 73, 107)
+    comptime ug_shape_3 = TensorShape(1, 73, 107)
     ug = Tensor[dtype](ug_shape_3)
     rand(ug.data(), ug.num_elements())
 
-    alias axis_3 = 0
-    alias attrs_3 = AttributeVector(Attribute("axis", axis_3))
+    comptime axis_3 = 0
+    comptime attrs_3 = AttributeVector(Attribute("axis", axis_3))
 
     expected_and_grad = torch_reduction_op(OP.MAX, t1, ug, axis_3)
     test_unary_op[OP.MAX, t1_shape, attrs_3](t1, expected_and_grad.expected)
@@ -630,7 +630,7 @@ fn test_MAX() raises:
     )
 
     # all dims
-    alias ug_shape_4 = TensorShape(1)
+    comptime ug_shape_4 = TensorShape(1)
     ug = Tensor[dtype](ug_shape_4)
     rand(ug.data(), ug.num_elements())
 
@@ -641,9 +641,9 @@ fn test_MAX() raises:
     )
 
 
-fn test_MEAN() raises:
-    alias t1_shape = TensorShape(87, 73, 107)
-    alias ug_shape = TensorShape(87, 1, 107)
+def test_MEAN() raises:
+    comptime t1_shape = TensorShape(87, 73, 107)
+    comptime ug_shape = TensorShape(87, 1, 107)
     var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
     rand(t1.data(), t1.num_elements())
 
@@ -651,8 +651,8 @@ fn test_MEAN() raises:
     rand(ug.data(), ug.num_elements())
 
     # 1 axis
-    alias axis = 1
-    alias attrs = AttributeVector(Attribute("axis", axis))
+    comptime axis = 1
+    comptime attrs = AttributeVector(Attribute("axis", axis))
 
     var expected_and_grad = torch_reduction_op(OP.MEAN, t1, ug, axis)
     test_unary_op[OP.MEAN, t1_shape, attrs](t1, expected_and_grad.expected)
@@ -661,12 +661,12 @@ fn test_MEAN() raises:
     )
 
     # 2 axis
-    alias ug_shape_2 = TensorShape(87, 73, 1)
+    comptime ug_shape_2 = TensorShape(87, 73, 1)
     ug = Tensor[dtype](ug_shape_2)
     rand(ug.data(), ug.num_elements())
 
-    alias axis_2 = 2
-    alias attrs_2 = AttributeVector(Attribute("axis", axis_2))
+    comptime axis_2 = 2
+    comptime attrs_2 = AttributeVector(Attribute("axis", axis_2))
 
     expected_and_grad = torch_reduction_op(OP.MEAN, t1, ug, axis_2)
     test_unary_op[OP.MEAN, t1_shape, attrs_2](t1, expected_and_grad.expected)
@@ -675,12 +675,12 @@ fn test_MEAN() raises:
     )
 
     # 0 axis
-    alias ug_shape_3 = TensorShape(1, 73, 107)
+    comptime ug_shape_3 = TensorShape(1, 73, 107)
     ug = Tensor[dtype](ug_shape_3)
     rand(ug.data(), ug.num_elements())
 
-    alias axis_3 = 0
-    alias attrs_3 = AttributeVector(Attribute("axis", axis_3))
+    comptime axis_3 = 0
+    comptime attrs_3 = AttributeVector(Attribute("axis", axis_3))
 
     expected_and_grad = torch_reduction_op(OP.MEAN, t1, ug, axis_3)
     test_unary_op[OP.MEAN, t1_shape, attrs_3](t1, expected_and_grad.expected)
@@ -689,7 +689,7 @@ fn test_MEAN() raises:
     )
 
     # all dims
-    alias ug_shape_4 = TensorShape(1)
+    comptime ug_shape_4 = TensorShape(1)
     ug = Tensor[dtype](ug_shape_4)
     rand(ug.data(), ug.num_elements())
 
@@ -707,7 +707,7 @@ struct torch_output_transform_op:
     var grad_1: Tensor[dtype]
 
 
-fn torch_transform_op(
+def torch_transform_op(
     op: OP, input_1: Tensor, upper_grad: Tensor, new_shape: PythonObject = None
 ) -> torch_output_transform_op:
     try:
@@ -743,9 +743,9 @@ fn torch_transform_op(
         return torch_output_transform_op(d, d)
 
 
-fn test_FLATTEN() raises:
-    alias t1_shape = TensorShape(87, 73, 84)
-    alias ug_shape = TensorShape(t1_shape.num_elements())
+def test_FLATTEN() raises:
+    comptime t1_shape = TensorShape(87, 73, 84)
+    comptime ug_shape = TensorShape(t1_shape.num_elements())
     var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
     rand(t1.data(), t1.num_elements())
 
@@ -759,18 +759,18 @@ fn test_FLATTEN() raises:
     )
 
 
-fn test_RESHAPE() raises:
-    alias t1_shape = TensorShape(87, 73, 84)
-    alias ug_shape = TensorShape(87, 73 * 84)
+def test_RESHAPE() raises:
+    comptime t1_shape = TensorShape(87, 73, 84)
+    comptime ug_shape = TensorShape(87, 73 * 84)
     var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
     rand(t1.data(), t1.num_elements())
 
     var ug = Tensor[dtype](ug_shape)
     rand(ug.data(), ug.num_elements())
 
-    alias new_shape = TensorShape(87, 73 * 84)
-    alias new_shape_tuple = (new_shape[0], new_shape[1])
-    alias attrs = AttributeVector(Attribute("shape", new_shape))
+    comptime new_shape = TensorShape(87, 73 * 84)
+    comptime new_shape_tuple = (new_shape[0], new_shape[1])
+    comptime attrs = AttributeVector(Attribute("shape", new_shape))
 
     var expected_and_grad = torch_transform_op(OP.RESHAPE, t1, ug, new_shape_tuple)
     test_unary_op[OP.RESHAPE, t1_shape, attrs](t1, expected_and_grad.expected)
@@ -779,18 +779,18 @@ fn test_RESHAPE() raises:
     )
 
 
-fn test_TRANSPOSE() raises:
-    alias t1_shape = TensorShape(87, 73, 84)
+def test_TRANSPOSE() raises:
+    comptime t1_shape = TensorShape(87, 73, 84)
     var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
     rand(t1.data(), t1.num_elements())
 
-    alias ug_shape = TensorShape(73, 84, 87)
+    comptime ug_shape = TensorShape(73, 84, 87)
     var ug = Tensor[dtype](ug_shape)
     rand(ug.data(), ug.num_elements())
 
-    alias axes = TensorShape(1, 2, 0)
-    alias axes_tuple = (axes[0], axes[1], axes[2])
-    alias attrs = AttributeVector(Attribute("axes", axes))
+    comptime axes = TensorShape(1, 2, 0)
+    comptime axes_tuple = (axes[0], axes[1], axes[2])
+    comptime attrs = AttributeVector(Attribute("axes", axes))
 
     var expected_and_grad = torch_transform_op(OP.TRANSPOSE, t1, ug, axes_tuple)
     test_unary_op[OP.TRANSPOSE, t1_shape, attrs](t1, expected_and_grad.expected)
@@ -799,13 +799,13 @@ fn test_TRANSPOSE() raises:
     )
 
     # Test reverse axis
-    alias ug_shape_2 = TensorShape(84, 73, 87)
+    comptime ug_shape_2 = TensorShape(84, 73, 87)
     ug = Tensor[dtype](ug_shape_2)
     rand(ug.data(), ug.num_elements())
 
-    alias axes_2 = TensorShape(2, 1, 0)
-    alias axes_tuple_2 = (axes_2[0], axes_2[1], axes_2[2])
-    alias attrs_2 = AttributeVector(Attribute("axes", axes_2))
+    comptime axes_2 = TensorShape(2, 1, 0)
+    comptime axes_tuple_2 = (axes_2[0], axes_2[1], axes_2[2])
+    comptime attrs_2 = AttributeVector(Attribute("axes", axes_2))
 
     expected_and_grad = torch_transform_op(OP.TRANSPOSE, t1, ug, axes_tuple_2)
     test_unary_op[OP.TRANSPOSE, t1_shape, attrs_2](t1, expected_and_grad.expected)
@@ -814,17 +814,17 @@ fn test_TRANSPOSE() raises:
     )
 
     # Test with rank 2 tensor
-    alias t1_shape_3 = TensorShape(87, 73)
+    comptime t1_shape_3 = TensorShape(87, 73)
     t1 = Tensor[dtype](t1_shape_3)
     rand(t1.data(), t1.num_elements())
 
-    alias ug_shape_3 = TensorShape(73, 87)
+    comptime ug_shape_3 = TensorShape(73, 87)
     ug = Tensor[dtype](ug_shape_3)
     rand(ug.data(), ug.num_elements())
 
-    alias axes_3 = TensorShape(1, 0)
-    alias axes_tuple_3 = (axes_3[0], axes_3[1])
-    alias attrs_3 = AttributeVector(Attribute("axes", axes_3))
+    comptime axes_3 = TensorShape(1, 0)
+    comptime axes_tuple_3 = (axes_3[0], axes_3[1])
+    comptime attrs_3 = AttributeVector(Attribute("axes", axes_3))
 
     expected_and_grad = torch_transform_op(OP.TRANSPOSE, t1, ug, axes_tuple_3)
     test_unary_op[OP.TRANSPOSE, t1_shape_3, attrs_3](t1, expected_and_grad.expected)
@@ -842,7 +842,7 @@ struct torch_output_ternary_op:
     var grad_3: Tensor[dtype]
 
 
-fn torch_ternary_op(
+def torch_ternary_op(
     op: OP, input_1: Tensor, input_2: Tensor, input_3: Tensor, upper_grad: Tensor
 ) -> torch_output_ternary_op:
     try:
@@ -878,10 +878,10 @@ fn torch_ternary_op(
         return torch_output_ternary_op(d, d, d, d)
 
 
-fn test_FMA() raises:
-    alias t1_shape = TensorShape(87, 73, 84)
-    alias t2_shape = TensorShape(87, 73, 84)
-    alias t3_shape = TensorShape(87, 73, 84)
+def test_FMA() raises:
+    comptime t1_shape = TensorShape(87, 73, 84)
+    comptime t2_shape = TensorShape(87, 73, 84)
+    comptime t3_shape = TensorShape(87, 73, 84)
     var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
     rand(t1.data(), t1.num_elements())
 
@@ -907,7 +907,7 @@ fn test_FMA() raises:
     )
 
 
-fn main():
+def main():
     print("Running ops (compare with torch) tests")
     try:
         test_ADD()

@@ -11,7 +11,7 @@ def to_numpy(tensor: Tensor) -> PythonObject:
         np.set_printoptions(4)
 
         var rank = tensor.rank()
-        var dims = PythonObject([])
+        var dims = Python.list()
         for i in range(rank):
             dims.append(tensor.dim(i))
         var pyarray: PythonObject = np.empty(dims, dtype=np.float32)
@@ -19,8 +19,8 @@ def to_numpy(tensor: Tensor) -> PythonObject:
         var pointer_d = pyarray.__array_interface__["data"][
             0
         ].unsafe_get_as_pointer[DType.float32]()
-        var d: UnsafePointer[Float32] = tensor.data().bitcast[Float32]()
-        memcpy(pointer_d, d, tensor.num_elements())
+        var d = tensor.data().bitcast[Float32]()
+        memcpy(dest=pointer_d, src=d, count=tensor.num_elements())
 
         _ = tensor
 
@@ -32,12 +32,12 @@ def to_numpy(tensor: Tensor) -> PythonObject:
 
 def to_tensor(np_array: PythonObject) raises -> Tensor[dtype]:
     var shape = List[Int]()
-    for i in range(np_array.ndim):
-        shape.append(int(float(np_array.shape[i])))
+    for i in range(Int(py=np_array.ndim)):
+        shape.append(Int(py=np_array.shape[i]))
     if np_array.ndim == 0:
         # When the numpy array is a scalar, you need or the reshape to a size 1 ndarray or do this, if not the memcpy gets a memory error (Maybe because it is a register value?).
         var tensor = Tensor[dtype](TensorShape(1))
-        tensor[0] = float(np_array).cast[dtype]()
+        tensor[0] = Scalar[dtype](py=np_array)
         return tensor^
 
     var tensor = Tensor[dtype](TensorShape(shape))
@@ -54,7 +54,7 @@ def to_tensor(np_array: PythonObject) raises -> Tensor[dtype]:
     var pointer_d = np_array_2.__array_interface__["data"][
         0
     ].unsafe_get_as_pointer[dtype]()
-    memcpy(tensor.data(), pointer_d, tensor.num_elements())
+    memcpy(dest=tensor.data(), src=pointer_d, count=tensor.num_elements())
 
     _ = np_array_2
     _ = np_array
@@ -75,8 +75,8 @@ def copy_np_data(mut tensor: Tensor, np_array: PythonObject) raises:
     var pointer_d = np_array_2.__array_interface__["data"][
         0
     ].unsafe_get_as_pointer[dtype]()
-    var d: UnsafePointer[Float32] = tensor.data().bitcast[Float32]()
-    memcpy(d, pointer_d, tensor.num_elements())
+    var d = tensor.data().bitcast[Float32]()
+    memcpy(dest=d, src=pointer_d, count=tensor.num_elements())
 
     # This shouldn't be necessary anymore, but I'm leaving it here for now.
     # _ = np_array_2

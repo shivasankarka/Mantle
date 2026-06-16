@@ -1,7 +1,7 @@
-from random import rand
-from python import Python
-from utils.numerics import max_finite
-from testing import assert_almost_equal
+from std.random import rand
+from std.python import Python
+from std.utils.numerics import max_finite
+from std.testing import assert_almost_equal
 
 from basalt import dtype
 from basalt.autograd import Graph, OP
@@ -12,7 +12,7 @@ from basalt.autograd.params import Param
 from tests import to_numpy, to_tensor
 
 
-fn create_linear_regression(
+def create_linear_regression(
     batch_size: Int,
     n_outputs: Int,
     linear1_weights: List[Scalar[dtype]],
@@ -36,7 +36,7 @@ fn create_linear_regression(
     return g ^
 
 
-fn run_mojo[
+def run_mojo[
     batch_size: Int,
     n_outputs: Int,
     linear1_weights: List[Scalar[dtype]],
@@ -47,7 +47,7 @@ fn run_mojo[
     inputs: Tensor[dtype],
     labels: Tensor[dtype],
 ) -> List[Scalar[dtype]]:
-    alias graph = create_linear_regression(
+    comptime graph = create_linear_regression(
         batch_size,
         n_outputs,
         linear1_weights,
@@ -72,7 +72,7 @@ fn run_mojo[
     return losses
 
 
-fn run_torch(
+def run_torch(
     epochs: Int,
     learning_rate: Float64,
     inputs: Tensor,
@@ -123,7 +123,7 @@ fn run_torch(
         return out
 
 
-fn create_weights(num_elements: Int, zero: Bool) -> List[Scalar[dtype]]:
+def create_weights(num_elements: Int, zero: Bool) -> List[Scalar[dtype]]:
     var prng = MersenneTwister(123456)
     var weights = List[Scalar[dtype]](capacity=num_elements)
     for i in range(num_elements):
@@ -137,7 +137,7 @@ fn create_weights(num_elements: Int, zero: Bool) -> List[Scalar[dtype]]:
     return weights ^
 
 
-fn dv_to_tensor(dv: List[Scalar[dtype]], shape: TensorShape) -> Tensor[dtype]:
+def dv_to_tensor(dv: List[Scalar[dtype]], shape: TensorShape) -> Tensor[dtype]:
     var t = Tensor[dtype](shape)
     if t.num_elements() != len(dv):
         print("[WARNING] tensor and dv not the shame shape")
@@ -146,11 +146,11 @@ fn dv_to_tensor(dv: List[Scalar[dtype]], shape: TensorShape) -> Tensor[dtype]:
     return t ^
 
 
-fn main():
-    alias learning_rate = 1e-3
-    alias epochs = 100
-    alias batch_size = 64
-    alias n_outputs = 10
+def main():
+    comptime learning_rate = 1e-3
+    comptime epochs = 100
+    comptime batch_size = 64
+    comptime n_outputs = 10
 
     var inputs = Tensor[dtype](batch_size, 13)
     rand[dtype](inputs.data(), inputs.num_elements())
@@ -159,10 +159,10 @@ fn main():
         for j in range(n_outputs):
             labels[i * n_outputs + j] = 1
 
-    alias l1_w_shape = TensorShape(13, n_outputs)
-    alias linear1_weights = create_weights(l1_w_shape.num_elements(), zero=False)
-    alias l1_b_shape = TensorShape(n_outputs)
-    alias linear1_bias = create_weights(l1_b_shape.num_elements(), zero=False)
+    comptime l1_w_shape = TensorShape(13, n_outputs)
+    comptime linear1_weights = create_weights(l1_w_shape.num_elements(), zero=False)
+    comptime l1_b_shape = TensorShape(n_outputs)
+    comptime linear1_bias = create_weights(l1_b_shape.num_elements(), zero=False)
 
     var losses_mojo = run_mojo[batch_size, n_outputs, linear1_weights, linear1_bias,](
         epochs,

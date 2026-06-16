@@ -1,5 +1,5 @@
-from time.time import monotonic as now
-from pathlib import Path
+from std.time import now
+from std.pathlib import Path
 
 import basalt.nn as nn
 from basalt import Tensor, TensorShape
@@ -24,7 +24,7 @@ from basalt.autograd.attributes import AttributeVector, Attribute
 #     plt.show()
 
 
-fn create_CNN(batch_size: Int) -> Graph:
+def create_CNN(batch_size: Int) -> Graph:
     var g = Graph()
     var x = g.input(TensorShape(batch_size, 1, 28, 28))
 
@@ -50,12 +50,12 @@ fn create_CNN(batch_size: Int) -> Graph:
     return g ^
 
 
-fn main():
-    alias num_epochs = 1
-    alias batch_size = 4
-    alias learning_rate = 1e-3
+def main():
+    comptime num_epochs = 1
+    comptime batch_size = 4
+    comptime learning_rate = 1e-3
 
-    alias graph = create_CNN(batch_size)
+    comptime graph = create_CNN(batch_size)
 
     # try: graph.render("operator")
     # except: print("Could not render graph")
@@ -89,7 +89,7 @@ fn main():
 
         var output = model.inference(batch.data, labels_one_hot)[0]
         
-        fn argmax(tensor: Tensor[dtype], dim: Int) -> Tensor[dtype]:
+        def argmax(tensor: Tensor[dtype], dim: Int) -> Tensor[dtype]:
             var result = Tensor[dtype](tensor.dim(0))
             for i in range(tensor.dim(0)):
                 var max_val = tensor[i * 10]

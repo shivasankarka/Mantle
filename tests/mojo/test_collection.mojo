@@ -1,4 +1,4 @@
-from testing import assert_equal
+from std.testing import assert_equal
 
 from basalt import dtype
 from basalt.nn import Tensor, TensorShape
@@ -9,9 +9,9 @@ from basalt.utils.tensorutils import fill
 from tests import assert_tensors_equal
 
 
-fn test_append_tensors() raises:
-    alias t1_shape = TensorShape(1, 10)
-    alias t2_shape = TensorShape(2, 20)
+def test_append_tensors() raises:
+    comptime t1_shape = TensorShape(1, 10)
+    comptime t2_shape = TensorShape(2, 20)
     var s1 = Symbol(0, dtype, t1_shape, True)
     var s2 = Symbol(1, dtype, t2_shape, True)
 
@@ -26,9 +26,9 @@ fn test_append_tensors() raises:
     assert_equal(c.size, 2)
 
 
-fn test_get_tensor_reference() raises:
-    alias t1_shape = TensorShape(1, 10)
-    alias t2_shape = TensorShape(2, 20)
+def test_get_tensor_reference() raises:
+    comptime t1_shape = TensorShape(1, 10)
+    comptime t2_shape = TensorShape(2, 20)
     var s1 = Symbol(0, dtype, t1_shape, True)
     var s2 = Symbol(1, dtype, t2_shape, True)
 
@@ -50,10 +50,10 @@ fn test_get_tensor_reference() raises:
     assert_tensors_equal(c[s2], t2_expected)
 
 
-fn test_resize_collection() raises:
-    alias t1_shape = TensorShape(1, 10)
-    alias t2_shape = TensorShape(2, 20)
-    alias t3_shape = TensorShape(3, 30)
+def test_resize_collection() raises:
+    comptime t1_shape = TensorShape(1, 10)
+    comptime t2_shape = TensorShape(2, 20)
+    comptime t3_shape = TensorShape(3, 30)
     var s1 = Symbol(0, dtype, t1_shape, True)
     var s2 = Symbol(1, dtype, t2_shape, True)
     var s3 = Symbol(2, dtype, t3_shape, True)
@@ -93,9 +93,9 @@ fn test_resize_collection() raises:
     assert_tensors_equal(c[s3], t3_expected)
 
 
-fn test_set_zero() raises:
-    alias t1_shape = TensorShape(1, 10)
-    alias t2_shape = TensorShape(2, 20)
+def test_set_zero() raises:
+    comptime t1_shape = TensorShape(1, 10)
+    comptime t2_shape = TensorShape(2, 20)
     var s1 = Symbol(0, dtype, t1_shape, True)
     var s2 = Symbol(1, dtype, t2_shape, True)
     var t1 = Tensor[dtype](s1.shape)
@@ -120,9 +120,9 @@ fn test_set_zero() raises:
     assert_tensors_equal(c[s2], Tensor[dtype](t2_shape))
 
 
-fn test_operate_on_reference() raises:
-    alias res_shape = TensorShape(1, 10)
-    alias t1_shape = TensorShape(1, 10)
+def test_operate_on_reference() raises:
+    comptime res_shape = TensorShape(1, 10)
+    comptime t1_shape = TensorShape(1, 10)
     var sr = Symbol(0, dtype, t1_shape, True)
     var s1 = Symbol(1, dtype, t1_shape, True)
     var res = Tensor[dtype](res_shape)
@@ -132,9 +132,9 @@ fn test_operate_on_reference() raises:
     c.append(res ^, sr)
     c.append(t1 ^, s1)
 
-    fn some_operation[
+    def some_operation[
         res_shape: TensorShape, t_shape: TensorShape
-    ](inout res: Tensor[dtype], t1: Tensor[dtype]):
+    ](mut res: Tensor[dtype], t1: Tensor[dtype]):
         for i in range(res.num_elements()):
             res[i] = t1[i]
 
@@ -151,7 +151,7 @@ fn test_operate_on_reference() raises:
         assert_tensors_equal(c[s1], t1_expected)
 
 
-fn main() raises:
+def main() raises:
     try:
         test_append_tensors()
         test_get_tensor_reference()

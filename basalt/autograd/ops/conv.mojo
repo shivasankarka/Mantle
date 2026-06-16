@@ -2,7 +2,6 @@ from basalt import Tensor, TensorShape
 from basalt.autograd.attributes import AttributeVector
 
 from std.algorithm import parallelize, vectorize
-from std.utils.loop import unroll
 from std.utils.index import IndexList
 from std.memory import memset_zero, UnsafePointer
 
@@ -119,9 +118,7 @@ struct CONV2D:
         comptime outputs_strides = output_shape.strides()
         comptime col_strides = col_shape.strides()
 
-        var col_ptr = UnsafePointer[Scalar[dtype]].alloc(
-            col_shape.num_elements()
-        )
+        var col_ptr = alloc[Scalar[dtype]](col_shape.num_elements())
         memset_zero(col_ptr, col_shape.num_elements())
 
         @parameter
@@ -163,22 +160,9 @@ struct CONV2D:
             for out_ch in range(out_channels):
                 for ux in range(out_x):
                     for uy in range(out_y):
-                        var result: SIMD[dtype, nelts] = 0
+                        var result: SIMD[dtype, nelts] = 0.0
 
-                        def v_im2col[
-                            _nelts: Int
-                        ](in_ch_kx_ky: Int) {
-                            mut result,
-                            read col_ptr,
-                            read kernel,
-                            read batch,
-                            read out_ch,
-                            read ux,
-                            read uy,
-                            read col_strides,
-                            read kernel_strides,
-                            read col_y,
-                        }:
+                        def v_im2col[_nelts: Int](in_ch_kx_ky: Int) {mut result, read col_ptr, read kernel, read batch, read out_ch, read ux, read uy}:
                             var col_index = (
                                 batch * col_strides[0]
                                 + (ux * col_y + uy) * col_strides[1]
@@ -413,4 +397,4 @@ struct CONV2D:
 
             parallelize[bias_grad](ug_shape_1)
 
-        return res
+        return res^

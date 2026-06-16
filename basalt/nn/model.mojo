@@ -55,7 +55,7 @@ struct Model[
 
     def __init__(out self, inference_only: Bool = False):
         self.parameters = Parameters()
-        var graph = materialize[g]()
+        var graph = materialize[Self.g]()
 
         comptime if DEBUG == "1":
             self.perf_metrics = PerfMetrics(graph)
@@ -67,7 +67,7 @@ struct Model[
 
         # TODO: remove this when ability to concatenate graphs (modules)
         # NOTE: inference_only only used for surpressing the warning.
-        if not inference_only and not g.loss_out:
+        if not inference_only and not Self.g.loss_out:
             print(
                 "\n\n[WARNING]: No loss defined, model.forward()"
                 " unavailable!\n\n"
@@ -95,15 +95,15 @@ struct Model[
         #   model.forward(batch.labels, batch.inputs)
 
         # 1. Execute a full forward pass (model inference + loss)
-        self.execute[len(g.nodes)](t_inputs^)
+        self.execute[len(Self.g.nodes)](t_inputs)
 
         # 2. Return loss from allocated output memory
         # TODO: known copy (reference?)
-        return self.parameters.tensors[g.loss_out.value()]
+        return self.parameters.tensors[Self.g.loss_out.value()]
 
     def inference(mut self, *t_inputs: Tensor[dtype]) -> List[Tensor[dtype]]:
         # 1. Execute forward pass up to model out
-        self.execute[n_inference_nodes.value()](t_inputs)
+        self.execute[Self.n_inference_nodes.value()](t_inputs)
 
         # 2. Return outputs from allocated output memory
         # TODO: known copies (reference?)
@@ -117,7 +117,7 @@ struct Model[
         num_nodes: Int
     ](mut self, t_input: VariadicList[Tensor[dtype], _]):
         # 1. Write inputs to allocated input memory
-        var graph = materialize[g]()
+        var graph = materialize[Self.g]()
         for i in range(len(graph.inputs)):
             self.parameters.tensors[graph.inputs[i]] = t_input[i].copy()
 
@@ -138,9 +138,9 @@ struct Model[
                 )
             else:
                 # Statically known shapes and number of operands
-                comptime num_operands = len(g.nodes[i].inputs)
-                comptime t1 = g.nodes[i].inputs[0]
-                comptime out = g.nodes[i].outputs[0]
+                comptime num_operands = len(Self.g.nodes[i].inputs)
+                comptime t1 = Self.g.nodes[i].inputs[0]
+                comptime out = Self.g.nodes[i].outputs[0]
 
                 comptime if num_operands == 1:
                     # Unary operator
@@ -150,7 +150,7 @@ struct Model[
                     )
                 elif num_operands == 2:
                     # Binary operator
-                    comptime t2 = g.nodes[i].inputs[1]
+                    comptime t2 = Self.g.nodes[i].inputs[1]
                     forward_op[op, t1.shape, t2.shape, attrs](
                         self.parameters.tensors[out],
                         self.parameters.tensors[t1],
@@ -158,8 +158,8 @@ struct Model[
                     )
                 elif num_operands == 3:
                     # Ternary operator
-                    comptime t2 = g.nodes[i].inputs[1]
-                    comptime t3 = g.nodes[i].inputs[2]
+                    comptime t2 = Self.g.nodes[i].inputs[1]
+                    comptime t3 = Self.g.nodes[i].inputs[2]
                     forward_op[op, t1.shape, t2.shape, t3.shape, attrs](
                         self.parameters.tensors[out],
                         self.parameters.tensors[t1],
@@ -175,11 +175,11 @@ struct Model[
         """
         Main entrypoint of backward pass.
         """
-        var graph = materialize[g]()
+        var graph = materialize[Self.g]()
         # 1. Initialize output gradient at the beginning of the backward pass
         if len(upper_grads) == 0:
             # TODO remove loss_out tag
-            fill(self.parameters.grads[g.loss_out.value()], 1.0)
+            fill(self.parameters.grads[Self.g.loss_out.value()], 1.0)
         else:
             var node_outputs = graph.nodes[len(graph.nodes) - 1].outputs.copy()
             if len(upper_grads) != len(node_outputs):
@@ -232,7 +232,7 @@ struct Model[
 
                 elif num_operands == 2:
                     # Binary operator
-                    comptime t2 = g.nodes[reverse_i].inputs[1]
+                    comptime t2 = Self.g.nodes[reverse_i].inputs[1]
 
                     comptime if t1.trainable:
                         backward_op[
@@ -260,8 +260,8 @@ struct Model[
 
                 elif num_operands == 3:
                     # Ternary operator
-                    comptime t2 = g.nodes[reverse_i].inputs[1]
-                    comptime t3 = g.nodes[reverse_i].inputs[2]
+                    comptime t2 = Self.g.nodes[reverse_i].inputs[1]
+                    comptime t3 = Self.g.nodes[reverse_i].inputs[2]
 
                     comptime if t1.trainable:
                         backward_op[

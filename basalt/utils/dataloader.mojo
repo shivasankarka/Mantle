@@ -6,46 +6,48 @@ from basalt import Tensor, TensorShape
 
 
 struct Batch[dtype: DType](Copyable, Movable):
-    var data: Tensor[dtype]
-    var labels: Tensor[dtype]
+    var data: Tensor[Self.dtype]
+    var labels: Tensor[Self.dtype]
 
     def __init__(
-        out self, batch_data: Tensor[dtype], batch_labels: Tensor[dtype]
+        out self, batch_data: Tensor[Self.dtype], batch_labels: Tensor[Self.dtype]
     ):
         self.data = batch_data.copy()
         self.labels = batch_labels.copy()
 
     def __init__(
         out self,
-        df_data: Tensor[dtype],
-        df_labels: Tensor[dtype],
+        df_data: Tensor[Self.dtype],
+        df_labels: Tensor[Self.dtype],
         start: Int,
         batch_data_shape: TensorShape,
         batch_labels_shape: TensorShape,
     ):
         # TODO: find a better way to do this
         # Links to the copies of the input tensors in model.forward()
-        self.data = Tensor[dtype](batch_data_shape)
-        self.labels = Tensor[dtype](batch_labels_shape)
+        self.data = Tensor[Self.dtype](batch_data_shape)
+        self.labels = Tensor[Self.dtype](batch_labels_shape)
         memcpy(
-            self.data.data(),
-            df_data.data().offset(start * batch_data_shape.strides()[0]),
-            batch_data_shape.num_elements(),
+            dest=self.data.data(),
+            # df_data.data().offset(start * batch_data_shape.strides()[0]),
+            src=df_data.data() + (start * batch_data_shape.strides()[0]),
+            count=batch_data_shape.num_elements(),
         )
         memcpy(
-            self.labels.data(),
-            df_labels.data().offset(start * batch_labels_shape.strides()[0]),
-            batch_labels_shape.num_elements(),
+            dest=self.labels.data(),
+            # df_labels.data().offset(start * batch_labels_shape.strides()[0]),
+            src=df_labels.data() + (start * batch_labels_shape.strides()[0]),
+            count=batch_labels_shape.num_elements(),
         )
 
-    def __getitem__(self, index: Int) -> Tensor[dtype]:
+    def __getitem__(self, index: Int) -> Tensor[Self.dtype]:
         if index == 0:
             return self.data.copy()
         elif index == 1:
             return self.labels.copy()
         else:
             print("[ERROR] Batch.__getitem__(): Index out of bounds")
-            return Tensor[dtype]()
+            return Tensor[Self.dtype]()
 
 
 struct DataLoader(Copyable, Movable):

@@ -1,7 +1,7 @@
-from random import rand
-from utils.numerics import min_finite, max_finite
-from collections.optional import OptionalReg, Optional
-from python.python import Python, PythonObject
+from std.random import rand
+from std.utils.numerics import min_finite, max_finite
+from std.collections.optional import OptionalReg, Optional
+from std.python import Python, PythonObject
 
 from basalt import dtype, nelts
 from basalt.autograd import OP
@@ -26,7 +26,7 @@ struct torch_output_unary_op:
     var grad_1: Tensor[dtype]
 
 
-fn torch_unary_op(
+def torch_unary_op(
     op: OP,
     input_1: Tensor,
     upper_grad: Tensor,
@@ -135,9 +135,9 @@ fn torch_unary_op(
         return torch_output_unary_op(d, d)
 
 
-fn test_SIGMOID() raises:
-    alias t1_shape = TensorShape(37, 63, 107)
-    alias ug_shape = TensorShape(37, 63, 107)
+def test_SIGMOID() raises:
+    comptime t1_shape = TensorShape(37, 63, 107)
+    comptime ug_shape = TensorShape(37, 63, 107)
     var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
     rand(t1.data(), t1.num_elements())
 
@@ -151,9 +151,9 @@ fn test_SIGMOID() raises:
     )
 
 
-fn test_RELU() raises:
-    alias t1_shape = TensorShape(37, 63, 107)
-    alias ug_shape = TensorShape(37, 63, 107)
+def test_RELU() raises:
+    comptime t1_shape = TensorShape(37, 63, 107)
+    comptime ug_shape = TensorShape(37, 63, 107)
     var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
     rand(t1.data(), t1.num_elements())
 
@@ -167,9 +167,9 @@ fn test_RELU() raises:
     )
 
 
-fn test_LEAKYRELU() raises:
-    alias t1_shape = TensorShape(37, 63, 107)
-    alias ug_shape = TensorShape(37, 63, 107)
+def test_LEAKYRELU() raises:
+    comptime t1_shape = TensorShape(37, 63, 107)
+    comptime ug_shape = TensorShape(37, 63, 107)
     var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
     rand(t1.data(), t1.num_elements())
 
@@ -192,9 +192,9 @@ fn test_LEAKYRELU() raises:
     ](t1, ug, expected_and_grad.grad_1)
 
 
-fn test_TANH() raises:
-    alias t1_shape = TensorShape(37, 63, 107)
-    alias ug_shape = TensorShape(37, 63, 107)
+def test_TANH() raises:
+    comptime t1_shape = TensorShape(37, 63, 107)
+    comptime ug_shape = TensorShape(37, 63, 107)
     var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
     rand(t1.data(), t1.num_elements())
 
@@ -208,9 +208,9 @@ fn test_TANH() raises:
     )
 
 
-fn test_CLIP() raises:
-    alias t1_shape = TensorShape(37, 63, 107)
-    alias ug_shape = TensorShape(37, 63, 107)
+def test_CLIP() raises:
+    comptime t1_shape = TensorShape(37, 63, 107)
+    comptime ug_shape = TensorShape(37, 63, 107)
     var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
     rand(t1.data(), t1.num_elements())
 
@@ -225,7 +225,7 @@ fn test_CLIP() raises:
     )
 
     # Clip with min
-    alias min_attr = Attribute("min", 0.3333)
+    comptime min_attr = Attribute("min", 0.3333)
     expected_and_grad = torch_unary_op(
         OP.CLIP, t1, ug, AttributeVector(min_attr)
     )
@@ -237,7 +237,7 @@ fn test_CLIP() raises:
     ](t1, ug, expected_and_grad.grad_1)
 
     # Clip with max
-    alias max_attr = Attribute("max", 0.6666)
+    comptime max_attr = Attribute("max", 0.6666)
     expected_and_grad = torch_unary_op(
         OP.CLIP, t1, ug, AttributeVector(max_attr)
     )
@@ -260,9 +260,9 @@ fn test_CLIP() raises:
     ](t1, ug, expected_and_grad.grad_1)
 
 
-fn test_SQUEEZE() raises:
-    alias t1_shape = TensorShape(20, 1, 28, 1)
-    alias ug_shape = TensorShape(20, 28)
+def test_SQUEEZE() raises:
+    comptime t1_shape = TensorShape(20, 1, 28, 1)
+    comptime ug_shape = TensorShape(20, 28)
     var t1 = Tensor[dtype](t1_shape)
     rand(t1.data(), t1.num_elements())
 
@@ -276,11 +276,11 @@ fn test_SQUEEZE() raises:
     )
 
     # Squeeze with one dim
-    alias ug_shape_1 = TensorShape(20, 1, 28)
+    comptime ug_shape_1 = TensorShape(20, 1, 28)
     ug = Tensor[dtype](ug_shape_1)
     rand(ug.data(), ug.num_elements())
 
-    alias dim = Attribute("dims", TensorShape(3))
+    comptime dim = Attribute("dims", TensorShape(3))
 
     expected_and_grad = torch_unary_op(OP.SQUEEZE, t1, ug, AttributeVector(dim))
     test_unary_op[OP.SQUEEZE, t1_shape, AttributeVector(dim)](
@@ -290,11 +290,11 @@ fn test_SQUEEZE() raises:
         OP.SQUEEZE, t1_shape, ug_shape_1, AttributeVector(dim)
     ](t1, ug, expected_and_grad.grad_1)
 
-    alias ug_shape_2 = TensorShape(20, 28, 1)
+    comptime ug_shape_2 = TensorShape(20, 28, 1)
     ug = Tensor[dtype](ug_shape_2)
     rand(ug.data(), ug.num_elements())
 
-    alias dim_2 = Attribute("dims", TensorShape(1))
+    comptime dim_2 = Attribute("dims", TensorShape(1))
 
     expected_and_grad = torch_unary_op(
         OP.SQUEEZE, t1, ug, AttributeVector(dim_2)
@@ -310,10 +310,10 @@ fn test_SQUEEZE() raises:
     ug = Tensor[dtype](ug_shape)
     rand(ug.data(), ug.num_elements())
 
-    alias dims_shape = TensorShape(1, 3)
-    alias dims_tuple = (dims_shape[0], dims_shape[1])
+    comptime dims_shape = TensorShape(1, 3)
+    comptime dims_tuple = (dims_shape[0], dims_shape[1])
 
-    alias dims = Attribute("dims", dims_shape)
+    comptime dims = Attribute("dims", dims_shape)
 
     expected_and_grad = torch_unary_op(
         OP.SQUEEZE, t1, ug, attrs_tuple=PythonObject(dims_tuple)
@@ -326,16 +326,16 @@ fn test_SQUEEZE() raises:
     ](t1, ug, expected_and_grad.grad_1)
 
 
-fn test_UNSQUEEZE() raises:
-    alias t1_shape = TensorShape(20, 28)
-    alias ug_shape = TensorShape(20, 1, 28)
+def test_UNSQUEEZE() raises:
+    comptime t1_shape = TensorShape(20, 28)
+    comptime ug_shape = TensorShape(20, 1, 28)
     var t1 = Tensor[dtype](t1_shape)
     rand(t1.data(), t1.num_elements())
 
     var ug = Tensor[dtype](ug_shape)
     rand(ug.data(), ug.num_elements())
 
-    alias dim = Attribute("dims", TensorShape(1))
+    comptime dim = Attribute("dims", TensorShape(1))
 
     var expected_and_grad = torch_unary_op(
         OP.UNSQUEEZE, t1, ug, AttributeVector(dim)
@@ -348,13 +348,13 @@ fn test_UNSQUEEZE() raises:
     ](t1, ug, expected_and_grad.grad_1)
 
     # Unsqueeze with multiple dims
-    alias ug_shape_2 = TensorShape(20, 1, 28, 1)
+    comptime ug_shape_2 = TensorShape(20, 1, 28, 1)
     ug = Tensor[dtype](ug_shape_2)
 
-    alias dims_shape = TensorShape(1, 3)
-    alias dims_tuple = (20, 1, 28, 1)
+    comptime dims_shape = TensorShape(1, 3)
+    comptime dims_tuple = (20, 1, 28, 1)
 
-    alias dims = Attribute("dims", dims_shape)
+    comptime dims = Attribute("dims", dims_shape)
 
     expected_and_grad = torch_unary_op(
         OP.UNSQUEEZE, t1, ug, attrs_tuple=PythonObject(dims_tuple)
@@ -367,21 +367,21 @@ fn test_UNSQUEEZE() raises:
     ](t1, ug, expected_and_grad.grad_1)
 
 
-fn test_SLICE() raises:
-    alias t1_shape = TensorShape(430, 322, 317)
+def test_SLICE() raises:
+    comptime t1_shape = TensorShape(430, 322, 317)
     var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
     rand(t1.data(), t1.num_elements())
 
     # dim = 0
-    alias slice_0 = Slice(5, 200, 3)
-    alias attrs_0 = AttributeVector(
+    comptime slice_0 = Slice(5, 200, 3)
+    comptime attrs_0 = AttributeVector(
         Attribute("starts", TensorShape(slice_0.start.value())),
         Attribute("ends", TensorShape(slice_0.end.value())),
         Attribute("steps", TensorShape(slice_0.step.value())),
         Attribute("axes", TensorShape(0)),
     )
 
-    alias ug_shape = TensorShape(65, 322, 317)
+    comptime ug_shape = TensorShape(65, 322, 317)
     var ug = Tensor[dtype](ug_shape)
     rand(ug.data(), ug.num_elements())
 
@@ -397,15 +397,15 @@ fn test_SLICE() raises:
     )
 
     # dim = 1
-    alias slice_1 = Slice(10, 311, 5)
-    alias attrs_1 = AttributeVector(
+    comptime slice_1 = Slice(10, 311, 5)
+    comptime attrs_1 = AttributeVector(
         Attribute("starts", TensorShape(slice_1.start.value())),
         Attribute("ends", TensorShape(slice_1.end.value())),
         Attribute("steps", TensorShape(slice_1.step.value())),
         Attribute("axes", TensorShape(1)),
     )
 
-    alias ug_shape_1 = TensorShape(430, 61, 317)
+    comptime ug_shape_1 = TensorShape(430, 61, 317)
     ug = Tensor[dtype](ug_shape_1)
     rand(ug.data(), ug.num_elements())
 
@@ -421,15 +421,15 @@ fn test_SLICE() raises:
     )
 
     # dim = 2
-    alias slice_2 = Slice(293, 33, -7)
-    alias attrs_2 = AttributeVector(
+    comptime slice_2 = Slice(293, 33, -7)
+    comptime attrs_2 = AttributeVector(
         Attribute("starts", TensorShape(slice_2.start.value())),
         Attribute("ends", TensorShape(slice_2.end.value())),
         Attribute("steps", TensorShape(slice_2.step.value())),
         Attribute("axes", TensorShape(2)),
     )
 
-    alias ug_shape_2 = TensorShape(430, 322, 38)
+    comptime ug_shape_2 = TensorShape(430, 322, 38)
     ug = Tensor[dtype](ug_shape_2)
     rand(ug.data(), ug.num_elements())
 
@@ -447,17 +447,17 @@ fn test_SLICE() raises:
     # Multiple dims
 
     # dim = 0, 1
-    alias slice_0_1 = Slice(23, 340, 3)
-    alias slice_1_1 = Slice(10, 250, 5)
+    comptime slice_0_1 = Slice(23, 340, 3)
+    comptime slice_1_1 = Slice(10, 250, 5)
 
-    alias attrs_0_1 = AttributeVector(
+    comptime attrs_0_1 = AttributeVector(
         Attribute("starts", TensorShape(slice_0_1.start.value(), slice_1_1.start.value())),
         Attribute("ends", TensorShape(slice_0_1.end.value(), slice_1_1.end.value())),
         Attribute("steps", TensorShape(slice_0_1.step.value(), slice_1_1.step.value())),
         Attribute("axes", TensorShape(0, 1)),
     )
 
-    alias ug_shape_0_1 = TensorShape(106, 48, 317)
+    comptime ug_shape_0_1 = TensorShape(106, 48, 317)
     ug = Tensor[dtype](ug_shape_0_1)
     rand(ug.data(), ug.num_elements())
 
@@ -482,11 +482,11 @@ fn test_SLICE() raises:
     )
 
     # dim = 0, 1, 2
-    alias slice_0_2 = Slice(-412, -5, 3)
-    alias slice_1_2 = Slice(-10, -182, -5)
-    alias slice_2_2 = Slice(293, 33, -7)
+    comptime slice_0_2 = Slice(-412, -5, 3)
+    comptime slice_1_2 = Slice(-10, -182, -5)
+    comptime slice_2_2 = Slice(293, 33, -7)
 
-    alias attrs_0_2 = AttributeVector(
+    comptime attrs_0_2 = AttributeVector(
         Attribute(
             "starts",
             TensorShape(slice_0_2.start.value(), slice_1_2.start.value(), slice_2_2.start.value()),
@@ -500,7 +500,7 @@ fn test_SLICE() raises:
         Attribute("axes", TensorShape(0, 1, 2)),
     )
 
-    alias ug_shape_0_2 = TensorShape(136, 35, 38)
+    comptime ug_shape_0_2 = TensorShape(136, 35, 38)
     ug = Tensor[dtype](ug_shape_0_2)
     rand(ug.data(), ug.num_elements())
 
@@ -529,7 +529,7 @@ fn test_SLICE() raises:
     )
 
 
-fn main():
+def main():
     print("Running mlops (compare with torch) tests")
     try:
         test_SIGMOID()

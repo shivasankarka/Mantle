@@ -2,9 +2,9 @@ from basalt import Tensor, TensorShape
 
 # I don't know what's the shape doing yet and why there's no initializer
 
-
+@fieldwise_init
 struct Symbol(
-    Equatable, ImplicitlyCopyable, Movable, TrivialRegisterPassable, Writable
+    Equatable, ImplicitlyCopyable, Movable, TrivialRegisterPassable, Writable, Copyable
 ):
     var name: UInt32  # name of the symbol
     var dtype: DType

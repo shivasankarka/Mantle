@@ -1,7 +1,7 @@
-from random import rand
-from python.python import Python
-from testing import assert_equal
-from utils.index import IndexList
+from std.random import rand
+from std.python import Python
+from std.testing import assert_equal
+from std.utils.index import IndexList
 
 from basalt import dtype, nelts
 from basalt.autograd import Graph, OP
@@ -19,7 +19,7 @@ struct torch_maxpool2d_output:
     var expected_grad: Tensor[dtype]
 
 
-fn torch_maxpool2d(
+def torch_maxpool2d(
     inputs: Tensor,
     kernel_size: IndexList[2],
     padding: IndexList[2],
@@ -61,14 +61,14 @@ fn torch_maxpool2d(
         return out
 
 
-fn test_pool_forward[
+def test_pool_forward[
     input_shape: TensorShape,
     kernel_size: IndexList[2],
     padding: IndexList[2],
     stride: IndexList[2],
     dilation: IndexList[2],
 ](inputs: Tensor[dtype]) raises:
-    fn create_graph() -> Graph:
+    def create_graph() -> Graph:
         var g = Graph()
         var inp = g.input(input_shape)
 
@@ -86,7 +86,7 @@ fn test_pool_forward[
 
         return g ^
 
-    alias graph = create_graph()
+    comptime graph = create_graph()
     assert_equal(len(graph.nodes), 1)
 
     var model = Model[graph](inference_only=True)
@@ -104,49 +104,49 @@ fn test_pool_forward[
     assert_tensors_equal(res, torch_out.expected)
 
 
-fn test_forward_1() raises:
+def test_forward_1() raises:
     # padding=2, stride=1, dilation=1
     # input shape: (4, 1, 28, 28)  kernel size: (5, 5)
-    alias kernel_size = 5
-    alias padding = 2
-    alias stride = 1
-    alias dilation = 1
-    alias input_shape = TensorShape(4, 1, 28, 28)
+    comptime kernel_size = 5
+    comptime padding = 2
+    comptime stride = 1
+    comptime dilation = 1
+    comptime input_shape = TensorShape(4, 1, 28, 28)
     var inputs = Tensor[dtype](input_shape)
     rand[dtype](inputs.data(), inputs.num_elements())
 
     test_pool_forward[input_shape, kernel_size, padding, stride, dilation](inputs)
 
 
-fn test_forward_2() raises:
+def test_forward_2() raises:
     # padding=0, stride=1, dilation=1
     # input shape: (4, 1, 32, 17)  kernel size: (2, 2)
-    alias kernel_size = IndexList[2](2, 2)
-    alias padding = 0
-    alias stride = 1
-    alias dilation = 1
-    alias input_shape = TensorShape(4, 1, 32, 17)
+    comptime kernel_size = IndexList[2](2, 2)
+    comptime padding = 0
+    comptime stride = 1
+    comptime dilation = 1
+    comptime input_shape = TensorShape(4, 1, 32, 17)
     var inputs = Tensor[dtype](input_shape)
     rand[dtype](inputs.data(), inputs.num_elements())
 
     test_pool_forward[input_shape, kernel_size, padding, stride, dilation](inputs)
 
 
-fn test_forward_3() raises:
+def test_forward_3() raises:
     # padding=(3, 1), stride=(2, 3), dilation=(2, 3)
     # input shape: (4, 3, 32, 17)  kernel size: (6, 6)
-    alias kernel_size = IndexList[2](6, 6)
-    alias padding = IndexList[2](3, 1)
-    alias stride = IndexList[2](2, 3)
-    alias dilation = IndexList[2](2, 3)
-    alias input_shape = TensorShape(4, 3, 32, 17)
+    comptime kernel_size = IndexList[2](6, 6)
+    comptime padding = IndexList[2](3, 1)
+    comptime stride = IndexList[2](2, 3)
+    comptime dilation = IndexList[2](2, 3)
+    comptime input_shape = TensorShape(4, 3, 32, 17)
     var inputs = Tensor[dtype](input_shape)
     rand[dtype](inputs.data(), inputs.num_elements())
 
     test_pool_forward[input_shape, kernel_size, padding, stride, dilation](inputs)
 
 
-fn test_pool_backward[
+def test_pool_backward[
     ug_shape: TensorShape,
     input_shape: TensorShape,
     kernel_size: IndexList[2],
@@ -154,7 +154,7 @@ fn test_pool_backward[
     stride: IndexList[2],
     dilation: IndexList[2],
 ](ug: Tensor[dtype], inputs: Tensor[dtype]) raises:
-    alias attributes = AttributeVector(
+    comptime attributes = AttributeVector(
         Attribute("kernel_size", kernel_size),
         Attribute("padding", padding),
         Attribute("stride", stride),
@@ -175,22 +175,22 @@ fn test_pool_backward[
     assert_tensors_equal["almost"](grad, torch_out.expected_grad)
 
 
-fn test_backward_1() raises:
+def test_backward_1() raises:
     # padding=2, stride=1, dilation=1
     # input shape: (4, 1, 28, 28)  kernel size: (5, 5)
-    alias kernel_size = 5
-    alias padding = 2
-    alias stride = 1
-    alias dilation = 1
-    alias input_shape = TensorShape(4, 1, 28, 28)
+    comptime kernel_size = 5
+    comptime padding = 2
+    comptime stride = 1
+    comptime dilation = 1
+    comptime input_shape = TensorShape(4, 1, 28, 28)
     var inputs = Tensor[dtype](input_shape)
     rand[dtype](inputs.data(), inputs.num_elements())
 
     # uppergrad
-    alias res = get_result_shape(
+    comptime res = get_result_shape(
         input_shape, TensorShape(kernel_size, kernel_size), padding, stride, dilation
     )
-    alias ug_shape = TensorShape(input_shape[0], input_shape[1], res[0], res[1])
+    comptime ug_shape = TensorShape(input_shape[0], input_shape[1], res[0], res[1])
     var ug = Tensor[dtype](ug_shape)
     rand[dtype](ug.data(), ug.num_elements())
 
@@ -199,22 +199,22 @@ fn test_backward_1() raises:
     )
 
 
-fn test_backward_2() raises:
+def test_backward_2() raises:
     # padding=0, stride=1, dilation=1
     # input shape: (4, 1, 32, 17)  kernel size: (2, 2)
-    alias kernel_size = 2
-    alias padding = 0
-    alias stride = 1
-    alias dilation = 1
-    alias input_shape = TensorShape(4, 1, 32, 17)
+    comptime kernel_size = 2
+    comptime padding = 0
+    comptime stride = 1
+    comptime dilation = 1
+    comptime input_shape = TensorShape(4, 1, 32, 17)
     var inputs = Tensor[dtype](input_shape)
     rand[dtype](inputs.data(), inputs.num_elements())
 
     # uppergrad
-    alias res = get_result_shape(
+    comptime res = get_result_shape(
         input_shape, TensorShape(kernel_size, kernel_size), padding, stride, dilation
     )
-    alias ug_shape = TensorShape(input_shape[0], input_shape[1], res[0], res[1])
+    comptime ug_shape = TensorShape(input_shape[0], input_shape[1], res[0], res[1])
     var ug = Tensor[dtype](ug_shape)
     rand[dtype](ug.data(), ug.num_elements())
 
@@ -223,23 +223,23 @@ fn test_backward_2() raises:
     )
 
 
-fn test_backward_3() raises:
+def test_backward_3() raises:
     # padding=(3, 1), stride=(2, 3), dilation=(2, 3)
     # input shape: (4, 3, 32, 17)  kernel size: (6, 6)
-    alias kernel_size = IndexList[2](6, 6)
-    alias padding = IndexList[2](3, 1)
-    alias stride = IndexList[2](2, 3)
-    alias dilation = IndexList[2](2, 3)
-    alias input_shape = TensorShape(4, 3, 32, 17)
+    comptime kernel_size = IndexList[2](6, 6)
+    comptime padding = IndexList[2](3, 1)
+    comptime stride = IndexList[2](2, 3)
+    comptime dilation = IndexList[2](2, 3)
+    comptime input_shape = TensorShape(4, 3, 32, 17)
     var inputs = Tensor[dtype](input_shape)
     rand[dtype](inputs.data(), inputs.num_elements())
 
     # uppergrad
-    alias kernel_size_static: IndexList[2] = kernel_size
-    alias res = get_result_shape(
+    comptime kernel_size_static: IndexList[2] = kernel_size
+    comptime res = get_result_shape(
         input_shape, TensorShape(kernel_size_static), padding, stride, dilation
     )
-    alias ug_shape = TensorShape(input_shape[0], input_shape[1], res[0], res[1])
+    comptime ug_shape = TensorShape(input_shape[0], input_shape[1], res[0], res[1])
     var ug = Tensor[dtype](ug_shape)
     rand[dtype](ug.data(), ug.num_elements())
 
@@ -248,7 +248,7 @@ fn test_backward_3() raises:
     )
 
 
-fn main():
+def main():
     try:
         test_forward_1()
         test_forward_2()

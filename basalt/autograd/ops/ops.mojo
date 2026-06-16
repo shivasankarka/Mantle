@@ -90,7 +90,7 @@ struct OP(TrivialRegisterPassable, Writable):
 
 
 def static_result_shape(
-    op: OP, operands: VariadicList[Symbol], attributes: AttributeVector
+    op: OP, operands: VariadicList[Symbol, _], attributes: AttributeVector
 ) -> TensorShape:
     """
     Static result shape for operators.
@@ -208,7 +208,7 @@ def static_result_shape(
 
 def dynamic_result_shape(
     op: OP,
-    operands: VariadicList[Symbol],
+    operands: VariadicList[Symbol, _],
     attributes: AttributeVector,
 ) -> List[TensorShape]:
     """
@@ -225,7 +225,7 @@ def dynamic_result_shape(
         return SPLIT.result_shape(input_shapes, attributes)
     else:
         print("[ERROR] Operator not found.")
-        return List[TensorShape](TensorShape(-1))
+        return [TensorShape(-1)]
 
 
 def forward_op[

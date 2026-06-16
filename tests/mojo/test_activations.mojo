@@ -1,4 +1,4 @@
-from testing import assert_equal
+from std.testing import assert_equal
 
 from basalt import dtype
 from basalt.nn import (
@@ -18,14 +18,14 @@ from basalt.utils.tensorutils import fill
 from tests import assert_tensors_equal
 
 
-alias Activation = fn (inout g: Graph, input: Symbol) -> Symbol
-alias AxisActivation = fn (inout g: Graph, input: Symbol, axis: Int) -> Symbol
-alias LeakyReLUActivation = fn (
-    inout g: Graph, input: Symbol, negative_slope: Scalar[dtype]
+comptime Activation = def(mut g: Graph, input: Symbol) -> Symbol
+comptime AxisActivation = def(mut g: Graph, input: Symbol, axis: Int) -> Symbol
+comptime LeakyReLUActivation = def(
+    mut g: Graph, input: Symbol, negative_slope: Scalar[dtype]
 ) -> Symbol
 
 
-fn create_graph[
+def create_graph[
     shape: TensorShape,
     func: AxisActivation,
     axis: Int,
@@ -37,7 +37,7 @@ fn create_graph[
     return g^
 
 
-fn create_graph[
+def create_graph[
     shape: TensorShape,
     func: LeakyReLUActivation,
     negative_slope: Scalar[dtype],
@@ -49,7 +49,7 @@ fn create_graph[
     return g^
 
 
-fn create_graph[shape: TensorShape, func: Activation]() -> Graph:
+def create_graph[shape: TensorShape, func: Activation]() -> Graph:
     var g = Graph()
     var x = g.input(shape)
     var activation = func(g, x)
@@ -57,13 +57,13 @@ fn create_graph[shape: TensorShape, func: Activation]() -> Graph:
     return g^
 
 
-fn test_graph[
+def test_graph[
     shape: TensorShape,
     func: AxisActivation,
     nodes: Int,
     axis: Int,
 ](input: Tensor[dtype], expected: Tensor[dtype]) raises:
-    alias graph = create_graph[shape, func, axis]()
+    comptime graph = create_graph[shape, func, axis]()
 
     var model = Model[graph](inference_only=True)
     var res = model.inference(input)[0]
@@ -72,13 +72,13 @@ fn test_graph[
     assert_equal(len(graph.nodes), nodes)
 
 
-fn test_graph[
+def test_graph[
     shape: TensorShape,
     func: LeakyReLUActivation,
     nodes: Int,
     negative_slope: Scalar[dtype],
 ](input: Tensor[dtype], expected: Tensor[dtype]) raises:
-    alias graph = create_graph[shape, func, negative_slope]()
+    comptime graph = create_graph[shape, func, negative_slope]()
 
     var model = Model[graph](inference_only=True)
     var res = model.inference(input)[0]
@@ -88,12 +88,12 @@ fn test_graph[
 
 
 # TODO: All these overloads feel redundant. Find a way to condense them
-fn test_graph[
+def test_graph[
     shape: TensorShape,
     func: Activation,
     nodes: Int,
 ](input: Tensor[dtype], expected: Tensor[dtype]) raises:
-    alias graph = create_graph[shape, func]()
+    comptime graph = create_graph[shape, func]()
 
     var model = Model[graph](inference_only=True)
     var res = model.inference(input)[0]
@@ -102,9 +102,9 @@ fn test_graph[
     assert_equal(len(graph.nodes), nodes, "Node count failed")
 
 
-fn test_SOFTMAX() raises:
-    alias shape = TensorShape(2, 3, 2)
-    alias nodes = 5
+def test_SOFTMAX() raises:
+    comptime shape = TensorShape(2, 3, 2)
+    comptime nodes = 5
 
     var input = Tensor[dtype](shape)
     fill(input, 4)
@@ -121,9 +121,9 @@ fn test_SOFTMAX() raises:
     test_graph[shape, Softmax, nodes, 2](input, expected)
 
 
-fn test_LOGSOFTMAX() raises:
-    alias shape = TensorShape(2, 3, 2)
-    alias nodes = 6
+def test_LOGSOFTMAX() raises:
+    comptime shape = TensorShape(2, 3, 2)
+    comptime nodes = 6
 
     var input = Tensor[dtype](shape)
     fill(input, 4)
@@ -140,9 +140,9 @@ fn test_LOGSOFTMAX() raises:
     test_graph[shape, LogSoftmax, nodes, 2](input, expected)
 
 
-fn test_RELU() raises:
-    alias shape = TensorShape(2, 3)
-    alias nodes = 1
+def test_RELU() raises:
+    comptime shape = TensorShape(2, 3)
+    comptime nodes = 1
 
     var input = Tensor[dtype](shape)
 
@@ -157,11 +157,11 @@ fn test_RELU() raises:
     test_graph[shape, ReLU, nodes](input, expected)
 
 
-fn test_LEAKYRELU() raises:
-    alias negative_slope = Float32(0.1)
+def test_LEAKYRELU() raises:
+    comptime negative_slope = Float32(0.1)
 
-    alias shape = TensorShape(2, 3)
-    alias nodes = 1
+    comptime shape = TensorShape(2, 3)
+    comptime nodes = 1
 
     var input = Tensor[dtype](shape)
 
@@ -176,9 +176,9 @@ fn test_LEAKYRELU() raises:
     test_graph[shape, LeakyReLU, nodes, negative_slope](input, expected)
 
 
-fn test_SIGMOID() raises:
-    alias shape = TensorShape(2, 3)
-    alias nodes = 1
+def test_SIGMOID() raises:
+    comptime shape = TensorShape(2, 3)
+    comptime nodes = 1
 
     var input = Tensor[dtype](shape)
     fill(input, 0)
@@ -189,9 +189,9 @@ fn test_SIGMOID() raises:
     test_graph[shape, Sigmoid, nodes](input, expected)
 
 
-fn test_TANH() raises:
-    alias shape = TensorShape(2, 3)
-    alias nodes = 1
+def test_TANH() raises:
+    comptime shape = TensorShape(2, 3)
+    comptime nodes = 1
 
     var input = Tensor[dtype](shape)
     fill(input, 0)
@@ -202,7 +202,7 @@ fn test_TANH() raises:
     test_graph[shape, Tanh, nodes](input, expected)
 
 
-fn main():
+def main():
     try:
         test_SOFTMAX()
         test_LOGSOFTMAX()

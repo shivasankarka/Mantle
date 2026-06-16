@@ -42,7 +42,8 @@ struct ADD:
     ](ug: Tensor[dtype], t1: Tensor[dtype], t2: Tensor[dtype]) -> Tensor[dtype]:
         """Backward operation of element wise addition."""
         # d(x + y) / dx = d(x + y) / dy = 1
-        return ug
+        # TODO: Figure out how to remove copies.
+        return ug.copy()
 
 
 struct SUB:
@@ -74,7 +75,7 @@ struct SUB:
         # d(x - y) / dx = 1
         # d(x - y) / dy = -1
         comptime if tensor_id == 0:
-            return ug
+            return ug.copy()
         else:
             var res_grad = Tensor[dtype](ug_shape)
             elwise_op[mul](res_grad, ug, -1.0)
@@ -185,8 +186,6 @@ struct DIV:
                     read ug,
                     read t1,
                     read t2,
-                    read strides1,
-                    read strides2,
                 }:
                     var index1 = get_real_index[size, strides1, ug_shape](i)
                     var index2 = get_real_index[size, strides2, ug_shape](i)
@@ -341,8 +340,7 @@ struct POW:
         comptime if tensor_id == 0:
             res_grad = Tensor[dtype](t1_shape)
 
-            @parameter
-            def vec_pow_bw_x[nelts: Int](i: Int):
+            def vec_pow_bw_x[nelts: Int](i: Int) {mut res_grad, read t1, read ug, read a}:
                 res_grad.store[nelts](
                     i,
                     a
@@ -350,7 +348,7 @@ struct POW:
                     * ug.load[nelts](i),
                 )
 
-            vectorize[vec_pow_bw_x, nelts](t1_shape.num_elements())
+            vectorize[nelts](t1_shape.num_elements(), vec_pow_bw_x)
 
         else:
             # Gradient of the exponent
@@ -358,11 +356,11 @@ struct POW:
 
             def vec_pow_bw_y[
                 nelts: Int
-            ](i: Int) {mut res_grad, read t1, read ug}:
+            ](i: Int) {mut res_grad, read t1, read ug, read a}:
                 # the case when the value passed to log is 0.0
                 var temp_log = log(t1.load[nelts](i))
                 var temp_log_is_inf = isinf(temp_log)
-                temp_log = temp_log_is_inf.select(0, temp_log)
+                temp_log = temp_log_is_inf.select(SIMD[dtype, nelts](0), temp_log)
                 res_grad[0] += (
                     (t1.load[nelts](i) ** a) * temp_log * ug.load[nelts](i)
                 ).reduce_add()
@@ -468,7 +466,7 @@ struct MEAN:
         # d(mean(t)) / dt = 1 / t.num_elements()
         var res_grad = Tensor[dtype](t_shape)
 
-        var grad: Scalar[dtype] = (1.0 / t_shape.num_elements()).cast[dtype]()
+        var grad: Scalar[dtype] = (1.0 / Float64(t_shape.num_elements())).cast[dtype]()
 
         grad = (
             grad * ug[0]
@@ -489,7 +487,7 @@ struct MEAN:
         # d(mean(t)) / dt = 1 / t.dim(axis)
         var res_grad = Tensor[dtype](t_shape)
 
-        var grad: Scalar[dtype] = (1.0 / t_shape[axis]).cast[dtype]()
+        var grad: Scalar[dtype] = (1.0 / Float64(t_shape[axis])).cast[dtype]()
 
         fill(res_grad, grad)
 
@@ -705,7 +703,7 @@ struct FLATTEN:
         """
         Forward pass of the flatten operation.
         """
-        memcpy(res.data(), t.data(), t_shape.num_elements())
+        memcpy(dest=res.data(), src=t.data(), count=t_shape.num_elements())
 
     @staticmethod
     def backward[
@@ -713,7 +711,7 @@ struct FLATTEN:
     ](ug: Tensor[dtype], t: Tensor[dtype]) -> Tensor[dtype]:
         """Backward operation of flatten."""
         var res_grad = Tensor[dtype](t_shape)
-        memcpy(res_grad.data(), ug.data(), ug_shape.num_elements())
+        memcpy(dest=res_grad.data(), src=ug.data(), count=ug_shape.num_elements())
 
         return res_grad^
 
@@ -731,7 +729,7 @@ struct RESHAPE:
         """
         Forward pass of the reshape operation.
         """
-        memcpy(res.data(), t.data(), t_shape.num_elements())
+        memcpy(dest=res.data(), src=t.data(), count=t_shape.num_elements())
 
     @staticmethod
     def backward[
@@ -739,7 +737,7 @@ struct RESHAPE:
     ](ug: Tensor[dtype], t: Tensor[dtype]) -> Tensor[dtype]:
         """Backward operation of reshape."""
         var res_grad = Tensor[dtype](t_shape)
-        memcpy(res_grad.data(), ug.data(), ug_shape.num_elements())
+        memcpy(dest=res_grad.data(), src=ug.data(), count=ug_shape.num_elements())
 
         return res_grad^
 
@@ -802,4 +800,4 @@ struct FMA:
             elwise_op[ug_shape, t1_shape, mul](res_grad, ug, t1)
             return res_grad^
         else:
-            return ug
+            return ug.copy()

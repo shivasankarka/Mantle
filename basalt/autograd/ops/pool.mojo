@@ -147,4 +147,4 @@ struct MAXPOOL2D:
 
                         res[max_idx] += ug[ug_idx]
 
-        return res
+        return res^

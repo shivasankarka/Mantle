@@ -1,5 +1,5 @@
-from random import rand
-from python.python import Python, PythonObject
+from std.random import rand
+from std.python import Python, PythonObject
 
 from basalt import dtype, nelts
 from basalt.autograd import Graph, Symbol, OP
@@ -23,7 +23,7 @@ struct torch_output_cat:
     var grad_3: Tensor[dtype]
 
 
-fn torch_cat(
+def torch_cat(
     input_1: Tensor, input_2: Tensor, input_3: Tensor, upper_grad: Tensor, dim: Int
 ) -> torch_output_cat:
     try:
@@ -60,10 +60,10 @@ fn torch_cat(
         return torch_output_cat(d, d, d, d)
 
 
-fn test_CONCAT() raises:
-    alias t1_shape = TensorShape(11, 3, 17, 19)
-    alias t2_shape = TensorShape(11, 3, 17, 19)
-    alias t3_shape = TensorShape(11, 3, 17, 19)
+def test_CONCAT() raises:
+    comptime t1_shape = TensorShape(11, 3, 17, 19)
+    comptime t2_shape = TensorShape(11, 3, 17, 19)
+    comptime t3_shape = TensorShape(11, 3, 17, 19)
     var t1 = Tensor[dtype](t1_shape)
     var t2 = Tensor[dtype](t2_shape)
     var t3 = Tensor[dtype](t3_shape)
@@ -72,11 +72,11 @@ fn test_CONCAT() raises:
     rand(t3.data(), t3.num_elements())
 
     # default: dim = 0
-    alias graph = create_graph_concat(t1_shape, t2_shape, t3_shape, dim=0)
+    comptime graph = create_graph_concat(t1_shape, t2_shape, t3_shape, dim=0)
     var model = Model[graph]()
     var res = model.forward(t1, t2, t3)
 
-    alias ug_shape = TensorShape(33, 3, 17, 19)
+    comptime ug_shape = TensorShape(33, 3, 17, 19)
     var ug = Tensor[dtype](ug_shape)
     rand(ug.data(), ug.num_elements())
 
@@ -98,11 +98,11 @@ fn test_CONCAT() raises:
     )
 
     # dim = 2
-    alias graph_2 = create_graph_concat(t1_shape, t2_shape, t3_shape, dim=2)
+    comptime graph_2 = create_graph_concat(t1_shape, t2_shape, t3_shape, dim=2)
     var model_2 = Model[graph_2]()
     var res_2 = model_2.forward(t1, t2, t3)
 
-    alias ug_shape_2 = TensorShape(11, 3, 51, 19)
+    comptime ug_shape_2 = TensorShape(11, 3, 51, 19)
     var ug_2 = Tensor[dtype](ug_shape_2)
     rand(ug_2.data(), ug_2.num_elements())
 
@@ -132,7 +132,7 @@ struct torch_output_split:
     var grad: Tensor[dtype]
 
 
-fn torch_split(
+def torch_split(
     input: Tensor,
     upper_grad_1: Tensor,
     upper_grad_2: Tensor,
@@ -175,20 +175,20 @@ fn torch_split(
         return torch_output_split(d, d, d, d)
 
 
-fn test_SPLIT() raises:
-    alias t1_shape = TensorShape(11, 3, 17, 19)
+def test_SPLIT() raises:
+    comptime t1_shape = TensorShape(11, 3, 17, 19)
     var t1 = Tensor[dtype](t1_shape)
     rand(t1.data(), t1.num_elements())
 
     # default: dim = 0
-    alias sections = List[Int](3, 6, 2)  # 11
-    alias graph = create_graph_split(t1_shape, sections, dim=0)
+    comptime sections = List[Int](3, 6, 2)  # 11
+    comptime graph = create_graph_split(t1_shape, sections, dim=0)
     var model = Model[graph]()
     var results = model.inference(t1)
 
-    alias ug1_shape = TensorShape(3, 3, 17, 19)
-    alias ug2_shape = TensorShape(6, 3, 17, 19)
-    alias ug3_shape = TensorShape(2, 3, 17, 19)
+    comptime ug1_shape = TensorShape(3, 3, 17, 19)
+    comptime ug2_shape = TensorShape(6, 3, 17, 19)
+    comptime ug3_shape = TensorShape(2, 3, 17, 19)
     var ug1 = Tensor[dtype](ug1_shape)
     var ug2 = Tensor[dtype](ug2_shape)
     var ug3 = Tensor[dtype](ug3_shape)
@@ -208,14 +208,14 @@ fn test_SPLIT() raises:
     )
 
     # dim = 2
-    alias sections_2 = List[Int](3, 6, 8)  # 17
-    alias graph_2 = create_graph_split(t1_shape, sections_2, dim=2)
+    comptime sections_2 = List[Int](3, 6, 8)  # 17
+    comptime graph_2 = create_graph_split(t1_shape, sections_2, dim=2)
     var model_2 = Model[graph_2]()
     var results_2 = model_2.inference(t1)
 
-    alias ug1_shape_2 = TensorShape(11, 3, 3, 19)
-    alias ug2_shape_2 = TensorShape(11, 3, 6, 19)
-    alias ug3_shape_2 = TensorShape(11, 3, 8, 19)
+    comptime ug1_shape_2 = TensorShape(11, 3, 3, 19)
+    comptime ug2_shape_2 = TensorShape(11, 3, 6, 19)
+    comptime ug3_shape_2 = TensorShape(11, 3, 8, 19)
     var ug1_2 = Tensor[dtype](ug1_shape_2)
     var ug2_2 = Tensor[dtype](ug2_shape_2)
     var ug3_2 = Tensor[dtype](ug3_shape_2)
@@ -234,7 +234,7 @@ fn test_SPLIT() raises:
     )
 
 
-fn main():
+def main():
     print("Running dynamic ops (compare with torch) tests")
     try:
         test_CONCAT()

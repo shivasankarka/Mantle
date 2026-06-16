@@ -66,7 +66,7 @@ struct ParamDict(Copyable, Movable, Sized):
 
     def put(mut self, param_id: Symbol, value: Param = Param()):
         self.symbols.append(param_id)
-        self.values.append(value)
+        self.values.append(value.copy())
 
     def get_tensor(self, idx: Int) -> Tensor[dtype]:
         # May only be called at runtime

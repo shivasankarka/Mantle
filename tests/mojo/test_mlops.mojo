@@ -1,4 +1,4 @@
-from utils.index import IndexList
+from std.utils.index import IndexList
 
 from basalt import dtype, nelts
 from basalt.autograd import OP
@@ -23,8 +23,8 @@ from tests import (
 )
 
 
-fn test_SIGMOID() raises:
-    alias t1_shape = TensorShape(2, 3)
+def test_SIGMOID() raises:
+    comptime t1_shape = TensorShape(2, 3)
     var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
 
     var expected = Tensor[dtype](2, 3)
@@ -33,9 +33,9 @@ fn test_SIGMOID() raises:
     test_unary_op[OP.SIGMOID, t1_shape](t1, expected)
 
 
-fn test_backward_SIGMOID() raises:
-    alias t1_shape = TensorShape(2, 3)
-    alias ug_shape = TensorShape(2, 3)
+def test_backward_SIGMOID() raises:
+    comptime t1_shape = TensorShape(2, 3)
+    comptime ug_shape = TensorShape(2, 3)
     var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
     var ug: Tensor[dtype] = Tensor[dtype](ug_shape)
     fill(ug, 5.0)
@@ -50,8 +50,8 @@ fn test_backward_SIGMOID() raises:
     )
 
 
-fn test_RELU() raises:
-    alias t1_shape = TensorShape(2, 3)
+def test_RELU() raises:
+    comptime t1_shape = TensorShape(2, 3)
     var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
     # TODO: When tensors can do slices, this could be changed to two fill functions.
     for i in range(3):
@@ -68,9 +68,9 @@ fn test_RELU() raises:
     test_unary_op[OP.RELU, t1_shape](t1, expected)
 
 
-fn test_backward_RELU() raises:
-    alias t1_shape = TensorShape(2, 3)
-    alias ug_shape = TensorShape(2, 3)
+def test_backward_RELU() raises:
+    comptime t1_shape = TensorShape(2, 3)
+    comptime ug_shape = TensorShape(2, 3)
     var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
     var ug: Tensor[dtype] = Tensor[dtype](ug_shape)
     for i in range(3):
@@ -88,8 +88,8 @@ fn test_backward_RELU() raises:
     test_unary_op_backward[OP.RELU, t1_shape, ug_shape](t1, ug, expected_grad)
 
 
-fn test_LEAKYRELU() raises:
-    alias t1_shape = TensorShape(2, 3)
+def test_LEAKYRELU() raises:
+    comptime t1_shape = TensorShape(2, 3)
     var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
     # TODO: When tensors can do slices, this could be changed to two fill functions.
     for i in range(3):
@@ -110,9 +110,9 @@ fn test_LEAKYRELU() raises:
     ](t1, expected)
 
 
-fn test_backward_LEAKYRELU() raises:
-    alias t1_shape = TensorShape(2, 3)
-    alias ug_shape = TensorShape(2, 3)
+def test_backward_LEAKYRELU() raises:
+    comptime t1_shape = TensorShape(2, 3)
+    comptime ug_shape = TensorShape(2, 3)
     var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
     var ug: Tensor[dtype] = Tensor[dtype](ug_shape)
     for i in range(3):
@@ -135,8 +135,8 @@ fn test_backward_LEAKYRELU() raises:
     ](t1, ug, expected_grad)
 
 
-fn test_TANH() raises:
-    alias t1_shape = TensorShape(2, 3)
+def test_TANH() raises:
+    comptime t1_shape = TensorShape(2, 3)
     var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
 
     var expected = Tensor[dtype](2, 3)
@@ -145,9 +145,9 @@ fn test_TANH() raises:
     test_unary_op[OP.TANH, t1_shape](t1, expected)
 
 
-fn test_backward_TANH() raises:
-    alias t1_shape = TensorShape(2, 3)
-    alias ug_shape = TensorShape(2, 3)
+def test_backward_TANH() raises:
+    comptime t1_shape = TensorShape(2, 3)
+    comptime ug_shape = TensorShape(2, 3)
     var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
     var ug: Tensor[dtype] = Tensor[dtype](ug_shape)
     fill(ug, 5.0)
@@ -158,8 +158,8 @@ fn test_backward_TANH() raises:
     test_unary_op_backward[OP.TANH, t1_shape, ug_shape](t1, ug, expected_grad)
 
 
-fn test_CLIP() raises:
-    alias t1_shape = TensorShape(2, 3)
+def test_CLIP() raises:
+    comptime t1_shape = TensorShape(2, 3)
     var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
     for i in range(6):
         t1[i] = i - 3
@@ -169,7 +169,7 @@ fn test_CLIP() raises:
     test_unary_op[OP.CLIP, t1_shape](t1, expected_no)
 
     # Clip with min
-    alias min_attr = Attribute("min", -1.1)
+    comptime min_attr = Attribute("min", -1.1)
     var expected_min = Tensor[dtype](2, 3)
     for i in range(6):
         var val = Scalar[dtype](i - 3)
@@ -179,7 +179,7 @@ fn test_CLIP() raises:
     )
 
     # Clip with max
-    alias max_attr = Attribute("max", 1.1)
+    comptime max_attr = Attribute("max", 1.1)
     var expected_max = Tensor[dtype](2, 3)
     for i in range(6):
         var val = Scalar[dtype](i - 3)
@@ -203,9 +203,9 @@ fn test_CLIP() raises:
     )
 
 
-fn test_backward_CLIP() raises:
-    alias t1_shape = TensorShape(2, 3)
-    alias ug_shape = TensorShape(2, 3)
+def test_backward_CLIP() raises:
+    comptime t1_shape = TensorShape(2, 3)
+    comptime ug_shape = TensorShape(2, 3)
     var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
     for i in range(6):
         t1[i] = i - 3
@@ -217,7 +217,7 @@ fn test_backward_CLIP() raises:
     test_unary_op_backward[OP.CLIP, t1_shape, ug_shape](t1, ug, expected_no)
 
     # Clip with min
-    alias min_attr = AttributeVector(Attribute("min", -1.1))
+    comptime min_attr = AttributeVector(Attribute("min", -1.1))
     var expected_min = Tensor[dtype](2, 3)
     for i in range(6):
         var val = Scalar[dtype](i - 3)
@@ -227,7 +227,7 @@ fn test_backward_CLIP() raises:
     )
 
     # Clip with max
-    alias max_attr = AttributeVector(Attribute("max", 1.1))
+    comptime max_attr = AttributeVector(Attribute("max", 1.1))
     var expected_max = Tensor[dtype](2, 3)
     for i in range(6):
         var val = Scalar[dtype](i - 3)
@@ -237,7 +237,7 @@ fn test_backward_CLIP() raises:
     )
 
     # Clip with min and max
-    alias attrs = AttributeVector(Attribute("min", -1.1), Attribute("max", 1.1))
+    comptime attrs = AttributeVector(Attribute("min", -1.1), Attribute("max", 1.1))
     var expected = Tensor[dtype](2, 3)
     for i in range(6):
         var val = Scalar[dtype](i - 3)
@@ -248,8 +248,8 @@ fn test_backward_CLIP() raises:
     test_unary_op_backward[OP.CLIP, t1_shape, ug_shape, attrs](t1, ug, expected)
 
 
-fn test_SQUEEZE() raises:
-    alias t1_shape = TensorShape(1, 2, 1, 3, 1)
+def test_SQUEEZE() raises:
+    comptime t1_shape = TensorShape(1, 2, 1, 3, 1)
     var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
     fill(t1, 5.0)
 
@@ -281,9 +281,9 @@ fn test_SQUEEZE() raises:
     ](t1, expected)
 
 
-fn test_backward_SQUEEZE() raises:
-    alias t1_shape = TensorShape(2, 1, 3, 1)
-    alias ug_shape = TensorShape(2, 3)
+def test_backward_SQUEEZE() raises:
+    comptime t1_shape = TensorShape(2, 1, 3, 1)
+    comptime ug_shape = TensorShape(2, 3)
     var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
     fill(t1, 5.0)
     var ug: Tensor[dtype] = Tensor[dtype](ug_shape)
@@ -297,9 +297,9 @@ fn test_backward_SQUEEZE() raises:
     )
 
 
-fn test_UNSQUEEZE() raises:
+def test_UNSQUEEZE() raises:
     # UNSQUEEZE here is more similar to jax expand_dims
-    alias t1_shape = TensorShape(2, 3)
+    comptime t1_shape = TensorShape(2, 3)
     var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
     fill(t1, 5.0)
 
@@ -337,9 +337,9 @@ fn test_UNSQUEEZE() raises:
     ](t1, expected)
 
 
-fn test_backward_UNSQUEEZE() raises:
-    alias t1_shape = TensorShape(2, 3)
-    alias ug_shape = TensorShape(2, 1, 3)
+def test_backward_UNSQUEEZE() raises:
+    comptime t1_shape = TensorShape(2, 3)
+    comptime ug_shape = TensorShape(2, 1, 3)
     var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
     fill(t1, 5.0)
     var ug: Tensor[dtype] = Tensor[dtype](ug_shape)
@@ -353,13 +353,13 @@ fn test_backward_UNSQUEEZE() raises:
     )
 
 
-fn test_SLICE() raises:
-    alias t1_shape = TensorShape(3, 4, 5)
+def test_SLICE() raises:
+    comptime t1_shape = TensorShape(3, 4, 5)
     var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
     for i in range(t1.num_elements()):
         t1[i] = i
 
-    alias slice = Slice(1, 3, 1)
+    comptime slice = Slice(1, 3, 1)
 
     # dim = 0
     var expected_0 = Tensor[dtype](2, 4, 5)
@@ -416,11 +416,11 @@ fn test_SLICE() raises:
     ](t1, expected_2)
 
 
-fn test_SLICE_step() raises:
-    alias slice = Slice(1, 6, 2)
+def test_SLICE_step() raises:
+    comptime slice = Slice(1, 6, 2)
 
     # dim = 0
-    alias t0_shape = TensorShape(10, 2, 2)
+    comptime t0_shape = TensorShape(10, 2, 2)
     var t0: Tensor[dtype] = Tensor[dtype](t0_shape)
     for i in range(t0.num_elements()):
         t0[i] = i
@@ -445,7 +445,7 @@ fn test_SLICE_step() raises:
     ](t0, expected_0)
 
     # dim = 1
-    alias t1_shape = TensorShape(2, 10, 2)
+    comptime t1_shape = TensorShape(2, 10, 2)
     var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
     for i in range(t1.num_elements()):
         t1[i] = i
@@ -470,7 +470,7 @@ fn test_SLICE_step() raises:
     ](t1, expected_1)
 
     # dim = 2
-    alias t2_shape = TensorShape(2, 2, 10)
+    comptime t2_shape = TensorShape(2, 2, 10)
     var t2: Tensor[dtype] = Tensor[dtype](t2_shape)
     for i in range(t2.num_elements()):
         t2[i] = i
@@ -495,11 +495,11 @@ fn test_SLICE_step() raises:
     ](t2, expected_2)
 
 
-fn test_SLICE_neg() raises:
-    alias slice = Slice(6, 1, -2)
+def test_SLICE_neg() raises:
+    comptime slice = Slice(6, 1, -2)
 
     # dim = 0
-    alias t0_shape = TensorShape(10, 2, 2)
+    comptime t0_shape = TensorShape(10, 2, 2)
     var t0: Tensor[dtype] = Tensor[dtype](t0_shape)
     for i in range(t0.num_elements()):
         t0[i] = i
@@ -524,7 +524,7 @@ fn test_SLICE_neg() raises:
     ](t0, expected_0)
 
     # dim = 1
-    alias t1_shape = TensorShape(2, 10, 2)
+    comptime t1_shape = TensorShape(2, 10, 2)
     var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
     for i in range(t1.num_elements()):
         t1[i] = i
@@ -549,7 +549,7 @@ fn test_SLICE_neg() raises:
     ](t1, expected_1)
 
     # dim = 2
-    alias t2_shape = TensorShape(2, 2, 10)
+    comptime t2_shape = TensorShape(2, 2, 10)
     var t2: Tensor[dtype] = Tensor[dtype](t2_shape)
     for i in range(t2.num_elements()):
         t2[i] = i
@@ -574,15 +574,15 @@ fn test_SLICE_neg() raises:
     ](t2, expected_2)
 
 
-fn test_SLICE_multiple_axes() raises:
-    alias t1_shape = TensorShape(20, 32, 40)
+def test_SLICE_multiple_axes() raises:
+    comptime t1_shape = TensorShape(20, 32, 40)
     var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
     for i in range(t1.num_elements()):
         t1[i] = i
 
-    alias slice_0 = Slice(1, 6, 2)
-    alias slice_1 = Slice(3, 10, 3)
-    alias slice_2 = Slice(5, 15, 2)
+    comptime slice_0 = Slice(1, 6, 2)
+    comptime slice_1 = Slice(3, 10, 3)
+    comptime slice_2 = Slice(5, 15, 2)
 
     var expected = Tensor[dtype](3, 3, 5)
     for i in range(3):
@@ -612,15 +612,15 @@ fn test_SLICE_multiple_axes() raises:
         ),
     ](t1, expected)
 
-    alias t2_shape = TensorShape(20, 32, 40, 50)
+    comptime t2_shape = TensorShape(20, 32, 40, 50)
     var t2: Tensor[dtype] = Tensor[dtype](t2_shape)
     for i in range(t2.num_elements()):
         t2[i] = i
 
-    alias slice_2_1 = Slice(1, 6, 2)
-    alias slice_2_2 = Slice(3, 10, 3)
-    alias slice_2_3 = Slice(5, 15, 2)
-    alias slice_2_4 = Slice(-43, -30, 4)
+    comptime slice_2_1 = Slice(1, 6, 2)
+    comptime slice_2_2 = Slice(3, 10, 3)
+    comptime slice_2_3 = Slice(5, 15, 2)
+    comptime slice_2_4 = Slice(-43, -30, 4)
 
     var expected_2 = Tensor[dtype](3, 3, 5, 4)
 
@@ -667,14 +667,14 @@ fn test_SLICE_multiple_axes() raises:
     ](t2, expected_2)
 
 
-fn test_backward_SLICE() raises:
+def test_backward_SLICE() raises:
     # dim = 0 (step = 1)
-    alias slice_0 = Slice(1, 3, 1)
-    alias t0_shape = TensorShape(3, 4, 5)
+    comptime slice_0 = Slice(1, 3, 1)
+    comptime t0_shape = TensorShape(3, 4, 5)
     var t0: Tensor[dtype] = Tensor[dtype](t0_shape)
     fill(t0, 5.0)
 
-    alias ug0_shape = TensorShape(2, 4, 5)
+    comptime ug0_shape = TensorShape(2, 4, 5)
     var ug0: Tensor[dtype] = Tensor[dtype](ug0_shape)
     fill(ug0, 1.0)
 
@@ -697,12 +697,12 @@ fn test_backward_SLICE() raises:
     ](t0, ug0, expected_ug0)
 
     # dim = 1 (step = 2)
-    alias slice_1 = Slice(1, 6, 2)
-    alias t1_shape = TensorShape(2, 10, 2)
+    comptime slice_1 = Slice(1, 6, 2)
+    comptime t1_shape = TensorShape(2, 10, 2)
     var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
     fill(t1, 5.0)
 
-    alias ug1_shape = TensorShape(2, 3, 2)
+    comptime ug1_shape = TensorShape(2, 3, 2)
     var ug1: Tensor[dtype] = Tensor[dtype](ug1_shape)
     fill(ug1, 1.0)
 
@@ -725,12 +725,12 @@ fn test_backward_SLICE() raises:
     ](t1, ug1, expected_ug1)
 
     # dim = 2 (step = -2)
-    alias slice_2 = Slice(6, 1, -2)
-    alias t2_shape = TensorShape(2, 2, 10)
+    comptime slice_2 = Slice(6, 1, -2)
+    comptime t2_shape = TensorShape(2, 2, 10)
     var t2: Tensor[dtype] = Tensor[dtype](t2_shape)
     fill(t2, 5.0)
 
-    alias ug2_shape = TensorShape(2, 2, 3)
+    comptime ug2_shape = TensorShape(2, 2, 3)
     var ug2: Tensor[dtype] = Tensor[dtype](ug2_shape)
     fill(ug2, 1.0)
 
@@ -755,15 +755,15 @@ fn test_backward_SLICE() raises:
     ](t2, ug2, expected_ug2)
 
 
-fn test_backward_SLICE_multiple_axes() raises:
-    alias t1_shape = TensorShape(20, 32, 40)
+def test_backward_SLICE_multiple_axes() raises:
+    comptime t1_shape = TensorShape(20, 32, 40)
     var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
     for i in range(t1.num_elements()):
         t1[i] = i
 
-    alias slice_0 = Slice(1, 6, 2)
-    alias slice_1 = Slice(3, 10, 3)
-    alias slice_2 = Slice(5, 15, 2)
+    comptime slice_0 = Slice(1, 6, 2)
+    comptime slice_1 = Slice(3, 10, 3)
+    comptime slice_2 = Slice(5, 15, 2)
 
     var expected = Tensor[dtype](3, 3, 5)
     for i in range(3):
@@ -775,7 +775,7 @@ fn test_backward_SLICE_multiple_axes() raises:
                     + IndexList[5](5, 7, 9, 11, 13)[k]
                 )
 
-    alias ug_shape = TensorShape(3, 3, 5)
+    comptime ug_shape = TensorShape(3, 3, 5)
     var ug: Tensor[dtype] = Tensor[dtype](ug_shape)
     fill(ug, 1.0)
 
@@ -808,7 +808,7 @@ fn test_backward_SLICE_multiple_axes() raises:
     ](t1, ug, expected_ug)
 
 
-fn main():
+def main():
     try:
         test_SIGMOID()
         test_RELU()

@@ -1,4 +1,4 @@
-from time.time import monotonic as now
+from std.time import perf_counter_ns as now
 
 import basalt.nn as nn
 from basalt import Tensor, TensorShape
@@ -23,7 +23,7 @@ from basalt.autograd.attributes import AttributeVector, Attribute
 #     plt.show()
 
 
-fn create_CNN(batch_size: Int) -> Graph:
+def create_CNN(batch_size: Int) -> Graph:
     var g = Graph()
     var x = g.input(TensorShape(batch_size, 1, 28, 28))
 
@@ -54,12 +54,12 @@ fn create_CNN(batch_size: Int) -> Graph:
     return g ^
 
 
-fn main():
-    alias num_epochs = 20
-    alias batch_size = 4
-    alias learning_rate = 1e-3
+def main():
+    comptime num_epochs = 20
+    comptime batch_size = 4
+    comptime learning_rate = 1e-3
 
-    alias graph = create_CNN(batch_size)
+    comptime graph = create_CNN(batch_size)
 
     # try: graph.render("operator")
     # except: print("Could not render graph")

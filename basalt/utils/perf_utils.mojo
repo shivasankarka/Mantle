@@ -1,4 +1,4 @@
-from std.time import now
+from std.time import perf_counter_ns as now
 from std.memory import UnsafePointer, memcpy, memset
 
 from basalt.autograd.node import Node
@@ -7,32 +7,28 @@ from basalt.autograd.node import Node
 @always_inline("nodebug")
 def fit_string[num: Int](s: String) -> String:
     var data = alloc[Byte](num + 1)
-    var copy_len = min(num, len(s))
+    var copy_len = min(num, s.byte_length())
 
-    memcpy(data, s.unsafe_ptr(), copy_len)
-    memset(data + copy_len, ord(" "), num - copy_len)
+    memcpy(dest=data, src=s.unsafe_ptr(), count=copy_len)
+    memset(data + copy_len, UInt8(ord(" ")), num - copy_len)
     data[num] = 0
 
-    return String(unsafe_from_utf8_ptr=data, length=num + 1)
+    return String(unsafe_from_utf8=Span[Byte, _](ptr=data, length=num + 1))
 
 
 @always_inline("nodebug")
 def truncate_decimals[num: Int](s: String) -> String:
-    try:
-        var parts = s.split(".")
-        var truncated = String(parts[0])
+    var parts = s.split(".")
+    var truncated = String(parts[0])
 
-        if len(parts) > 1:
-            var decimal_parts = String(parts[1]).split("e")
-            truncated += "." + fit_string[num](String(decimal_parts[0]))
+    if len(parts) > 1:
+        var decimal_parts = String(parts[1]).split("e")
+        truncated += "." + fit_string[num](String(decimal_parts[0]))
 
-            if len(decimal_parts) > 1:
-                truncated += "e" + String(decimal_parts[1])
+        if len(decimal_parts) > 1:
+            truncated += "e" + String(decimal_parts[1])
 
-        return truncated
-    except e:
-        print("[WARNING] could not truncate decimals: ", e)
-        return s
+    return truncated
 
 
 @fieldwise_init
@@ -75,17 +71,17 @@ struct PerfMetrics:
         self.start = 0
 
     def start_forward_pass(mut self):
-        self.start = Int(now())
+        self.start = now()
 
     def end_forward_pass(mut self, pos: Int):
-        self.forward_perf_metrics[pos].ns += now() - self.start
+        self.forward_perf_metrics[pos].ns += Float64(now() - Int(self.start))
         self.epochs_forward += 1
 
     def start_backward_pass(mut self):
-        self.start = Int(now())
+        self.start = now()
 
     def end_backward_pass(mut self, pos: Int):
-        self.backward_perf_metrics[pos].ns += now() - self.start
+        self.backward_perf_metrics[pos].ns += Float64(now() - Int(self.start))
         self.epochs_backward += 1
 
     def print_perf_metrics[
@@ -130,18 +126,18 @@ struct PerfMetrics:
 
         print(header)
 
-        var header_length = len(header)
+        var header_length = header.byte_length()
         # var seperator = UnsafePointer[UInt8]().alloc(header_length + 1)
         var seperator = alloc[UInt8](header_length + 1)
 
-        memset(seperator, ord("-"), header_length)
+        memset(seperator, UInt8(ord("-")), header_length)
         seperator[header_length] = 0
 
         # print(String(ptr=seperator, length=len(header) + 1))
 
         for i in range(size):
             var value = metrics[i].copy()
-            var time = value.ns / epochs
+            var time = value.ns / Float64(epochs)
 
             if time_format == "ms":
                 time /= 1e6

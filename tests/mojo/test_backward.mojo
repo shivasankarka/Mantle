@@ -1,5 +1,5 @@
-from math import log, exp
-from testing import assert_equal
+from std.math import log, exp
+from std.testing import assert_equal
 
 from basalt import dtype, nelts
 from basalt.autograd.attributes import AttributeVector, Attribute
@@ -15,10 +15,10 @@ from tests import (
 )
 
 
-fn test_ADD() raises:
-    alias t1_shape = TensorShape(2, 3)
-    alias t2_shape = TensorShape(2, 3)
-    alias ug_shape = TensorShape(2, 3)
+def test_ADD() raises:
+    comptime t1_shape = TensorShape(2, 3)
+    comptime t2_shape = TensorShape(2, 3)
+    comptime ug_shape = TensorShape(2, 3)
     var t1 = Tensor[dtype](t1_shape)
     var t2 = Tensor[dtype](t2_shape)
     var ug = Tensor[dtype](ug_shape)
@@ -33,10 +33,10 @@ fn test_ADD() raises:
     )
 
 
-fn test_SUB() raises:
-    alias t1_shape = TensorShape(2, 3)
-    alias t2_shape = TensorShape(2, 3)
-    alias ug_shape = TensorShape(2, 3)
+def test_SUB() raises:
+    comptime t1_shape = TensorShape(2, 3)
+    comptime t2_shape = TensorShape(2, 3)
+    comptime ug_shape = TensorShape(2, 3)
     var t1 = Tensor[dtype](t1_shape)
     var t2 = Tensor[dtype](t2_shape)
     var ug = Tensor[dtype](ug_shape)
@@ -53,10 +53,10 @@ fn test_SUB() raises:
     )
 
 
-fn test_MUL() raises:
-    alias t1_shape = TensorShape(2, 3)
-    alias t2_shape = TensorShape(2, 3)
-    alias ug_shape = TensorShape(2, 3)
+def test_MUL() raises:
+    comptime t1_shape = TensorShape(2, 3)
+    comptime t2_shape = TensorShape(2, 3)
+    comptime ug_shape = TensorShape(2, 3)
     var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
     var t2: Tensor[dtype] = Tensor[dtype](t2_shape)
     var ug: Tensor[dtype] = Tensor[dtype](ug_shape)
@@ -73,10 +73,10 @@ fn test_MUL() raises:
     )
 
 
-fn test_DIV() raises:
-    alias t1_shape = TensorShape(2, 3)
-    alias t2_shape = TensorShape(2, 3)
-    alias ug_shape = TensorShape(2, 3)
+def test_DIV() raises:
+    comptime t1_shape = TensorShape(2, 3)
+    comptime t2_shape = TensorShape(2, 3)
+    comptime ug_shape = TensorShape(2, 3)
     var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
     var t2: Tensor[dtype] = Tensor[dtype](t2_shape)
     var ug: Tensor[dtype] = Tensor[dtype](ug_shape)
@@ -93,10 +93,10 @@ fn test_DIV() raises:
     )
 
 
-fn test_DOT() raises:
-    alias t1_shape = TensorShape(2, 3)
-    alias t2_shape = TensorShape(3, 2)
-    alias ug_shape = TensorShape(2, 2)
+def test_DOT() raises:
+    comptime t1_shape = TensorShape(2, 3)
+    comptime t2_shape = TensorShape(3, 2)
+    comptime ug_shape = TensorShape(2, 2)
     var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
     var t2: Tensor[dtype] = Tensor[dtype](t2_shape)
     var ug: Tensor[dtype] = Tensor[dtype](ug_shape)
@@ -113,9 +113,9 @@ fn test_DOT() raises:
     )
 
 
-fn test_EXP() raises:
-    alias t1_shape = TensorShape(2, 3)
-    alias ug_shape = TensorShape(2, 3)
+def test_EXP() raises:
+    comptime t1_shape = TensorShape(2, 3)
+    comptime ug_shape = TensorShape(2, 3)
     var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
     var ug: Tensor[dtype] = Tensor[dtype](ug_shape)
     fill(t1, 2.0)
@@ -126,9 +126,9 @@ fn test_EXP() raises:
     test_unary_op_backward[OP.EXP, t1_shape, ug_shape](t1, ug, expected_grad1)
 
 
-fn test_LOG() raises:
-    alias t1_shape = TensorShape(2, 3)
-    alias ug_shape = TensorShape(2, 3)
+def test_LOG() raises:
+    comptime t1_shape = TensorShape(2, 3)
+    comptime ug_shape = TensorShape(2, 3)
     var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
     var ug: Tensor[dtype] = Tensor[dtype](ug_shape)
     fill(t1, 2.0)
@@ -139,10 +139,10 @@ fn test_LOG() raises:
     test_unary_op_backward[OP.LOG, t1_shape, ug_shape](t1, ug, expected_grad1)
 
 
-fn test_POW() raises:
-    alias t1_shape = TensorShape(2, 3)
-    alias t2_shape = TensorShape(1)
-    alias ug_shape = TensorShape(2, 3)
+def test_POW() raises:
+    comptime t1_shape = TensorShape(2, 3)
+    comptime t2_shape = TensorShape(1)
+    comptime ug_shape = TensorShape(2, 3)
     var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
     var t2: Tensor[dtype] = Tensor[dtype](t2_shape)
     var ug: Tensor[dtype] = Tensor[dtype](ug_shape)
@@ -167,9 +167,9 @@ fn test_POW() raises:
 
     test_binary_op_backward[OP.POW, t1_shape, t2_shape, ug_shape](t1, t2, ug, expected_grad1, expected_grad2)
 
-fn test_SUM() raises:
-    alias t1_shape = TensorShape(2, 3)
-    alias ug_shape = TensorShape(1)
+def test_SUM() raises:
+    comptime t1_shape = TensorShape(2, 3)
+    comptime ug_shape = TensorShape(1)
     var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
     var ug: Tensor[dtype] = Tensor[dtype](ug_shape)
     fill(t1, 1.0)
@@ -180,9 +180,9 @@ fn test_SUM() raises:
     test_unary_op_backward[OP.SUM, t1_shape, ug_shape](t1, ug, expected_grad1)
 
 
-fn test_SUM_0() raises:
-    alias t1_shape = TensorShape(2, 3)
-    alias ug_shape = TensorShape(1, 3)
+def test_SUM_0() raises:
+    comptime t1_shape = TensorShape(2, 3)
+    comptime ug_shape = TensorShape(1, 3)
     var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
     var ug: Tensor[dtype] = Tensor[dtype](ug_shape)
     fill(t1, 1.0)
@@ -190,7 +190,7 @@ fn test_SUM_0() raises:
     ug[1] = 1.0
     ug[2] = 2.0
 
-    alias attributes = AttributeVector(Attribute("axis", 0))
+    comptime attributes = AttributeVector(Attribute("axis", 0))
     var expected_grad1 = Tensor[dtype](t1_shape)
     for i in range(expected_grad1.num_elements()):
         expected_grad1[i] = i % 3
@@ -200,16 +200,16 @@ fn test_SUM_0() raises:
     )
 
 
-fn test_SUM_1() raises:
-    alias t1_shape = TensorShape(2, 3)
-    alias ug_shape = TensorShape(2, 1)
+def test_SUM_1() raises:
+    comptime t1_shape = TensorShape(2, 3)
+    comptime ug_shape = TensorShape(2, 1)
     var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
     var ug: Tensor[dtype] = Tensor[dtype](ug_shape)
     fill(t1, 1.0)
     ug[0] = 0.0
     ug[1] = 1.0
 
-    alias attributes = AttributeVector(Attribute("axis", 1))
+    comptime attributes = AttributeVector(Attribute("axis", 1))
     var expected_grad1 = Tensor[dtype](t1_shape)
     for i in range(expected_grad1.num_elements()):
         expected_grad1[i] = 0 if i < 3 else 1
@@ -219,9 +219,9 @@ fn test_SUM_1() raises:
     )
 
 
-fn test_MAX() raises:
-    alias t1_shape = TensorShape(2, 3)
-    alias ug_shape = TensorShape(1)
+def test_MAX() raises:
+    comptime t1_shape = TensorShape(2, 3)
+    comptime ug_shape = TensorShape(1)
     var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
     var ug: Tensor[dtype] = Tensor[dtype](ug_shape)
     fill(t1, 1.0)
@@ -235,9 +235,9 @@ fn test_MAX() raises:
     test_unary_op_backward[OP.MAX, t1_shape, ug_shape](t1, ug, expected_grad)
 
 
-fn test_MAX_0() raises:
-    alias t1_shape = TensorShape(2, 3, 2)
-    alias ug_shape = TensorShape(1, 3, 2)
+def test_MAX_0() raises:
+    comptime t1_shape = TensorShape(2, 3, 2)
+    comptime ug_shape = TensorShape(1, 3, 2)
     var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
     var ug: Tensor[dtype] = Tensor[dtype](ug_shape)
     for i in range(t1.num_elements()):
@@ -246,7 +246,7 @@ fn test_MAX_0() raises:
 
     fill(ug, 2.0)
 
-    alias attributes = AttributeVector(Attribute("axis", 0))
+    comptime attributes = AttributeVector(Attribute("axis", 0))
     var expected_grad = Tensor[dtype](t1_shape)
     expected_grad[0] = 1.0
     expected_grad[6] = 1.0
@@ -261,9 +261,9 @@ fn test_MAX_0() raises:
     )
 
 
-fn test_MAX_1() raises:
-    alias t1_shape = TensorShape(2, 3, 2)
-    alias ug_shape = TensorShape(2, 1, 2)
+def test_MAX_1() raises:
+    comptime t1_shape = TensorShape(2, 3, 2)
+    comptime ug_shape = TensorShape(2, 1, 2)
     var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
     var ug: Tensor[dtype] = Tensor[dtype](ug_shape)
     for i in range(t1.num_elements()):
@@ -271,7 +271,7 @@ fn test_MAX_1() raises:
     t1[0] = 5.0
     fill(ug, 2.0)
 
-    alias attributes = AttributeVector(Attribute("axis", 1))
+    comptime attributes = AttributeVector(Attribute("axis", 1))
     var expected_grad = Tensor[dtype](t1_shape)
     expected_grad[0] = 1.0
     expected_grad[4] = 1.0
@@ -284,9 +284,9 @@ fn test_MAX_1() raises:
     )
 
 
-fn test_MAX_2() raises:
-    alias t1_shape = TensorShape(2, 3, 2)
-    alias ug_shape = TensorShape(2, 3, 1)
+def test_MAX_2() raises:
+    comptime t1_shape = TensorShape(2, 3, 2)
+    comptime ug_shape = TensorShape(2, 3, 1)
     var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
     var ug: Tensor[dtype] = Tensor[dtype](ug_shape)
     for i in range(t1.num_elements()):
@@ -294,7 +294,7 @@ fn test_MAX_2() raises:
     t1[0] = 2.0
     fill(ug, 2.0)
 
-    alias attributes = AttributeVector(Attribute("axis", 2))
+    comptime attributes = AttributeVector(Attribute("axis", 2))
     var expected_grad = Tensor[dtype](t1_shape)
     expected_grad[0] = 1.0
     expected_grad[1] = 1.0
@@ -309,9 +309,9 @@ fn test_MAX_2() raises:
     )
 
 
-fn test_MEAN() raises:
-    alias t1_shape = TensorShape(2, 3)
-    alias ug_shape = TensorShape(1)
+def test_MEAN() raises:
+    comptime t1_shape = TensorShape(2, 3)
+    comptime ug_shape = TensorShape(1)
     var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
     var ug: Tensor[dtype] = Tensor[dtype](ug_shape)
     fill(t1, 1.0)
@@ -322,15 +322,15 @@ fn test_MEAN() raises:
     test_unary_op_backward[OP.MEAN, t1_shape, ug_shape](t1, ug, expected_grad)
 
 
-fn test_MEAN_0() raises:
-    alias t1_shape = TensorShape(2, 3)
-    alias ug_shape = TensorShape(1, 3)
+def test_MEAN_0() raises:
+    comptime t1_shape = TensorShape(2, 3)
+    comptime ug_shape = TensorShape(1, 3)
     var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
     var ug: Tensor[dtype] = Tensor[dtype](ug_shape)
     fill(t1, 1.0)
     fill(ug, 3.0)
 
-    alias attributes = AttributeVector(Attribute("axis", 0))
+    comptime attributes = AttributeVector(Attribute("axis", 0))
     var expected_grad = Tensor[dtype](t1_shape)
     for i in range(expected_grad.num_elements()):
         expected_grad[i] = SIMD.cast[dtype](1.0 / t1_shape[0] * 3.0)
@@ -340,15 +340,15 @@ fn test_MEAN_0() raises:
     )
 
 
-fn test_MEAN_1() raises:
-    alias t1_shape = TensorShape(2, 3)
-    alias ug_shape = TensorShape(2, 1)
+def test_MEAN_1() raises:
+    comptime t1_shape = TensorShape(2, 3)
+    comptime ug_shape = TensorShape(2, 1)
     var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
     var ug: Tensor[dtype] = Tensor[dtype](ug_shape)
     fill(t1, 1.0)
     fill(ug, 3.0)
 
-    alias attributes = AttributeVector(Attribute("axis", 1))
+    comptime attributes = AttributeVector(Attribute("axis", 1))
     var expected_grad = Tensor[dtype](t1_shape)
     for i in range(expected_grad.num_elements()):
         expected_grad[i] = SIMD.cast[dtype](1.0 / t1_shape[1] * 3.0)
@@ -358,13 +358,13 @@ fn test_MEAN_1() raises:
     )
 
 
-fn test_TRANSPOSE() raises:
-    alias t1_shape = TensorShape(2, 3, 4)
-    alias ug_shape = TensorShape(4, 3, 2)
+def test_TRANSPOSE() raises:
+    comptime t1_shape = TensorShape(2, 3, 4)
+    comptime ug_shape = TensorShape(4, 3, 2)
     var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
     var ug: Tensor[dtype] = Tensor[dtype](ug_shape)
 
-    fn arange(inout t: Tensor[dtype]):
+    def arange(mut t: Tensor[dtype]):
         var n = t.num_elements()
         for i in range(n):
             t[i] = i + 1
@@ -385,11 +385,11 @@ fn test_TRANSPOSE() raises:
     test_unary_op_backward[OP.TRANSPOSE, t1_shape, ug_shape](t1, ug, expected_grad)
 
     # Test Transpose 1, 2, 0
-    alias ug_shape_2 = TensorShape(3, 4, 2)
+    comptime ug_shape_2 = TensorShape(3, 4, 2)
     ug = Tensor[dtype](ug_shape_2)
     arange(ug)
 
-    alias attributes_2 = AttributeVector(Attribute("axes", TensorShape(1, 2, 0)))
+    comptime attributes_2 = AttributeVector(Attribute("axes", TensorShape(1, 2, 0)))
     expected_grad = Tensor[dtype](t1_shape)
     for i in range(ug_shape_2[0]):
         for j in range(ug_shape_2[1]):
@@ -403,9 +403,9 @@ fn test_TRANSPOSE() raises:
     )
 
 
-fn test_FLATTEN() raises:
-    alias t1_shape = TensorShape(2, 3)
-    alias ug_shape = TensorShape(t1_shape.num_elements())
+def test_FLATTEN() raises:
+    comptime t1_shape = TensorShape(2, 3)
+    comptime ug_shape = TensorShape(t1_shape.num_elements())
     var t1 = Tensor[dtype](t1_shape)
     var ug: Tensor[dtype] = Tensor[dtype](ug_shape)
     fill(ug, 1.0)
@@ -416,9 +416,9 @@ fn test_FLATTEN() raises:
     test_unary_op_backward[OP.FLATTEN, t1_shape, ug_shape](t1, ug, expected_grad1)
 
 
-fn test_RESHAPE() raises:
-    alias t1_shape = TensorShape(2, 2, 5)
-    alias ug_shape = TensorShape(2, 10)
+def test_RESHAPE() raises:
+    comptime t1_shape = TensorShape(2, 2, 5)
+    comptime ug_shape = TensorShape(2, 10)
 
     var t1 = Tensor[dtype](t1_shape)
     var ug: Tensor[dtype] = Tensor[dtype](ug_shape)
@@ -430,7 +430,7 @@ fn test_RESHAPE() raises:
     test_unary_op_backward[OP.RESHAPE, t1_shape, ug_shape](t1, ug, expected_grad)
 
 
-fn main():
+def main():
     try:
         test_ADD()
         test_SUB()

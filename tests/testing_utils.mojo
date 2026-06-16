@@ -1,6 +1,6 @@
-from python.python import Python
-from collections import OptionalReg
-from testing import assert_equal, assert_almost_equal
+from std.python import Python
+from std.collections import OptionalReg
+from std.testing import assert_equal, assert_almost_equal
 
 from basalt import dtype
 from basalt.autograd import Graph, OP
@@ -13,12 +13,10 @@ from basalt.utils.tensor_creation_utils import to_numpy, to_tensor
 # The below regex should be used to convert deprecated calls
 # assert_tensors_equal\(([^,]+),\s*([^,]+),\s*"([^"]+)"\)
 # assert_tensors_equal["$3"]($1, $2)
-fn assert_tensors_equal[
+def assert_tensors_equal[
     mode: String = "exact", msg: String = "Error"
 ](t1: Tensor[dtype], t2: Tensor[dtype]) raises:
-    constrained[
-        mode == "exact" or mode == "almost", "Mode must be either 'exact' or 'almost'"
-    ]()
+    comptime assert mode == "exact" or mode == "almost", "Mode must be either 'exact' or 'almost'"
 
     assert_equal(t1.shape(), t2.shape(), "Tensor shape mismatch")
 
@@ -29,10 +27,10 @@ fn assert_tensors_equal[
             assert_equal(t1[i], t2[i], msg=msg)
 
 
-fn test_unary_op[
+def test_unary_op[
     op: OP, t1_shape: TensorShape, attrs: OptionalReg[AttributeVector] = None
 ](t1: Tensor[dtype], expected: Tensor[dtype]) raises:
-    fn create_graph() -> Graph:
+    def create_graph() -> Graph:
         var g = Graph()
         var t1 = g.input(t1_shape)
 
@@ -45,7 +43,7 @@ fn test_unary_op[
             g.out(res)
             return g ^
 
-    alias graph = create_graph()
+    comptime graph = create_graph()
     assert_equal(len(graph.nodes), 1)
 
     var model = Model[graph](inference_only=True)
@@ -54,13 +52,13 @@ fn test_unary_op[
     assert_tensors_equal["almost"](res, expected)
 
 
-fn test_binary_op[
+def test_binary_op[
     op: OP,
     t1_shape: TensorShape,
     t2_shape: TensorShape,
     attrs: OptionalReg[AttributeVector] = None,
 ](t1: Tensor[dtype], t2: Tensor[dtype], expected: Tensor[dtype]) raises:
-    fn create_graph() -> Graph:
+    def create_graph() -> Graph:
         var g = Graph()
         var t1 = g.input(t1_shape)
         var t2 = g.input(t2_shape)
@@ -74,7 +72,7 @@ fn test_binary_op[
             g.out(res)
             return g ^
 
-    alias graph = create_graph()
+    comptime graph = create_graph()
     assert_equal(len(graph.nodes), 1)
 
     var model = Model[graph](inference_only=True)
@@ -83,13 +81,12 @@ fn test_binary_op[
     assert_tensors_equal["almost"](res, expected)
 
 
-fn test_ternary_op[
+def test_ternary_op[
     op: OP, t1_shape: TensorShape, t2_shape: TensorShape, t3_shape: TensorShape
 ](
     t1: Tensor[dtype], t2: Tensor[dtype], t3: Tensor[dtype], expected: Tensor[dtype]
 ) raises:
-    @parameter
-    fn create_graph() -> Graph:
+    def create_graph() -> Graph:
         var g = Graph()
         var t1 = g.input(t1_shape)
         var t2 = g.input(t2_shape)
@@ -100,7 +97,7 @@ fn test_ternary_op[
 
         return g ^
 
-    alias graph = create_graph()
+    comptime graph = create_graph()
     assert_equal(len(graph.nodes), 1)
 
     var model = Model[graph](inference_only=True)
@@ -109,7 +106,7 @@ fn test_ternary_op[
     assert_tensors_equal["almost"](res, expected)
 
 
-fn test_unary_op_backward[
+def test_unary_op_backward[
     op: OP,
     t1_shape: TensorShape,
     ug_shape: TensorShape,
@@ -120,7 +117,7 @@ fn test_unary_op_backward[
     assert_tensors_equal["almost"](grad_1, grad_1_expected)
 
 
-fn test_binary_op_backward[
+def test_binary_op_backward[
     op: OP,
     t1_shape: TensorShape,
     t2_shape: TensorShape,
@@ -142,7 +139,7 @@ fn test_binary_op_backward[
     assert_tensors_equal["almost"](grad_2, grad_2_expected)
 
 
-fn test_ternary_op_backward[
+def test_ternary_op_backward[
     op: OP,
     t1_shape: TensorShape,
     t2_shape: TensorShape,
@@ -177,7 +174,7 @@ fn test_ternary_op_backward[
     assert_tensors_equal["almost"](grad_3, grad_3_expected)
 
 
-fn create_graph_concat(
+def create_graph_concat(
     t1_shape: TensorShape, t2_shape: TensorShape, t3_shape: TensorShape, dim: Int
 ) -> Graph:
     # Testing with 3 operands
@@ -191,7 +188,7 @@ fn create_graph_concat(
     return g ^
 
 
-fn create_graph_split(t_shape: TensorShape, sections: List[Int], dim: Int) -> Graph:
+def create_graph_split(t_shape: TensorShape, sections: List[Int], dim: Int) -> Graph:
     var g = Graph()
     var t = g.input(t_shape, trainable=True)
     var results = g.split(t, sections=sections, dim=dim)

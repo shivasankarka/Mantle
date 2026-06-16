@@ -5,6 +5,7 @@ from .node import Node
 from .attributes import AttributeVector, Attribute
 from .symbol import Symbol
 from .ops import OP, static_result_shape, dynamic_result_shape
+from .ops.dynamics import SPLIT
 from .params import ParamDict, Param
 
 from basalt import seed, dtype
@@ -49,7 +50,7 @@ struct Graph(Copyable, Movable):
             self.inputs.append(symbol)
         else:
             if data is not None:
-                self.params.put(symbol, data.value())
+                self.params.put(symbol, data.value().copy())
             else:
                 self.params.put(symbol)
 
@@ -61,7 +62,7 @@ struct Graph(Copyable, Movable):
     def param(
         mut self, shape: TensorShape, init: Param, trainable: Bool = True
     ) -> Symbol:
-        return self.create_symbol(shape, init, trainable)
+        return self.create_symbol(shape, init.copy(), trainable)
 
     def param(mut self, shape: TensorShape, trainable: Bool = True) -> Symbol:
         return self.create_symbol(shape, trainable=trainable)
@@ -98,7 +99,7 @@ struct Graph(Copyable, Movable):
         for operand in operands:
             inputs.append(operand)
 
-        self.nodes.append(Node(op, inputs, List[Symbol](res), attributes))
+        self.nodes.append(Node(op, inputs, [res], attributes))
         return res
 
     def op(
@@ -136,10 +137,10 @@ struct Graph(Copyable, Movable):
         symbols.reserve(len(shapes))
 
         for shape in shapes:
-            symbols.append(Symbol(self.symbol_count, dtype, shape[], trainable))
+            symbols.append(Symbol(self.symbol_count, dtype, shape, trainable))
             self.symbol_count += 1
 
-        return symbols
+        return symbols^
 
     def add_node(
         mut self,
@@ -154,7 +155,7 @@ struct Graph(Copyable, Movable):
         var attributes = AttributeVector(Attribute("dim", dim))
         var res_shape = dynamic_result_shape(OP.CONCAT, operands, attributes)[0]
         var res_symbols = self.create_symbols(
-            List[TensorShape](res_shape), self.result_trainable(operands)
+            [res_shape], self.result_trainable(operands)
         )
 
         var operand_list = List[Symbol]()
@@ -171,16 +172,16 @@ struct Graph(Copyable, Movable):
         var attributes = AttributeVector(
             Attribute("sections", TensorShape(sections)), Attribute("dim", dim)
         )
-        var res_shapes = dynamic_result_shape(OP.SPLIT, operand, attributes)
-        var trainable = self.result_trainable(operand)
+        var res_shapes = SPLIT.result_shape([operand.shape], attributes)
+        var trainable = operand.trainable
         var result_symbols = self.create_symbols(res_shapes, trainable)
         self.add_node(
-            OP.SPLIT, List[Symbol](operand), result_symbols, attributes
+            OP.SPLIT, [operand], result_symbols, attributes
         )
-        return result_symbols
+        return result_symbols^
 
     @staticmethod
-    def result_trainable(operands: VariadicList[Symbol]) -> Bool:
+    def result_trainable(operands: VariadicList[Symbol, _]) -> Bool:
         for operand in operands:
             if operand.trainable:
                 return True
