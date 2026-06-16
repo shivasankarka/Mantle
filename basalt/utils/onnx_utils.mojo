@@ -73,13 +73,19 @@ def make_onnx_operator_type(op_type: OP) raises -> String:
         return "Log"
     elif op_type == OP.SUM:
         # Special case, axis isn't an attribute, instead it is an input, because it can be dynamic
-        raise Error(str(op_type) + " is not supported right now for conversion to onnx")
+        raise Error(
+            str(op_type) + " is not supported right now for conversion to onnx"
+        )
         # return "ReduceSum"
     elif op_type == OP.MEAN:
-        raise Error(str(op_type) + " is not supported right now for conversion to onnx")
+        raise Error(
+            str(op_type) + " is not supported right now for conversion to onnx"
+        )
         # return "ReduceMean"
     elif op_type == OP.MAX:
-        raise Error(str(op_type) + " is not supported right now for conversion to onnx")
+        raise Error(
+            str(op_type) + " is not supported right now for conversion to onnx"
+        )
         # return "ReduceMax"
     elif op_type == OP.CONV2D:
         return "Conv"
@@ -115,7 +121,7 @@ def make_onnx_operator_type(op_type: OP) raises -> String:
 
 # --- Loader and exporter ---
 def load_onnx_model(
-    model_path: Path, inout model_parameters: Parameters, g: Graph
+    model_path: Path, inoutmodel_parameters: Parameters, g: Graph
 ) raises:
     # Simple onnx data loader where we load the data in order (so we need to have the correct order of the weights and biases in the model. We don't use the names for the loading)
     var onnx = Python.import_module("onnx")
@@ -174,7 +180,9 @@ def load_onnx_model(
             raise Error("Unsupported data type")
 
 
-def create_attributes_and_constant_inputs(node: Node, node_number: Int) raises -> (List[PythonObject], List[PythonObject]):
+def create_attributes_and_constant_inputs(
+    node: Node, node_number: Int
+) raises -> (List[PythonObject], List[PythonObject]):
     var onnx = Python.import_module("onnx")
     var np = Python.import_module("numpy")
 
@@ -205,12 +213,18 @@ def create_attributes_and_constant_inputs(node: Node, node_number: Int) raises -
             var np_array = np.array(values_np, dtype=np.int64)
 
             return onnx.numpy_helper.from_array(np_array)
-        
+
         # Special cases where attributes are considered as inputs, so we create Constant inputs
         if node.operator == OP.RESHAPE:
             if str(attr.name) == "shape":
                 var outputs = PythonObject([])
-                outputs.append(str(node.operator) + "_" + str(attr.name) + "_" + str(node_number))
+                outputs.append(
+                    str(node.operator)
+                    + "_"
+                    + str(attr.name)
+                    + "_"
+                    + str(node_number)
+                )
                 var temp_node = onnx.helper.make_node(
                     op_type="Constant",
                     inputs=[],
@@ -222,7 +236,13 @@ def create_attributes_and_constant_inputs(node: Node, node_number: Int) raises -
         elif node.operator == OP.CLIP:
             if str(attr.name) == "min" or str(attr.name) == "max":
                 var outputs = PythonObject([])
-                outputs.append(str(node.operator) + "_" + str(attr.name) + "_" + str(node_number))
+                outputs.append(
+                    str(node.operator)
+                    + "_"
+                    + str(attr.name)
+                    + "_"
+                    + str(node_number)
+                )
                 var temp_node = onnx.helper.make_node(
                     op_type="Constant",
                     inputs=[],
@@ -234,7 +254,13 @@ def create_attributes_and_constant_inputs(node: Node, node_number: Int) raises -
         elif node.operator == OP.SQUEEZE or node.operator == OP.UNSQUEEZE:
             if str(attr.name) == "dims":
                 var outputs = PythonObject([])
-                outputs.append(str(node.operator) + "_" + str(attr.name) + "_" + str(node_number))
+                outputs.append(
+                    str(node.operator)
+                    + "_"
+                    + str(attr.name)
+                    + "_"
+                    + str(node_number)
+                )
                 var temp_node = onnx.helper.make_node(
                     op_type="Constant",
                     inputs=[],
@@ -251,7 +277,9 @@ def create_attributes_and_constant_inputs(node: Node, node_number: Int) raises -
     return (attributes, inputs)
 
 
-def export_onnx_model(model_path: Path, inout model_parameters: Parameters, g: Graph) raises:
+def export_onnx_model(
+    model_path: Path, inoutmodel_parameters: Parameters, g: Graph
+) raises:
     # Create onnx model with data and nodes
     var onnx = Python.import_module("onnx")
     var onnx_helper = Python.import_module("onnx.helper")
@@ -310,11 +338,15 @@ def export_onnx_model(model_path: Path, inout model_parameters: Parameters, g: G
                     shape.append(intermediate_shape[j])
 
                 # Create onnx tensor information
-                var onnx_output = onnx_helper.make_tensor_value_info(name, dtype, shape)
+                var onnx_output = onnx_helper.make_tensor_value_info(
+                    name, dtype, shape
+                )
                 graph.value_info.append(onnx_output)
 
         # Process attributes
-        var attributes_and_inputs = create_attributes_and_constant_inputs(node, i)
+        var attributes_and_inputs = create_attributes_and_constant_inputs(
+            node, i
+        )
         var attributes = attributes_and_inputs[0]
         var inputs_constant = attributes_and_inputs[1]
         for j in range(len(inputs_constant)):

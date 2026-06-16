@@ -18,7 +18,7 @@ comptime MAX_NAME_CHARS = 16
 comptime MAX_DATA_BYTES = 32
 
 
-struct AttributeType(Writable, TrivialRegisterPassable):
+struct AttributeType(TrivialRegisterPassable, Writable):
     comptime BOOL = AttributeType(0, "BOOL")
     comptime INT = AttributeType(1, "INT")
     comptime FLOAT = AttributeType(2, "FLOAT")
@@ -27,7 +27,7 @@ struct AttributeType(Writable, TrivialRegisterPassable):
     comptime FLOATS = AttributeType(5, "FLOATS")
 
     var id: UInt8
-    var name: Bytes[MAX_NAME_CHARS] #
+    var name: Bytes[MAX_NAME_CHARS]  #
 
     def __init__(out self, id: UInt8, name: String):
         self.id = id
@@ -48,7 +48,9 @@ struct AttributeType(Writable, TrivialRegisterPassable):
         return String(self.name)
 
 
-struct AttributeVector(Sized, Writable, Copyable, Movable, TrivialRegisterPassable):
+struct AttributeVector(
+    Copyable, Movable, Sized, TrivialRegisterPassable, Writable
+):
     var attributes: StaticTuple[Attribute, MAX_ATTRS]
     var size: Int
 
@@ -82,7 +84,7 @@ struct AttributeVector(Sized, Writable, Copyable, Movable, TrivialRegisterPassab
         return s + "]"
 
 
-struct Attribute(Writable, Copyable, Movable, TrivialRegisterPassable):
+struct Attribute(Copyable, Movable, TrivialRegisterPassable, Writable):
     var data_shape: IndexList[MAX_RANK]
     var name: Bytes[MAX_NAME_CHARS]
     var data: Bytes[MAX_DATA_BYTES]
@@ -94,7 +96,9 @@ struct Attribute(Writable, Copyable, Movable, TrivialRegisterPassable):
         self.name = Bytes[MAX_NAME_CHARS](name)
         self.data = Bytes[MAX_DATA_BYTES](value)
         self.type = AttributeType.STRING
-        self.size = value.byte_length() # check if it should be byte_length or codepoints.
+        self.size = (
+            value.byte_length()
+        )  # check if it should be byte_length or codepoints.
 
     def __init__(out self, name: String, value: TensorShape):
         self.data_shape = IndexList[MAX_RANK]()
@@ -107,7 +111,9 @@ struct Attribute(Writable, Copyable, Movable, TrivialRegisterPassable):
             self.data_shape[i] = value._shape[i]
 
     def __init__[N: Int](out self, name: String, value: IndexList[N]):
-        comptime assert N < MAX_RANK, "Attribute rank must be less than MAX_RANK."
+        comptime assert (
+            N < MAX_RANK
+        ), "Attribute rank must be less than MAX_RANK."
         self.data_shape = IndexList[MAX_RANK]()
         self.name = Bytes[MAX_NAME_CHARS](name)
         self.data = Bytes[MAX_DATA_BYTES]()
@@ -177,7 +183,9 @@ struct Attribute(Writable, Copyable, Movable, TrivialRegisterPassable):
 
     @always_inline("nodebug")
     def to_static[N: Int](self) -> IndexList[N]:
-        comptime assert N < MAX_RANK, "Attribute rank must be less than MAX_RANK."
+        comptime assert (
+            N < MAX_RANK
+        ), "Attribute rank must be less than MAX_RANK."
 
         var result = IndexList[N]()
         for i in range(N):

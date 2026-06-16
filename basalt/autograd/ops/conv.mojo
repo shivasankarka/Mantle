@@ -23,11 +23,21 @@ def get_result_shape(
     """
 
     var result_x_dim = (
-        (input_shape[-2] + (2 * padding[0]) - dilation[0] * (kernel_shape[-2] - 1) - 1)
+        (
+            input_shape[-2]
+            + (2 * padding[0])
+            - dilation[0] * (kernel_shape[-2] - 1)
+            - 1
+        )
         // stride[0]
     ) + 1
     var result_y_dim = (
-        (input_shape[-1] + (2 * padding[1]) - dilation[1] * (kernel_shape[-1] - 1) - 1)
+        (
+            input_shape[-1]
+            + (2 * padding[1])
+            - dilation[1] * (kernel_shape[-1] - 1)
+            - 1
+        )
         // stride[1]
     ) + 1
 
@@ -47,7 +57,9 @@ struct CONV2D:
         var padding = attributes["padding"].value().to_static[2]()
         var stride = attributes["stride"].value().to_static[2]()
         var dilation = attributes["dilation"].value().to_static[2]()
-        var res = get_result_shape(input_shape, kernel_shape, padding, stride, dilation)
+        var res = get_result_shape(
+            input_shape, kernel_shape, padding, stride, dilation
+        )
 
         return TensorShape(input_shape[0], kernel_shape[0], res[0], res[1])
 
@@ -99,14 +111,18 @@ struct CONV2D:
         comptime output_shape = Self.result_shape(
             input_shape, kernel_shape, bias_shape, attributes
         )
-        comptime col_shape_stripped = TensorShape(in_channels * k_x * k_y, col_x, col_y)
+        comptime col_shape_stripped = TensorShape(
+            in_channels * k_x * k_y, col_x, col_y
+        )
 
         comptime inputs_strides = input_shape.strides()
         comptime kernel_strides = kernel_shape.strides()
         comptime outputs_strides = output_shape.strides()
         comptime col_strides = col_shape.strides()
 
-        var col_ptr = UnsafePointer[Scalar[dtype]].alloc(col_shape.num_elements())
+        var col_ptr = UnsafePointer[Scalar[dtype]].alloc(
+            col_shape.num_elements()
+        )
         memset_zero(col_ptr, col_shape.num_elements())
 
         @parameter
@@ -116,8 +132,12 @@ struct CONV2D:
                     for in_ch in range(in_channels):
                         for kx in range(k_x):
                             for ky in range(k_y):
-                                var ix = ux * stride_x - padding_x + kx * dilation_x
-                                var iy = uy * stride_y - padding_y + ky * dilation_y
+                                var ix = (
+                                    ux * stride_x - padding_x + kx * dilation_x
+                                )
+                                var iy = (
+                                    uy * stride_y - padding_y + ky * dilation_y
+                                )
 
                                 if ix < 0 or iy < 0 or ix >= in_x or iy >= in_y:
                                     continue
@@ -178,7 +198,9 @@ struct CONV2D:
                             + uy
                         )
 
-                        outputs[output_index] = result.reduce_add() + bias[out_ch]
+                        outputs[output_index] = (
+                            result.reduce_add() + bias[out_ch]
+                        )
 
         parallelize[conv](batch_size)
 
@@ -251,7 +273,9 @@ struct CONV2D:
             def input_grad(batch: Int):
                 for out_ch in range(ug_shape_1):
                     for ux in range(ug_shape_2):
-                        for uy in range(ug_shape_3):  # For all the element of ug
+                        for uy in range(
+                            ug_shape_3
+                        ):  # For all the element of ug
                             var ix_base = ux * stride_0 - padding_0
                             var iy_base = uy * stride_1 - padding_1
 
@@ -315,8 +339,12 @@ struct CONV2D:
                     for batch in range(input_shape_0):
                         for ux in range(ug_shape_2):
                             for uy in range(ug_shape_3):
-                                var ix = ux * stride_0 - padding_0 + kx * dilation_0
-                                var iy = uy * stride_1 - padding_1 + ky * dilation_1
+                                var ix = (
+                                    ux * stride_0 - padding_0 + kx * dilation_0
+                                )
+                                var iy = (
+                                    uy * stride_1 - padding_1 + ky * dilation_1
+                                )
 
                                 if (
                                     ix < 0
@@ -326,8 +354,18 @@ struct CONV2D:
                                 ):
                                     continue
 
-                                var input_index = batch * inputs_strides_0 + in_ch * inputs_strides_1 + ix * inputs_strides_2 + iy
-                                var ug_index = batch * ug_strides_0 + out_ch * ug_strides_1 + ux * ug_strides_2 + uy
+                                var input_index = (
+                                    batch * inputs_strides_0
+                                    + in_ch * inputs_strides_1
+                                    + ix * inputs_strides_2
+                                    + iy
+                                )
+                                var ug_index = (
+                                    batch * ug_strides_0
+                                    + out_ch * ug_strides_1
+                                    + ux * ug_strides_2
+                                    + uy
+                                )
 
                                 result += inputs[input_index] * ug[ug_index]
 
@@ -359,7 +397,7 @@ struct CONV2D:
                     def vec_sum[Nelts: Int](ux_uy: Int):
                         sum += ug.load[Nelts](batch_offset + ux_uy).reduce_add()
 
-                    vectorize[vec_sum, nelts, size = ug_shape_2 * ug_shape_3]()
+                    vectorize[vec_sum, nelts, size=ug_shape_2 * ug_shape_3]()
 
                 res[out_ch] = sum
 

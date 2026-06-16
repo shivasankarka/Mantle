@@ -5,7 +5,8 @@ from std.memory import memset_zero, memcpy, UnsafePointer
 
 comptime MAX_RANK = 8
 
-struct TensorShape(Writable, TrivialRegisterPassable):
+
+struct TensorShape(TrivialRegisterPassable, Writable):
     var _rank: Int
     var _shape: IndexList[MAX_RANK]
 
@@ -103,8 +104,8 @@ struct TensorShape(Writable, TrivialRegisterPassable):
         """
         writer.write(self.__str__())
 
-struct Tensor[dtype: DType](Writable, Copyable, Movable):
 
+struct Tensor[dtype: DType](Copyable, Movable, Writable):
     var _data: UnsafePointer[Scalar[Self.dtype], MutExternalOrigin]
     var _shape: TensorShape
 
@@ -123,8 +124,12 @@ struct Tensor[dtype: DType](Writable, Copyable, Movable):
         self._data = alloc[Scalar[Self.dtype]](self._shape.num_elements())
         memset_zero(self._data, self._shape.num_elements())
 
-    def __init__[origin: MutOrigin](
-        out self, var data: UnsafePointer[Scalar[Self.dtype], origin], var shape: TensorShape
+    def __init__[
+        origin: MutOrigin
+    ](
+        out self,
+        var data: UnsafePointer[Scalar[Self.dtype], origin],
+        var shape: TensorShape,
     ):
         self._data = alloc[Scalar[Self.dtype]](shape.num_elements())
         self._shape = shape
@@ -162,7 +167,9 @@ struct Tensor[dtype: DType](Writable, Copyable, Movable):
         return self._data.load[width=simd_width](index)
 
     @always_inline("nodebug")
-    def store[simd_width: Int](self, index: Int, value: SIMD[Self.dtype, simd_width]):
+    def store[
+        simd_width: Int
+    ](self, index: Int, value: SIMD[Self.dtype, simd_width]):
         self._data.store(index, value)
 
     @always_inline("nodebug")
@@ -199,7 +206,6 @@ struct Tensor[dtype: DType](Writable, Copyable, Movable):
             if i < self.num_elements() - 1:
                 s += ", "
         return s + "]"
-
 
     @always_inline("nodebug")
     def __del__(deinit self):

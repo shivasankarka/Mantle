@@ -2,8 +2,11 @@ from basalt import Tensor, TensorShape
 
 # I don't know what's the shape doing yet and why there's no initializer
 
-struct Symbol(ImplicitlyCopyable, Movable, Writable, Equatable, TrivialRegisterPassable):
-    var name: UInt32 # name of the symbol
+
+struct Symbol(
+    Equatable, ImplicitlyCopyable, Movable, TrivialRegisterPassable, Writable
+):
+    var name: UInt32  # name of the symbol
     var dtype: DType
     var shape: TensorShape
     var trainable: Bool

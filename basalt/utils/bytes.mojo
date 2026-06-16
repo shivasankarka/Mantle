@@ -5,7 +5,10 @@ from std.utils.static_tuple import StaticTuple
 
 comptime ScalarBytes = size_of[DType.uint64]()
 
-struct Bytes[capacity: Int](Copyable, Movable, Equatable, Writable, TrivialRegisterPassable):
+
+struct Bytes[capacity: Int](
+    Copyable, Equatable, Movable, TrivialRegisterPassable, Writable
+):
     """
     Static sequence of bytes.
     """
@@ -82,7 +85,9 @@ def scalar_to_bytes[
 
 
 def bytes_to_scalar[dtype: DType](data: Bytes) -> Scalar[dtype]:
-    comptime assert data.capacity >= ScalarBytes, "Size must be at least ${ScalarBytes}"
+    comptime assert (
+        data.capacity >= ScalarBytes
+    ), "Size must be at least ${ScalarBytes}"
 
     var bits: UInt64 = 0
 

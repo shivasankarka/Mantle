@@ -13,6 +13,7 @@ from basalt.utils.math_util import add, sub, mul, div
 
 # ---- Start -----
 
+
 @always_inline
 def fill[dtype: DType](mut t: Tensor[dtype], val: Scalar[dtype]):
     def fill_vec[nelts: Int](idx: Int) {mut t, read val}:
@@ -62,7 +63,13 @@ def broadcast_shapes(s1: TensorShape, s2: TensorShape) -> TensorShape:
         elif a == 1 or b == 1:
             res[i] = a * b
         else:
-            print("[ERROR] Shapes " + String(s1) + " and " + String(s2) + " cannot be broadcasted together.")
+            print(
+                "[ERROR] Shapes "
+                + String(s1)
+                + " and "
+                + String(s2)
+                + " cannot be broadcasted together."
+            )
 
     for i in range(diff - 1, -1, -1):
         res[i] = big[i]
@@ -81,7 +88,9 @@ def broadcast_shapes(*s: TensorShape) -> TensorShape:
 
 
 @always_inline
-def broadcast_calculate_strides[size: Int, shape: TensorShape, broadcast_shape: TensorShape]() -> IndexList[size]:
+def broadcast_calculate_strides[
+    size: Int, shape: TensorShape, broadcast_shape: TensorShape
+]() -> IndexList[size]:
     comptime shape_rank = shape.rank()
     comptime diff = size - shape_rank
 
@@ -95,10 +104,13 @@ def broadcast_calculate_strides[size: Int, shape: TensorShape, broadcast_shape: 
 
     return strides
 
+
 # ----- Element-wise unary operations -----
 @always_inline
 def elwise_transform[
-    func: def[dtype: DType, nelts: Int] (x: SIMD[dtype, nelts]) -> SIMD[dtype, nelts],
+    func: def[dtype: DType, nelts: Int](x: SIMD[dtype, nelts]) -> SIMD[
+        dtype, nelts
+    ],
 ](mut res: Tensor[dtype], t: Tensor[dtype]):
     def vecmath[nelts: Int](idx: Int) {mut res, read t}:
         res.store[nelts](idx, func[dtype, nelts](t.load[nelts](idx)))
@@ -107,7 +119,9 @@ def elwise_transform[
 
 
 def elwise_transform[
-    func: def[dtype: DType, nelts: Int] (x: SIMD[dtype, nelts]) -> SIMD[dtype, nelts],
+    func: def[dtype: DType, nelts: Int](x: SIMD[dtype, nelts]) -> SIMD[
+        dtype, nelts
+    ],
 ](mut t: Tensor[dtype]):
     def vecmath[nelts: Int](idx: Int) {mut t}:
         t.store[nelts](idx, func[dtype, nelts](t.load[nelts](idx)))
@@ -128,7 +142,7 @@ def elwise_pow(mut res: Tensor[dtype], t: Tensor[dtype], x: Int):
 def elwise_op[
     t1_shape: TensorShape,
     t2_shape: TensorShape,
-    func: def[dtype: DType, nelts: Int] (
+    func: def[dtype: DType, nelts: Int](
         x: SIMD[dtype, nelts], y: SIMD[dtype, nelts]
     ) -> SIMD[dtype, nelts],
 ](mut res: Tensor[dtype], t1: Tensor[dtype], t2: Tensor[dtype]):
@@ -148,7 +162,7 @@ def elwise_op[
 
 @always_inline
 def elwise_op[
-    func: def[dtype: DType, nelts: Int] (
+    func: def[dtype: DType, nelts: Int](
         x: SIMD[dtype, nelts], y: SIMD[dtype, nelts]
     ) -> SIMD[dtype, nelts],
 ](mut res: Tensor[dtype], t1: Tensor[dtype], t2: Tensor[dtype]):
@@ -164,7 +178,7 @@ def elwise_op[
 
 @always_inline
 def elwise_op[
-    func: def[dtype: DType, nelts: Int] (
+    func: def[dtype: DType, nelts: Int](
         x: SIMD[dtype, nelts], y: SIMD[dtype, nelts]
     ) -> SIMD[dtype, nelts],
 ](mut res: Tensor[dtype], t1: Tensor[dtype], a: Scalar[dtype]):
@@ -178,7 +192,7 @@ def elwise_op[
 
 @always_inline
 def elwise_op[
-    func: def[dtype: DType, nelts: Int] (
+    func: def[dtype: DType, nelts: Int](
         x: SIMD[dtype, nelts], y: SIMD[dtype, nelts]
     ) -> SIMD[dtype, nelts],
 ](mut res: Tensor[dtype], a: Scalar[dtype], t1: Tensor[dtype]):
@@ -194,7 +208,7 @@ def broadcast_elwise_op[
     t1_shape: TensorShape,
     t2_shape: TensorShape,
     res_shape: TensorShape,
-    func: def[dtype: DType, nelts: Int] (
+    func: def[dtype: DType, nelts: Int](
         x: SIMD[dtype, nelts], y: SIMD[dtype, nelts]
     ) -> SIMD[dtype, nelts],
 ](mut res: Tensor[dtype], t1: Tensor[dtype], t2: Tensor[dtype]):
@@ -202,7 +216,9 @@ def broadcast_elwise_op[
     comptime strides1 = broadcast_calculate_strides[size, t1_shape, res_shape]()
     comptime strides2 = broadcast_calculate_strides[size, t2_shape, res_shape]()
 
-    def vec_op[nelts: Int](i: Int) {mut res, read t1, read t2, read strides1, read strides2}:
+    def vec_op[
+        nelts: Int
+    ](i: Int) {mut res, read t1, read t2, read strides1, read strides2}:
         var index1 = get_real_index[size, strides1, res_shape](i)
         var index2 = get_real_index[size, strides2, res_shape](i)
 
@@ -219,7 +235,7 @@ def broadcast_elwise_op[
 def accumulate_op[
     res_shape: TensorShape,
     t1_shape: TensorShape,
-    func: def[dtype: DType, nelts: Int] (
+    func: def[dtype: DType, nelts: Int](
         x: SIMD[dtype, nelts], y: SIMD[dtype, nelts]
     ) -> SIMD[dtype, nelts],
 ](mut res: Tensor[dtype], t1: Tensor[dtype]):
@@ -232,25 +248,30 @@ def accumulate_op[
     def vec_op[nelts: Int](i: Int) {mut res, read t1, read strides1}:
         var index1 = get_real_index[size, strides1, res_shape](i)
 
-        res.store[nelts](i, func[dtype, nelts](res.load[nelts](i), t1.load[nelts](index1)))
+        res.store[nelts](
+            i, func[dtype, nelts](res.load[nelts](i), t1.load[nelts](index1))
+        )
 
     vectorize[1](res.num_elements(), vec_op)
 
+
 @always_inline
 def accumulate_op[
-    func: def[dtype: DType, nelts: Int] (
+    func: def[dtype: DType, nelts: Int](
         x: SIMD[dtype, nelts], y: SIMD[dtype, nelts]
     ) -> SIMD[dtype, nelts],
 ](mut res: Tensor[dtype], t: Tensor[dtype]):
     def vecmath[nelts: Int](idx: Int) {mut res, read t}:
-        res.store[nelts](idx, func[dtype, nelts](res.load[nelts](idx), t.load[nelts](idx)))
+        res.store[nelts](
+            idx, func[dtype, nelts](res.load[nelts](idx), t.load[nelts](idx))
+        )
 
     vectorize[nelts](t.num_elements(), vecmath)
 
 
 @always_inline
 def accumulate_op[
-    func: def[dtype: DType, nelts: Int] (
+    func: def[dtype: DType, nelts: Int](
         x: SIMD[dtype, nelts], y: SIMD[dtype, nelts]
     ) -> SIMD[dtype, nelts],
 ](mut res: Tensor[dtype], a: Scalar[dtype]):
@@ -263,7 +284,7 @@ def accumulate_op[
 @always_inline
 def accumulate_grad(mut grad: Tensor[dtype], res_grad: Tensor[dtype]):
     # Accumulate gradient without checking for broadcasting
-   accumulate_op[add](grad, res_grad)
+    accumulate_op[add](grad, res_grad)
 
 
 @always_inline
@@ -283,7 +304,9 @@ def accumulate_grad[
             size, grad_shape, res_grad_shape
         ]()
 
-        def vec_op[nelts: Int](i: Int) {mut grad, read res_grad, read strides_grad}:
+        def vec_op[
+            nelts: Int
+        ](i: Int) {mut grad, read res_grad, read strides_grad}:
             var index = get_real_index[size, strides_grad, res_grad_shape](i)
             grad[index] += res_grad.load[nelts](i).reduce_add()
 
@@ -309,11 +332,13 @@ def transpose_2D[t_shape: TensorShape](t: Tensor[dtype]) -> Tensor[dtype]:
 
     parallelize[proc_row](t_shape[0])
 
-    return t_new ^
+    return t_new^
 
 
 @always_inline
-def transpose_2D[t_shape: TensorShape](t: UnsafePointer[Scalar[dtype]]) -> UnsafePointer[Scalar[dtype]]:
+def transpose_2D[
+    t_shape: TensorShape
+](t: UnsafePointer[Scalar[dtype]]) -> UnsafePointer[Scalar[dtype]]:
     var t_new = UnsafePointer[Scalar[dtype]].alloc(t_shape[1] * t_shape[0])
 
     comptime stride = t_shape[0]
@@ -335,12 +360,12 @@ def transpose_2D[t_shape: TensorShape](t: UnsafePointer[Scalar[dtype]]) -> Unsaf
 # ----- Reduction functions -----
 @always_inline
 def reduce[
-    op: def[type: DType, simd_width: Int] (
+    op: def[type: DType, simd_width: Int](
         x: SIMD[type, simd_width], y: SIMD[type, simd_width]
     ) -> SIMD[type, simd_width],
-    reduce_op: def[type: DType, simd_width: Int] (x: SIMD[type, simd_width]) -> SIMD[
-        type, 1
-    ],
+    reduce_op: def[type: DType, simd_width: Int](
+        x: SIMD[type, simd_width]
+    ) -> SIMD[type, 1],
 ](t: Tensor[dtype], starting_value: SIMD[dtype, nelts]) -> Scalar[dtype]:
     var m: SIMD[dtype, nelts] = starting_value
 
@@ -367,12 +392,12 @@ def get_reduce_shape(t: TensorShape, axis: Int) -> TensorShape:
 
 @always_inline
 def reduce[
-    op: def[type: DType, simd_width: Int] (
+    op: def[type: DType, simd_width: Int](
         x: SIMD[type, simd_width], y: SIMD[type, simd_width]
     ) -> SIMD[type, simd_width],
-    reduce_op: def[type: DType, simd_width: Int] (x: SIMD[type, simd_width]) -> SIMD[
-        type, 1
-    ],
+    reduce_op: def[type: DType, simd_width: Int](
+        x: SIMD[type, simd_width]
+    ) -> SIMD[type, 1],
 ](
     mut res: Tensor[dtype],
     t: Tensor[dtype],
@@ -389,16 +414,23 @@ def reduce[
             strides[axis] * t.dim(axis)
         )
 
-        def axisreduce[_nelts: Int](j: Int) {mut m, read t, read index_base, read strides, read axis}:
+        def axisreduce[
+            _nelts: Int
+        ](j: Int) {mut m, read t, read index_base, read strides, read axis}:
             var index = index_base + j * strides[axis]
             if _nelts == 1:
                 m[0] = op(
                     m[0],
-                    t.data().offset(index).strided_load[width=_nelts](strides[axis])[0],
+                    t.data()
+                    .offset(index)
+                    .strided_load[width=_nelts](strides[axis])[0],
                 )
             else:
                 m = op(
-                    m, t.data().offset(index).strided_load[width=nelts](strides[axis])
+                    m,
+                    t.data()
+                    .offset(index)
+                    .strided_load[width=nelts](strides[axis]),
                 )
 
         vectorize[nelts](t.dim(axis), axisreduce)
@@ -465,7 +497,11 @@ def tstd(mut res: Tensor[dtype], t: Tensor[dtype], axis: Int):
     var strides_mu = mu.strides()
 
     def get_t_index(
-        i: Int, j: Int, axis: Int, shape: TensorShape, strides: IndexList[MAX_RANK]
+        i: Int,
+        j: Int,
+        axis: Int,
+        shape: TensorShape,
+        strides: IndexList[MAX_RANK],
     ) -> Int:
         var index_res = 0
         for k in range(shape.rank()):
@@ -487,7 +523,17 @@ def tstd(mut res: Tensor[dtype], t: Tensor[dtype], axis: Int):
     for i in range(t.num_elements() // t.dim(axis)):
         var mu_index = get_mu_index(i, axis, mu.shape(), strides_mu)
 
-        def vecvar[nelts: Int](j: Int) {mut res, read t, read mu, read i, read mu_index, read strides, read axis}:
+        def vecvar[
+            nelts: Int
+        ](j: Int) {
+            mut res,
+            read t,
+            read mu,
+            read i,
+            read mu_index,
+            read strides,
+            read axis,
+        }:
             var t_index = get_t_index(i, j, axis, t.shape(), strides)
             var diff = t.load[nelts](t_index) - mu[mu_index]
             res[i] += (diff * diff).reduce_add()
@@ -586,7 +632,7 @@ def transpose(t: Tensor[dtype], axes: TensorShape) -> Tensor[dtype]:
 
     transpose(t_new, t, axes)
 
-    return t_new ^
+    return t_new^
 
 
 @always_inline
@@ -609,7 +655,17 @@ def transpose(mut res: Tensor[dtype], t: Tensor[dtype], axes: TensorShape):
 
     @parameter
     def p_transpose(i: Int):
-        def v_transpose[nelts: Int](j: Int) {mut res, read t, read i, read original_strides, read transposed_strides, read axes, read position_of_last_rank_new_shape}:
+        def v_transpose[
+            nelts: Int
+        ](j: Int) {
+            mut res,
+            read t,
+            read i,
+            read original_strides,
+            read transposed_strides,
+            read axes,
+            read position_of_last_rank_new_shape,
+        }:
             var new_index = 0
             var original_index = i * t.dim(t.rank() - 1) + j
             var linear_index = original_index

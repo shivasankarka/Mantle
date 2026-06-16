@@ -8,7 +8,6 @@ from .attributes import Attribute
 
 
 struct Param(Copyable, Movable, Writable):
-
     var data: Optional[List[Scalar[dtype]]]
     var initializer: Optional[Attribute]
 
@@ -57,7 +56,7 @@ struct Param(Copyable, Movable, Writable):
         return s
 
 
-struct ParamDict(Sized, Copyable, Movable):
+struct ParamDict(Copyable, Movable, Sized):
     var symbols: List[Symbol]
     var values: List[Param]
 

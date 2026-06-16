@@ -32,12 +32,12 @@ struct CONCAT:
         return chunks
 
     @staticmethod
-    def forward[attributes: AttributeVector](
-        inputs: List[Symbol],
-        outputs: List[Symbol],
-        mut parameters: Parameters,
-    ):
-        comptime dim = attributes["dim"].value().to_int() if attributes["dim"] else 0
+    def forward[
+        attributes: AttributeVector
+    ](inputs: List[Symbol], outputs: List[Symbol], mut parameters: Parameters,):
+        comptime dim = attributes["dim"].value().to_int() if attributes[
+            "dim"
+        ] else 0
         var n_chunks = Self.calc_chunks(inputs[0].shape, dim)
 
         var chunks = List[Int]()
@@ -57,12 +57,16 @@ struct CONCAT:
                 )
 
     @staticmethod
-    def backward[input_id: Int, attributes: AttributeVector](
+    def backward[
+        input_id: Int, attributes: AttributeVector
+    ](
         inputs: List[Symbol],
         outputs: List[Symbol],
         mut parameters: Parameters,
     ) -> Tensor[dtype]:
-        comptime dim = attributes["dim"].value().to_int() if attributes["dim"] else 0
+        comptime dim = attributes["dim"].value().to_int() if attributes[
+            "dim"
+        ] else 0
         var n_chunks = Self.calc_chunks(inputs[0].shape, dim)
 
         var chunks = List[Int]()
@@ -81,7 +85,7 @@ struct CONCAT:
                 chunks[input_id],
             )
 
-        return res_grad ^
+        return res_grad^
 
 
 struct SPLIT:
@@ -112,12 +116,12 @@ struct SPLIT:
         return chunks
 
     @staticmethod
-    def forward[attributes: AttributeVector](
-        inputs: List[Symbol],
-        outputs: List[Symbol],
-        mut parameters: Parameters,
-    ):
-        comptime dim = attributes["dim"].value().to_int() if attributes["dim"] else 0
+    def forward[
+        attributes: AttributeVector
+    ](inputs: List[Symbol], outputs: List[Symbol], mut parameters: Parameters,):
+        comptime dim = attributes["dim"].value().to_int() if attributes[
+            "dim"
+        ] else 0
         comptime sections = attributes["sections"].value().to_shape()
         var n_chunks = Self.calc_chunks(inputs[0].shape, dim)
 
@@ -138,12 +142,16 @@ struct SPLIT:
                 )
 
     @staticmethod
-    def backward[input_id: Int, attributes: AttributeVector](
+    def backward[
+        input_id: Int, attributes: AttributeVector
+    ](
         inputs: List[Symbol],
         outputs: List[Symbol],
         mut parameters: Parameters,
     ) -> Tensor[dtype]:
-        comptime dim = attributes["dim"].value().to_int() if attributes["dim"] else 0
+        comptime dim = attributes["dim"].value().to_int() if attributes[
+            "dim"
+        ] else 0
         comptime sections = attributes["sections"].value().to_shape()
         var n_chunks = Self.calc_chunks(inputs[0].shape, dim)
 
@@ -165,4 +173,4 @@ struct SPLIT:
                     chunks[j],
                 )
 
-        return res_grad ^
+        return res_grad^

@@ -4,8 +4,11 @@ from std.utils.static_tuple import StaticTuple
 
 from basalt import Tensor
 
+
 @always_inline
-def rand_uniform[dtype: DType](mut res: Tensor[dtype], low: Scalar[dtype], high: Scalar[dtype]):
+def rand_uniform[
+    dtype: DType
+](mut res: Tensor[dtype], low: Scalar[dtype], high: Scalar[dtype]):
     var scale = high - low
 
     rand[dtype](res.data(), res.num_elements())
@@ -17,7 +20,9 @@ def rand_uniform[dtype: DType](mut res: Tensor[dtype], low: Scalar[dtype], high:
 
 
 @always_inline
-def rand_normal[dtype: DType](mut res: Tensor[dtype], mean: Float64, std: Float64):
+def rand_normal[
+    dtype: DType
+](mut res: Tensor[dtype], mean: Float64, std: Float64):
     randn[dtype](res.data(), res.num_elements(), mean, std**2)
 
 
@@ -53,7 +58,9 @@ struct MersenneTwister(TrivialRegisterPassable):
     def next(mut self) -> Int32:
         if self.index >= Self.N:
             for i in range(Self.N):
-                var x = (self.state[i] & Self.UPPER_MASK) + (self.state[(i + 1) % Self.N] & Self.LOWER_MASK)
+                var x = (self.state[i] & Self.UPPER_MASK) + (
+                    self.state[(i + 1) % Self.N] & Self.LOWER_MASK
+                )
                 var xA = x >> 1
                 if x % 2 != 0:
                     xA ^= Self.MATRIX_A

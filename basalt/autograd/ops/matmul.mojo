@@ -20,14 +20,16 @@ def calculate_block[
     memset_zero(acc, BLOCK_M * BLOCK_N)
 
     for k in range(K):
-
         comptime for m in range(BLOCK_M):
 
-            def inner_n[nelts: Int](n: Int) {mut acc, read t1, read t2, read acc, read bm, read bn, read k}:
+            def inner_n[
+                nelts: Int
+            ](n: Int) {
+                mut acc, read t1, read t2, read acc, read bm, read bn, read k
+            }:
                 acc.store(
                     m * BLOCK_N + n,
-                    SIMD[dtype, nelts](t1[(bm + m) * K + k])
-                    .fma(
+                    SIMD[dtype, nelts](t1[(bm + m) * K + k]).fma(
                         t2.load[width=nelts](k * N + (bn + n)),
                         acc.load[width=nelts](m * BLOCK_N + n),
                     ),
@@ -38,7 +40,9 @@ def calculate_block[
     # Store tile
     for m in range(BLOCK_M):
 
-        def vec_store[nelts: Int](n: Int) {mut res, read acc, read bm, read bn, read m, read n}:
+        def vec_store[
+            nelts: Int
+        ](n: Int) {mut res, read acc, read bm, read bn, read m, read n}:
             res.store(
                 (bm + m) * N + (bn + n), acc.load[width=nelts](m * BLOCK_N + n)
             )
@@ -58,7 +62,11 @@ def dot[
 @always_inline
 def dot[
     t1_shape: TensorShape, t2_shape: TensorShape
-](res: UnsafePointer[Scalar[dtype]], t1: UnsafePointer[Scalar[dtype]], t2: UnsafePointer[Scalar[dtype]]):
+](
+    res: UnsafePointer[Scalar[dtype]],
+    t1: UnsafePointer[Scalar[dtype]],
+    t2: UnsafePointer[Scalar[dtype]],
+):
     comptime M = t1_shape[0]  # t1[0]
     comptime K = t1_shape[1]  # t1[1], t2[0]
     comptime N = t2_shape[1]  # t2[1]
@@ -79,7 +87,9 @@ def dot[
         for n_outer in range(0, N // BLOCK_N):
             var bn = n_outer * BLOCK_N
 
-            calculate_block[M, N, K, BLOCK_M, BLOCK_N, nelts](res, t1, t2, bm, bn)
+            calculate_block[M, N, K, BLOCK_M, BLOCK_N, nelts](
+                res, t1, t2, bm, bn
+            )
 
         # Handle the remainder of N
         comptime if BLOCK_N_REMAINDER > 0:
@@ -107,15 +117,21 @@ def dot[
         comptime if BLOCK_N_REMAINDER > 0:
             var bn = N - BLOCK_N_REMAINDER
 
-            calculate_block[M, N, K, BLOCK_M_REMAINDER, BLOCK_N_REMAINDER, nelts](
-                res, t1, t2, bm, bn
-            )
+            calculate_block[
+                M, N, K, BLOCK_M_REMAINDER, BLOCK_N_REMAINDER, nelts
+            ](res, t1, t2, bm, bn)
 
 
 def dot_transpose_t2[
     A_shape: TensorShape, B_shape: TensorShape
-](mut C: UnsafePointer[Scalar[dtype]], A: UnsafePointer[Scalar[dtype]], B: UnsafePointer[Scalar[dtype]]):
-    dot[A_shape, TensorShape(B_shape[1], B_shape[0])](C, A, transpose_2D[B_shape](B))
+](
+    mut C: UnsafePointer[Scalar[dtype]],
+    A: UnsafePointer[Scalar[dtype]],
+    B: UnsafePointer[Scalar[dtype]],
+):
+    dot[A_shape, TensorShape(B_shape[1], B_shape[0])](
+        C, A, transpose_2D[B_shape](B)
+    )
 
 
 def dot_transpose_t2[
@@ -123,7 +139,9 @@ def dot_transpose_t2[
 ](mut C: Tensor[dtype], A: Tensor[dtype], B: Tensor[dtype]):
     memset_zero(C.data(), C.num_elements())
 
-    dot[A_shape, TensorShape(B_shape[1], B_shape[0])](C, A, transpose_2D[B_shape](B))
+    dot[A_shape, TensorShape(B_shape[1], B_shape[0])](
+        C, A, transpose_2D[B_shape](B)
+    )
 
     # @parameter
     # def calc_row(i: Int):
@@ -149,7 +167,9 @@ def dot_transpose_t1[
 ](mut C: Tensor[dtype], A: Tensor[dtype], B: Tensor[dtype]):
     memset_zero(C.data(), C.num_elements())
 
-    dot[TensorShape(A_shape[1], A_shape[0]), B_shape](C, transpose_2D[A_shape](A), B)
+    dot[TensorShape(A_shape[1], A_shape[0]), B_shape](
+        C, transpose_2D[A_shape](A), B
+    )
 
     # @parameter
     # def calc_row(i: Int):

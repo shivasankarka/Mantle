@@ -41,7 +41,6 @@ struct PerfMetricsValues(Copyable, Movable):
     var ns: Float64
 
 
-
 struct PerfMetrics:
     var forward_perf_metrics: List[PerfMetricsValues]
     var backward_perf_metrics: List[PerfMetricsValues]
@@ -64,8 +63,12 @@ struct PerfMetrics:
         self.backward_perf_metrics.reserve(len(graph.nodes))
 
         for i in range(len(graph.nodes)):
-            self.forward_perf_metrics.append(PerfMetricsValues(graph.nodes[i].copy(), 0.0))
-            self.backward_perf_metrics.append(PerfMetricsValues(graph.nodes[i].copy(), 0.0))
+            self.forward_perf_metrics.append(
+                PerfMetricsValues(graph.nodes[i].copy(), 0.0)
+            )
+            self.backward_perf_metrics.append(
+                PerfMetricsValues(graph.nodes[i].copy(), 0.0)
+            )
 
         self.epochs_forward = 0
         self.epochs_backward = 0
@@ -88,11 +91,16 @@ struct PerfMetrics:
     def print_perf_metrics[
         type_part: String
     ](self, time_format: String = "ns", print_shape: Bool = False):
-        constrained[type_part == "Forward" or type_part == "Backward", "Only 'Forward' or 'Backward' are accepted types."]()
+        constrained[
+            type_part == "Forward" or type_part == "Backward",
+            "Only 'Forward' or 'Backward' are accepted types.",
+        ]()
 
         comptime is_forward = type_part == "Forward"
 
-        var metrics = self.forward_perf_metrics.copy() if is_forward else self.backward_perf_metrics.copy()
+        var metrics = (
+            self.forward_perf_metrics.copy() if is_forward else self.backward_perf_metrics.copy()
+        )
         var epochs = self.epochs_forward if is_forward else self.epochs_backward
         var size = len(metrics)
         var total_time: Float64 = 0
@@ -119,7 +127,9 @@ struct PerfMetrics:
         )
 
         if print_shape:
-            header += "| " + fit_string[70]("Shape\t <out> = OP( <in1>, <in2>, <in3> )")
+            header += "| " + fit_string[70](
+                "Shape\t <out> = OP( <in1>, <in2>, <in3> )"
+            )
 
         print(header)
 
@@ -137,7 +147,7 @@ struct PerfMetrics:
             var time = value.ns / epochs
 
             if time_format == "ms":
-                time /=  1e6
+                time /= 1e6
             elif time_format == "s":
                 time /= 1e9
 
@@ -150,20 +160,30 @@ struct PerfMetrics:
                 + "| "
                 + fit_string[20](truncate_decimals[4](String(time)))
                 + "| "
-                + fit_string[20](truncate_decimals[3](String(percentage)) + " %")
+                + fit_string[20](
+                    truncate_decimals[3](String(percentage)) + " %"
+                )
                 + "| "
             )
 
             if print_shape:
-                var shape_str = fit_string[15]("<" + String(value.node.outputs[0].shape) + ">")
+                var shape_str = fit_string[15](
+                    "<" + String(value.node.outputs[0].shape) + ">"
+                )
 
                 for j in range(1, len(value.node.outputs)):
-                    shape_str += ", " + fit_string[15]("<" + String(value.node.outputs[j].shape) + ">")
+                    shape_str += ", " + fit_string[15](
+                        "<" + String(value.node.outputs[j].shape) + ">"
+                    )
 
-                shape_str += fit_string[7](" = OP(") + fit_string[15]("<" + String(value.node.inputs[0].shape) + ">")
+                shape_str += fit_string[7](" = OP(") + fit_string[15](
+                    "<" + String(value.node.inputs[0].shape) + ">"
+                )
 
                 for j in range(1, len(value.node.inputs)):
-                    shape_str += ", " + fit_string[15]("<" + String(value.node.inputs[j].shape) + ">")
+                    shape_str += ", " + fit_string[15](
+                        "<" + String(value.node.inputs[j].shape) + ">"
+                    )
 
                 shape_str += ")"
 
@@ -173,7 +193,7 @@ struct PerfMetrics:
                 print(print_value)
 
         if time_format == "ms":
-            total_time /=  1e6
+            total_time /= 1e6
         elif time_format == "s":
             total_time /= 1e9
 
@@ -186,9 +206,12 @@ struct PerfMetrics:
             + time_format
         )
 
-
-    def print_forward_perf_metrics(self, time_format: String = "ns", print_shape: Bool = False):
+    def print_forward_perf_metrics(
+        self, time_format: String = "ns", print_shape: Bool = False
+    ):
         self.print_perf_metrics["Forward"](time_format, print_shape)
 
-    def print_backward_perf_metrics(self, time_format: String = "ns", print_shape: Bool = False):
+    def print_backward_perf_metrics(
+        self, time_format: String = "ns", print_shape: Bool = False
+    ):
         self.print_perf_metrics["Backward"](time_format, print_shape)

@@ -332,11 +332,7 @@ def forward_op[
 def forward_op[
     op: OP,
     attributes: AttributeVector,
-](
-    inputs: List[Symbol],
-    outputs: List[Symbol],
-    mut parameters: Parameters,
-):
+](inputs: List[Symbol], outputs: List[Symbol], mut parameters: Parameters,):
     """
     Forward pass for dynamic operators.
     """
@@ -455,8 +451,8 @@ def backward_op[
     @parameter
     if broadcastable(op):
         accumulate_grad[
-            grad_shape = t1_shape if tensor_id == 0 else t2_shape,
-            res_grad_shape = broadcast_shapes(t1_shape, t2_shape),
+            grad_shape=t1_shape if tensor_id == 0 else t2_shape,
+            res_grad_shape=broadcast_shapes(t1_shape, t2_shape),
         ](grad, res_grad)
     else:
         accumulate_grad(grad, res_grad)

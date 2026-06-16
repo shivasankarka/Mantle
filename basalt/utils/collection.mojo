@@ -22,7 +22,9 @@ struct Collection(Copyable, Movable, Sized):
         self.size = 0
         self.capacity = capacity
         self.data = alloc[Tensor[dtype]](capacity)
-        UnsafePointer.init_pointee_move((self.data + self.size), Tensor[dtype]())
+        UnsafePointer.init_pointee_move(
+            (self.data + self.size), Tensor[dtype]()
+        )
         # self.symbols = UnsafePointer[Scalar[DType.uint32]].alloc(capacity)
         self.symbols = alloc[Scalar[DType.uint32]](capacity)
 
@@ -48,7 +50,9 @@ struct Collection(Copyable, Movable, Sized):
         memcpy(dest=self.symbols, src=copy.symbols, count=copy.capacity)
 
         for i in range(copy.size):
-            UnsafePointer.init_pointee_move((self.data + i), (copy.data + i)[].copy())
+            UnsafePointer.init_pointee_move(
+                (self.data + i), (copy.data + i)[].copy()
+            )
 
     @always_inline("nodebug")
     def __del__(deinit self):
@@ -83,7 +87,9 @@ struct Collection(Copyable, Movable, Sized):
         var new_symbols = alloc[Scalar[DType.uint32]](new_capacity)
 
         for i in range(self.size):
-            UnsafePointer.init_pointee_move((new_data + i), (self.data + i)[].copy())
+            UnsafePointer.init_pointee_move(
+                (new_data + i), (self.data + i)[].copy()
+            )
             new_symbols[i] = self.symbols[i]
 
         self.data.free()
@@ -98,7 +104,7 @@ struct Collection(Copyable, Movable, Sized):
         """
         Appends a tensor and its associated symbol to the Collection.
         """
-        self.append(value ^, symbol.name)
+        self.append(value^, symbol.name)
 
     @always_inline("nodebug")
     def append(mut self, var value: Tensor[dtype], symbol_name: UInt32):
@@ -107,7 +113,7 @@ struct Collection(Copyable, Movable, Sized):
         """
         if self.size >= self.capacity:
             self._realloc(max(1, self.capacity * 2))
-        UnsafePointer.init_pointee_move((self.data + self.size), value ^)
+        UnsafePointer.init_pointee_move((self.data + self.size), value^)
         self.symbols[self.size] = symbol_name
         self.size += 1
 
@@ -149,7 +155,6 @@ struct Collection(Copyable, Movable, Sized):
         Returns a reference to the tensor with the given symbol.
         """
         var index = self.get_index(symbol.name)
-
 
         return (self.data + index)[]
 

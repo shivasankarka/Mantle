@@ -29,7 +29,9 @@ struct Node(Copyable, Movable, Writable):
         return self.json()
 
     def json(self) -> String:
-        var s: String = '{"operator": "' + String(self.operator.name) + '", "inputs": ['
+        var s: String = (
+            '{"operator": "' + String(self.operator.name) + '", "inputs": ['
+        )
         for i in range(len(self.inputs)):
             s += self.inputs[i].json()
             if i < len(self.inputs) - 1:

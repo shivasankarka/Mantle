@@ -6,7 +6,9 @@ from basalt.utils.tensorutils import elwise_op, tmean, tstd
 
 
 @always_inline
-def div[dtype: DType, simd_width: Int](a: SIMD[dtype, simd_width], b: Scalar[dtype]) -> SIMD[dtype, simd_width]:
+def div[
+    dtype: DType, simd_width: Int
+](a: SIMD[dtype, simd_width], b: Scalar[dtype]) -> SIMD[dtype, simd_width]:
     return a / b
 
 
@@ -25,7 +27,9 @@ struct BostonHousing:
         # Length is number of lines
         var N = len(list_of_lines)
 
-        self.data = Tensor[dtype](N, self.n_inputs)  # All columns except the last one
+        self.data = Tensor[dtype](
+            N, self.n_inputs
+        )  # All columns except the last one
         self.labels = Tensor[dtype](N, 1)  # Only the last column (MEDV)
 
         var line: List[String] = List[String]()
@@ -37,7 +41,9 @@ struct BostonHousing:
             self.labels[item] = cast_string[dtype](line[-1])
 
             for n in range(self.n_inputs):
-                self.data[item * self.n_inputs + n] = cast_string[dtype](line[n])
+                self.data[item * self.n_inputs + n] = cast_string[dtype](
+                    line[n]
+                )
 
         # Normalize data
         # TODO: redo when tensorutils tmean2 and tstd2 are implemented
@@ -47,7 +53,9 @@ struct BostonHousing:
             for k in range(N):
                 col[k] = self.data[k * self.n_inputs + j]
             for i in range(N):
-                self.data[i * self.n_inputs + j] = (self.data[i * self.n_inputs + j] - tmean(col)) / tstd(col)
+                self.data[i * self.n_inputs + j] = (
+                    self.data[i * self.n_inputs + j] - tmean(col)
+                ) / tstd(col)
 
 
 struct MNIST:
@@ -74,7 +82,9 @@ struct MNIST:
             self.labels[item] = atol(line[0])
             for i in range(self.data.shape()[2]):
                 for j in range(self.data.shape()[3]):
-                    self.data[item * 28 * 28 + i * 28 + j] = atol(line[i * 28 + j + 1])
+                    self.data[item * 28 * 28 + i * 28 + j] = atol(
+                        line[i * 28 + j + 1]
+                    )
 
         # Normalize data
         comptime nelts = simdwidthof[dtype]()

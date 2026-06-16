@@ -119,9 +119,9 @@ struct LEAKYRELU:
             type: DType,
             simd_width: Int,
         ](x: SIMD[type, simd_width]) -> SIMD[type, simd_width]:
-            var negative_slope = attributes["negative_slope"].value().to_scalar[
-                type
-            ]()
+            var negative_slope = (
+                attributes["negative_slope"].value().to_scalar[type]()
+            )
             return (x > 0).select(x, x * negative_slope)
 
         elwise_transform[leaky_relu](res, t1)
@@ -138,9 +138,9 @@ struct LEAKYRELU:
         def leaky_relu_bw[
             type: DType, simd_width: Int
         ](x: SIMD[type, simd_width]) -> SIMD[type, simd_width]:
-            var negative_slope = attributes["negative_slope"].value().to_scalar[
-                type
-            ]()
+            var negative_slope = (
+                attributes["negative_slope"].value().to_scalar[type]()
+            )
 
             return (x > 0).select[type](1, negative_slope)
 
@@ -230,7 +230,7 @@ struct CLIP:
         def vec_clip[nelts: Int](i: Int):
             res.store[nelts](i, max(min(t.load[nelts](i), max_val), min_val))
 
-        vectorize[vec_clip, nelts, size = t_shape.num_elements()]()
+        vectorize[vec_clip, nelts, size=t_shape.num_elements()]()
 
     @staticmethod
     def backward[
@@ -261,7 +261,7 @@ struct CLIP:
                 ),
             )
 
-        vectorize[vec_clip_bw, nelts, size = t_shape.num_elements()]()
+        vectorize[vec_clip_bw, nelts, size=t_shape.num_elements()]()
 
         return res_grad^
 
@@ -384,12 +384,16 @@ struct SLICE:
         # NOTE: If axes not provided, starts and ends have to be of the same size as t1_shape
         var starts = attributes["starts"].value().to_list()
         var ends = attributes["ends"].value().to_list()
-        var steps = attributes["steps"].value().to_list() if attributes[
-            "steps"
-        ] else Self.default_steps(starts)
-        var axes = attributes["axes"].value().to_list() if attributes[
-            "axes"
-        ] else Self.default_axes(t1_shape)
+        var steps = (
+            attributes["steps"]
+            .value()
+            .to_list() if attributes["steps"] else Self.default_steps(starts)
+        )
+        var axes = (
+            attributes["axes"]
+            .value()
+            .to_list() if attributes["axes"] else Self.default_axes(t1_shape)
+        )
 
         var new_shape = t1_shape
         for i in range(len(starts)):
@@ -407,9 +411,7 @@ struct SLICE:
     @staticmethod
     def reorder_positions[
         id: Int
-    ](original: List[Int], axes: List[Int], t1_shape: List[Int]) -> List[
-        Int
-    ]:
+    ](original: List[Int], axes: List[Int], t1_shape: List[Int]) -> List[Int]:
         # Reorder the starts (id=0), ends (id=1) or steps (id=2) to match the order of the axes
         var updated: List[Int]
 
@@ -452,9 +454,9 @@ struct SLICE:
         comptime t1_strides = original_shape.strides()
 
         var idx_temp = idx
-        var idx_original_temp = starts[position] * t1_strides[
-            position
-        ] + idx_original
+        var idx_original_temp = (
+            starts[position] * t1_strides[position] + idx_original
+        )
 
         if position == last_position + 1:
             # Work on the last dimensions
@@ -482,12 +484,13 @@ struct SLICE:
 
                     @parameter
                     if steps[position] == 1:
-                        res.store[nelts](idx_original_temp, t1.load[nelts](idx_temp + k))
-                    else:
-                        res.data().offset(idx_original_temp).strided_store[width=nelts](
-                            t1.load[nelts](idx_temp + k),
-                            stride
+                        res.store[nelts](
+                            idx_original_temp, t1.load[nelts](idx_temp + k)
                         )
+                    else:
+                        res.data().offset(idx_original_temp).strided_store[
+                            width=nelts
+                        ](t1.load[nelts](idx_temp + k), stride)
 
                 idx_original_temp += stride * nelts
 

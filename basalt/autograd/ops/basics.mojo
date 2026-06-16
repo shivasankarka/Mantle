@@ -18,7 +18,9 @@ from basalt.utils.math_util import add, sub, mul, div
 
 struct ADD:
     @staticmethod
-    def result_shape(t1_shape: TensorShape, t2_shape: TensorShape) -> TensorShape:
+    def result_shape(
+        t1_shape: TensorShape, t2_shape: TensorShape
+    ) -> TensorShape:
         return broadcast_shapes(t1_shape, t2_shape)
 
     @staticmethod
@@ -43,10 +45,11 @@ struct ADD:
         return ug
 
 
-
 struct SUB:
     @staticmethod
-    def result_shape(t1_shape: TensorShape, t2_shape: TensorShape) -> TensorShape:
+    def result_shape(
+        t1_shape: TensorShape, t2_shape: TensorShape
+    ) -> TensorShape:
         return broadcast_shapes(t1_shape, t2_shape)
 
     @staticmethod
@@ -75,13 +78,14 @@ struct SUB:
         else:
             var res_grad = Tensor[dtype](ug_shape)
             elwise_op[mul](res_grad, ug, -1.0)
-            return res_grad ^
-
+            return res_grad^
 
 
 struct MUL:
     @staticmethod
-    def result_shape(t1_shape: TensorShape, t2_shape: TensorShape) -> TensorShape:
+    def result_shape(
+        t1_shape: TensorShape, t2_shape: TensorShape
+    ) -> TensorShape:
         return broadcast_shapes(t1_shape, t2_shape)
 
     @staticmethod
@@ -108,17 +112,18 @@ struct MUL:
         comptime if tensor_id == 0:
             var res_grad = Tensor[dtype](ug_shape)
             elwise_op[ug_shape, t2_shape, mul](res_grad, ug, t2)
-            return res_grad ^
+            return res_grad^
         else:
             var res_grad = Tensor[dtype](ug_shape)
             elwise_op[ug_shape, t1_shape, mul](res_grad, ug, t1)
-            return res_grad ^
-
+            return res_grad^
 
 
 struct DIV:
     @staticmethod
-    def result_shape(t1_shape: TensorShape, t2_shape: TensorShape) -> TensorShape:
+    def result_shape(
+        t1_shape: TensorShape, t2_shape: TensorShape
+    ) -> TensorShape:
         return broadcast_shapes(t1_shape, t2_shape)
 
     @staticmethod
@@ -144,7 +149,7 @@ struct DIV:
         comptime if tensor_id == 0:
             var res_grad = Tensor[dtype](ug_shape)
             elwise_op[ug_shape, t2_shape, div](res_grad, ug, t2)
-            return res_grad ^
+            return res_grad^
         else:
             comptime broadcast = (t1_shape != t2_shape)
             comptime is_scalar = (t2_shape == TensorShape(1))
@@ -153,7 +158,11 @@ struct DIV:
             comptime if is_scalar:
                 var factor: Scalar[dtype] = -1.0 / (t2[0] ** 2)
 
-                def vec_div_bw_scalar[nelts: Int](i: Int) {mut res_grad, read ug, read t1, read t2, read factor}:
+                def vec_div_bw_scalar[
+                    nelts: Int
+                ](i: Int) {
+                    mut res_grad, read ug, read t1, read t2, read factor
+                }:
                     res_grad.store[nelts](
                         i, factor * t1.load[nelts](i) * ug.load[nelts](i)
                     )
@@ -162,10 +171,23 @@ struct DIV:
 
             elif broadcast and not is_scalar:
                 comptime size = ug_shape.rank()
-                comptime strides1 = broadcast_calculate_strides[size, t1_shape, ug_shape]()
-                comptime strides2 = broadcast_calculate_strides[size, t2_shape, ug_shape]()
+                comptime strides1 = broadcast_calculate_strides[
+                    size, t1_shape, ug_shape
+                ]()
+                comptime strides2 = broadcast_calculate_strides[
+                    size, t2_shape, ug_shape
+                ]()
 
-                def vec_div_bw_broadcast[netls: Int](i: Int) {mut res_grad, read ug, read t1, read t2, read strides1, read strides2}:
+                def vec_div_bw_broadcast[
+                    netls: Int
+                ](i: Int) {
+                    mut res_grad,
+                    read ug,
+                    read t1,
+                    read t2,
+                    read strides1,
+                    read strides2,
+                }:
                     var index1 = get_real_index[size, strides1, ug_shape](i)
                     var index2 = get_real_index[size, strides2, ug_shape](i)
                     res_grad.store[nelts](
@@ -179,7 +201,9 @@ struct DIV:
 
             else:
 
-                def vec_div_bw[nelts: Int](i: Int) {mut res_grad, read ug, read t1, read t2}:
+                def vec_div_bw[
+                    nelts: Int
+                ](i: Int) {mut res_grad, read ug, read t1, read t2}:
                     res_grad.store[nelts](
                         i,
                         -t1.load[nelts](i)
@@ -189,13 +213,14 @@ struct DIV:
 
                 vectorize[nelts](ug_shape.num_elements(), vec_div_bw)
 
-            return res_grad ^
-
+            return res_grad^
 
 
 struct DOT:
     @staticmethod
-    def result_shape(t1_shape: TensorShape, t2_shape: TensorShape) -> TensorShape:
+    def result_shape(
+        t1_shape: TensorShape, t2_shape: TensorShape
+    ) -> TensorShape:
         return TensorShape(t1_shape[0], t2_shape[1])
 
     @staticmethod
@@ -221,12 +246,12 @@ struct DOT:
             # dot(ug, t2.T)
             var res_grad = Tensor[dtype](t1_shape)
             dot_transpose_t2[ug_shape, t2_shape](res_grad, ug, t2)
-            return res_grad ^
+            return res_grad^
         else:
             # dot(t1.T, ug)
             var res_grad = Tensor[dtype](t2_shape)
             dot_transpose_t1[t1_shape, ug_shape](res_grad, t1, ug)
-            return res_grad ^
+            return res_grad^
 
 
 struct EXP:
@@ -254,7 +279,7 @@ struct EXP:
             res_grad.store[nelts](i, exp(t1.load[nelts](i)) * ug.load[nelts](i))
 
         vectorize[nelts](ug_shape.num_elements(), vec_exp_bw)
-        return res_grad ^
+        return res_grad^
 
 
 struct LOG:
@@ -278,12 +303,14 @@ struct LOG:
         # d(log(x)) / dx = 1 / x
         var res_grad = Tensor[dtype](ug_shape)
         elwise_op[ug_shape, t1_shape, div](res_grad, ug, t1)
-        return res_grad ^
+        return res_grad^
 
 
 struct POW:
     @staticmethod
-    def result_shape(t1_shape: TensorShape, t2_shape: TensorShape) -> TensorShape:
+    def result_shape(
+        t1_shape: TensorShape, t2_shape: TensorShape
+    ) -> TensorShape:
         # t2_shape == TensorShape(1)
         return t1_shape
 
@@ -316,7 +343,12 @@ struct POW:
 
             @parameter
             def vec_pow_bw_x[nelts: Int](i: Int):
-                res_grad.store[nelts](i, a * ((t1.load[nelts](i) + epsilon) ** (a - 1)) * ug.load[nelts](i))
+                res_grad.store[nelts](
+                    i,
+                    a
+                    * ((t1.load[nelts](i) + epsilon) ** (a - 1))
+                    * ug.load[nelts](i),
+                )
 
             vectorize[vec_pow_bw_x, nelts](t1_shape.num_elements())
 
@@ -324,25 +356,27 @@ struct POW:
             # Gradient of the exponent
             res_grad = Tensor[dtype](t2_shape)  # t2_shape == TensorShape(1)
 
-            comptime def vec_pow_bw_y[nelts: Int](i: Int):
+            def vec_pow_bw_y[
+                nelts: Int
+            ](i: Int) {mut res_grad, read t1, read ug}:
                 # the case when the value passed to log is 0.0
                 var temp_log = log(t1.load[nelts](i))
                 var temp_log_is_inf = isinf(temp_log)
                 temp_log = temp_log_is_inf.select(0, temp_log)
                 res_grad[0] += (
-                    (t1.load[nelts](i) ** a)
-                    * temp_log
-                    * ug.load[nelts](i)
+                    (t1.load[nelts](i) ** a) * temp_log * ug.load[nelts](i)
                 ).reduce_add()
 
-            vectorize[vec_pow_bw_y, nelts](ug_shape.num_elements())
+            vectorize[nelts](ug_shape.num_elements(), vec_pow_bw_y)
 
-        return res_grad ^
+        return res_grad^
 
 
 struct SUM:
     @staticmethod
-    def result_shape(t_shape: TensorShape, attributes: AttributeVector) -> TensorShape:
+    def result_shape(
+        t_shape: TensorShape, attributes: AttributeVector
+    ) -> TensorShape:
         var axis = attributes["axis"]
 
         if axis:
@@ -382,13 +416,14 @@ struct SUM:
 
         accumulate_op[t_shape, ug_shape, mul](res_grad, ug)
 
-        return res_grad ^
-
+        return res_grad^
 
 
 struct MEAN:
     @staticmethod
-    def result_shape(t_shape: TensorShape, attributes: AttributeVector) -> TensorShape:
+    def result_shape(
+        t_shape: TensorShape, attributes: AttributeVector
+    ) -> TensorShape:
         var axis = attributes["axis"]
 
         if axis:
@@ -419,7 +454,9 @@ struct MEAN:
         comptime axis = attributes["axis"]
 
         comptime if axis:
-            return Self.backward[ug_shape, t_shape](ug, t, axis.value().to_int())
+            return Self.backward[ug_shape, t_shape](
+                ug, t, axis.value().to_int()
+            )
         else:
             return Self.backward[ug_shape, t_shape](ug, t)
 
@@ -442,7 +479,7 @@ struct MEAN:
 
         vectorize[nelts](t_shape.num_elements(), v_mean_d)
 
-        return res_grad ^
+        return res_grad^
 
     @staticmethod
     def backward[
@@ -458,12 +495,14 @@ struct MEAN:
 
         accumulate_op[t_shape, ug_shape, mul](res_grad, ug)
 
-        return res_grad ^
+        return res_grad^
 
 
 struct MAX:
     @staticmethod
-    def result_shape(t_shape: TensorShape, attributes: AttributeVector) -> TensorShape:
+    def result_shape(
+        t_shape: TensorShape, attributes: AttributeVector
+    ) -> TensorShape:
         var axis = attributes["axis"]
 
         if axis:
@@ -494,7 +533,9 @@ struct MAX:
         comptime axis = attributes["axis"]
 
         comptime if axis:
-            return Self.backward[ug_shape, t_shape](ug, t, axis.value().to_int())
+            return Self.backward[ug_shape, t_shape](
+                ug, t, axis.value().to_int()
+            )
         else:
             return Self.backward[ug_shape, t_shape](ug, t)
 
@@ -526,7 +567,7 @@ struct MAX:
             if t[i] == max_res:
                 res_grad[i] = factor * ug[0]
 
-        return res_grad ^
+        return res_grad^
 
     @staticmethod
     def backward[
@@ -563,12 +604,14 @@ struct MAX:
                 if t[index] == max_res[i]:
                     res_grad[index] = factor * ug[i]
 
-        return res_grad ^
+        return res_grad^
 
 
 struct TRANSPOSE:
     @staticmethod
-    def result_shape(t_shape: TensorShape, attributes: AttributeVector) -> TensorShape:
+    def result_shape(
+        t_shape: TensorShape, attributes: AttributeVector
+    ) -> TensorShape:
         var axes = attributes["axes"]  # axes to be permuted
 
         var rank = t_shape.rank()
@@ -649,7 +692,7 @@ struct TRANSPOSE:
 
             transpose(res_grad, ug, axes_shape_inv)
 
-        return res_grad ^
+        return res_grad^
 
 
 struct FLATTEN:
@@ -672,12 +715,14 @@ struct FLATTEN:
         var res_grad = Tensor[dtype](t_shape)
         memcpy(res_grad.data(), ug.data(), ug_shape.num_elements())
 
-        return res_grad ^
+        return res_grad^
 
 
 struct RESHAPE:
     @staticmethod
-    def result_shape(t_shape: TensorShape, attributes: AttributeVector) -> TensorShape:
+    def result_shape(
+        t_shape: TensorShape, attributes: AttributeVector
+    ) -> TensorShape:
         var new_shape = attributes["shape"]
         return new_shape.value().to_shape()
 
@@ -696,7 +741,7 @@ struct RESHAPE:
         var res_grad = Tensor[dtype](t_shape)
         memcpy(res_grad.data(), ug.data(), ug_shape.num_elements())
 
-        return res_grad ^
+        return res_grad^
 
 
 struct FMA:
@@ -728,7 +773,7 @@ struct FMA:
                 i, t1.load[nelts](i).fma(t2.load[nelts](i), t3.load[nelts](i))
             )
 
-        vectorize[nelts, size = t1_shape.num_elements()](vec_fma)
+        vectorize[nelts, size=t1_shape.num_elements()](vec_fma)
 
     @staticmethod
     def backward[
@@ -738,7 +783,10 @@ struct FMA:
         t2_shape: TensorShape,
         t3_shape: TensorShape,
     ](
-        ug: Tensor[dtype], t1: Tensor[dtype], t2: Tensor[dtype], t3: Tensor[dtype]
+        ug: Tensor[dtype],
+        t1: Tensor[dtype],
+        t2: Tensor[dtype],
+        t3: Tensor[dtype],
     ) -> Tensor[dtype]:
         """Backward operation of fma."""
         # d(x * y + z) / dx = y
@@ -748,10 +796,10 @@ struct FMA:
         comptime if tensor_id == 0:
             var res_grad = Tensor[dtype](ug_shape)
             elwise_op[ug_shape, t2_shape, mul](res_grad, ug, t2)
-            return res_grad ^
+            return res_grad^
         elif tensor_id == 1:
             var res_grad = Tensor[dtype](ug_shape)
             elwise_op[ug_shape, t1_shape, mul](res_grad, ug, t1)
-            return res_grad ^
+            return res_grad^
         else:
             return ug
