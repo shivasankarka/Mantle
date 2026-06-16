@@ -115,11 +115,11 @@ def main():
                 "/",
                 train_data.data.dim(0) // batch_size,
                 "],\t Loss:",
-                epoch_loss / num_batches,
+                epoch_loss / Float32(num_batches),
             )
 
-        print("Epoch time: ", (now() - epoch_start) / 1e9, "seconds")
+        print("Epoch time: ", Float64(now() - epoch_start) / 1e9, "seconds")
 
-    print("Training finished: ", (now() - start) / 1e9, "seconds")
+    print("Training finished: ", Float64(now() - start) / 1e9, "seconds")
 
     model.print_perf_metrics("ms", True)

@@ -42,7 +42,7 @@ struct PerfMetrics:
     var backward_perf_metrics: List[PerfMetricsValues]
     var epochs_forward: Int
     var epochs_backward: Int
-    var start: Int
+    var start: UInt
 
     def __init__(out self):
         self.forward_perf_metrics = List[PerfMetricsValues]()
@@ -74,14 +74,14 @@ struct PerfMetrics:
         self.start = now()
 
     def end_forward_pass(mut self, pos: Int):
-        self.forward_perf_metrics[pos].ns += Float64(now() - Int(self.start))
+        self.forward_perf_metrics[pos].ns += Float64(Int(now()) - Int(self.start))
         self.epochs_forward += 1
 
     def start_backward_pass(mut self):
         self.start = now()
 
     def end_backward_pass(mut self, pos: Int):
-        self.backward_perf_metrics[pos].ns += Float64(now() - Int(self.start))
+        self.backward_perf_metrics[pos].ns += Float64(Int(now()) - Int(self.start))
         self.epochs_backward += 1
 
     def print_perf_metrics[

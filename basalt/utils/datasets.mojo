@@ -37,7 +37,7 @@ struct BostonHousing:
         for item in range(N):
             var line = list_of_lines[item].split(",")
             # var line_strings = List[String](line)
-            self.labels[item] = cast_string[dtype](String(line[-1]))
+            self.labels[item] = cast_string[dtype](String(line[len(line) - 1]))
 
             for n in range(self.n_inputs):
                 self.data[item * self.n_inputs + n] = cast_string[dtype](
@@ -113,16 +113,11 @@ def cast_string[dtype: DType](s: String) raises -> Scalar[dtype]:
     """
 
     var idx = find_first(s, delimiter=".")
-    var result: Scalar[dtype] = -1
 
     if idx == -1:
         # No decimal point
-        result = Scalar[dtype](atol(s))
-        return result
+        return Scalar[dtype](atol(s))
     else:
-        var c_int: Scalar[dtype]
-        var c_frac: Scalar[dtype]
-        c_int = Scalar[dtype](atol(s[byte=:idx]))
-        c_frac = Scalar[dtype](atol(s[byte=idx + 1 :]))
-        x = c_int + c_frac / Scalar[dtype](10 ** s[byte=idx + 1 :].byte_length())
-        return result
+        var c_int = Scalar[dtype](atol(s[byte=:idx]))
+        var c_frac = Scalar[dtype](atol(s[byte=idx + 1 :]))
+        return c_int + c_frac / Scalar[dtype](10 ** s[byte=idx + 1 :].byte_length())

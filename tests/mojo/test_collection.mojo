@@ -140,12 +140,12 @@ def test_operate_on_reference() raises:
 
     for i in range(1, 10):
         some_operation[res_shape, t1_shape](c[sr], c[s1])
-        fill(c[s1], i)
+        fill(c[s1], Float32(i))
 
         var res_expected = Tensor[dtype](res_shape)
         var t1_expected = Tensor[dtype](t1_shape)
-        fill(res_expected, i - 1)
-        fill(t1_expected, i)
+        fill(res_expected, Float32(i - 1))
+        fill(t1_expected, Float32(i))
 
         assert_tensors_equal(c[sr], res_expected)
         assert_tensors_equal(c[s1], t1_expected)
@@ -160,4 +160,4 @@ def main() raises:
         test_operate_on_reference()
     except e:
         print(e)
-        raise e
+        raise e^

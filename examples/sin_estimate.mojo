@@ -1,5 +1,5 @@
 from std.random import rand
-from std.time import now
+from std.time import perf_counter_ns as now
 import std.math as math
 
 import basalt.nn as nn
@@ -56,7 +56,7 @@ def main():
             x_data[j] = x_data[j] * 2 - 1
             y_data[j] = math.sin(x_data[j])
 
-        var out = model.forward(x_data, y_data)
+        ref out = model.forward(x_data.copy(), y_data.copy())
 
         if (i + 1) % 1000 == 0:
             print("[", i + 1, "/", epochs, "] \tLoss: ", out[0])
@@ -65,4 +65,4 @@ def main():
         model.backward()
         optimizer.step()
 
-    print("Training finished: ", (now() - start) / 1e9, "seconds")
+    print("Training finished: ", Float64(now() - start) / 1e9, "seconds")

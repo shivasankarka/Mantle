@@ -59,15 +59,15 @@ struct Bytes[capacity: Int](
         return False
 
     @always_inline("nodebug")
-    def __str__(self) -> String:
-        var result: String = ""
-
+    def write_to[W: Writer](self, mut writer: W):
         for i in range(Self.capacity):
             var val = self[i]
             if val != 0:
-                result += chr(Int(val))
+                writer.write(chr(Int(val)))
 
-        return result
+    @always_inline("nodebug")
+    def __str__(self) -> String:
+        return String.write(self)
 
 
 def scalar_to_bytes[

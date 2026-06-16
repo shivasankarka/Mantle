@@ -33,7 +33,7 @@ def test_CONCAT_0() raises:
 
     comptime graph = create_graph_concat(t1_shape, t2_shape, t3_shape, dim=0)
     var model = Model[graph]()
-    var res = model.forward(t1, t2, t3)
+    ref res = model.forward(t1.copy(), t2.copy(), t3.copy())
     assert_tensors_equal["almost"](res, expected)
 
     # BACKWARD
@@ -48,7 +48,7 @@ def test_CONCAT_0() raises:
                 else:
                     ug[i * 2 * 3 + j * 3 + k] = 3.0
 
-    model.backward(ug)
+    model.backward(ug.copy())
 
     var grad1_expected = Tensor[dtype](t1_shape)
     var grad2_expected = Tensor[dtype](t2_shape)
@@ -57,15 +57,19 @@ def test_CONCAT_0() raises:
     fill(grad2_expected, 2.0)
     fill(grad3_expected, 3.0)
 
+    comptime grad1 = graph.nodes[0].inputs[0]
+    comptime grad2 = graph.nodes[0].inputs[1]
+    comptime grad3 = graph.nodes[0].inputs[2]
+
     # Extracting the gradients
     assert_tensors_equal["almost"](
-        model.parameters.grads[graph.nodes[0].inputs[0]], grad1_expected
+        model.parameters.grads[grad1], grad1_expected
     )
     assert_tensors_equal["almost"](
-        model.parameters.grads[graph.nodes[0].inputs[1]], grad2_expected
+        model.parameters.grads[grad2], grad2_expected
     )
     assert_tensors_equal["almost"](
-        model.parameters.grads[graph.nodes[0].inputs[2]], grad3_expected
+        model.parameters.grads[grad3], grad3_expected
     )
 
 
@@ -94,7 +98,7 @@ def test_CONCAT_1() raises:
 
     comptime graph = create_graph_concat(t1_shape, t2_shape, t3_shape, dim=1)
     var model = Model[graph]()
-    var res = model.forward(t1, t2, t3)
+    ref res = model.forward(t1.copy(), t2.copy(), t3.copy())
     assert_tensors_equal["almost"](res, expected)
 
     # BACKWARD
@@ -109,7 +113,7 @@ def test_CONCAT_1() raises:
                 else:
                     ug[i * 7 * 5 + j * 5 + k] = 3.0
 
-    model.backward(ug)
+    model.backward(ug.copy())
 
     var grad1_expected = Tensor[dtype](t1_shape)
     var grad2_expected = Tensor[dtype](t2_shape)
@@ -118,15 +122,19 @@ def test_CONCAT_1() raises:
     fill(grad2_expected, 2.0)
     fill(grad3_expected, 3.0)
 
+    comptime grad1 = graph.nodes[0].inputs[0]
+    comptime grad2 = graph.nodes[0].inputs[1]
+    comptime grad3 = graph.nodes[0].inputs[2]
+
     # Extracting the gradients
     assert_tensors_equal["almost"](
-        model.parameters.grads[graph.nodes[0].inputs[0]], grad1_expected
+        model.parameters.grads[grad1], grad1_expected
     )
     assert_tensors_equal["almost"](
-        model.parameters.grads[graph.nodes[0].inputs[1]], grad2_expected
+        model.parameters.grads[grad2], grad2_expected
     )
     assert_tensors_equal["almost"](
-        model.parameters.grads[graph.nodes[0].inputs[2]], grad3_expected
+        model.parameters.grads[grad3], grad3_expected
     )
 
 
@@ -155,7 +163,7 @@ def test_CONCAT_2() raises:
 
     comptime graph = create_graph_concat(t1_shape, t2_shape, t3_shape, dim=2)
     var model = Model[graph]()
-    var res = model.forward(t1, t2, t3)
+    ref res = model.forward(t1.copy(), t2.copy(), t3.copy())
     assert_tensors_equal["almost"](res, expected)
 
     # BACKWARD
@@ -170,7 +178,7 @@ def test_CONCAT_2() raises:
                 else:
                     ug[i * 3 * 6 + j * 6 + k] = 3.0
 
-    model.backward(ug)
+    model.backward(ug.copy())
 
     var grad1_expected = Tensor[dtype](t1_shape)
     var grad2_expected = Tensor[dtype](t2_shape)
@@ -179,20 +187,24 @@ def test_CONCAT_2() raises:
     fill(grad2_expected, 2.0)
     fill(grad3_expected, 3.0)
 
+    comptime grad1 = graph.nodes[0].inputs[0]
+    comptime grad2 = graph.nodes[0].inputs[1]
+    comptime grad3 = graph.nodes[0].inputs[2]
+
     assert_tensors_equal["almost"](
-        model.parameters.grads[graph.nodes[0].inputs[0]], grad1_expected
+        model.parameters.grads[grad1], grad1_expected
     )
     assert_tensors_equal["almost"](
-        model.parameters.grads[graph.nodes[0].inputs[1]], grad2_expected
+        model.parameters.grads[grad2], grad2_expected
     )
     assert_tensors_equal["almost"](
-        model.parameters.grads[graph.nodes[0].inputs[2]], grad3_expected
+        model.parameters.grads[grad3], grad3_expected
     )
 
 
 def test_SPLIT_0() raises:
     comptime t_shape = TensorShape(4, 5, 6)
-    comptime sections = List[Int](1, 2, 1)
+    comptime sections: List[Int] = [1, 2, 1]
 
     var t: Tensor[dtype] = Tensor[dtype](t_shape)
     for i in range(4):
@@ -214,7 +226,7 @@ def test_SPLIT_0() raises:
 
     comptime graph = create_graph_split(t_shape, sections, dim=0)
     var model = Model[graph]()
-    var results = model.inference(t)
+    var results = model.inference(t.copy())
 
     assert_tensors_equal["almost"](results[0], expected1)
     assert_tensors_equal["almost"](results[1], expected2)
@@ -228,7 +240,7 @@ def test_SPLIT_0() raises:
     fill(ug2, 2.0)
     fill(ug3, 3.0)
 
-    model.backward(ug1, ug2, ug3)
+    model.backward(ug1.copy(), ug2.copy(), ug3.copy())
 
     var grad_expected = Tensor[dtype](t_shape)
     for i in range(4):
@@ -241,14 +253,15 @@ def test_SPLIT_0() raises:
                 else:
                     grad_expected[i * 5 * 6 + j * 6 + k] = 3.0
 
+    comptime grad = graph.nodes[0].inputs[0]
     assert_tensors_equal["almost"](
-        model.parameters.grads[graph.nodes[0].inputs[0]], grad_expected
+        model.parameters.grads[grad], grad_expected
     )
 
 
 def test_SPLIT_1() raises:
     comptime t_shape = TensorShape(4, 5, 6)
-    comptime sections = List[Int](1, 3, 1)
+    comptime sections: List[Int] = [1, 3, 1]
 
     var t: Tensor[dtype] = Tensor[dtype](t_shape)
     for i in range(4):
@@ -270,7 +283,7 @@ def test_SPLIT_1() raises:
 
     comptime graph = create_graph_split(t_shape, sections, dim=1)
     var model = Model[graph]()
-    var results = model.inference(t)
+    var results = model.inference(t.copy())
 
     assert_tensors_equal["almost"](results[0], expected1)
     assert_tensors_equal["almost"](results[1], expected2)
@@ -284,7 +297,7 @@ def test_SPLIT_1() raises:
     fill(ug2, 2.0)
     fill(ug3, 3.0)
 
-    model.backward(ug1, ug2, ug3)
+    model.backward(ug1.copy(), ug2.copy(), ug3.copy())
 
     var grad_expected = Tensor[dtype](t_shape)
     for i in range(4):
@@ -297,14 +310,15 @@ def test_SPLIT_1() raises:
                 else:
                     grad_expected[i * 5 * 6 + j * 6 + k] = 3.0
 
+    comptime grad = graph.nodes[0].inputs[0]
     assert_tensors_equal["almost"](
-        model.parameters.grads[graph.nodes[0].inputs[0]], grad_expected
+        model.parameters.grads[grad], grad_expected
     )
 
 
 def test_SPLIT_2() raises:
     comptime t_shape = TensorShape(4, 5, 6)
-    comptime sections = List[Int](1, 4, 1)
+    comptime sections: List[Int] = [1, 4, 1]
 
     var t: Tensor[dtype] = Tensor[dtype](t_shape)
     for i in range(4):
@@ -326,7 +340,7 @@ def test_SPLIT_2() raises:
 
     comptime graph = create_graph_split(t_shape, sections, dim=2)
     var model = Model[graph]()
-    var results = model.inference(t)
+    var results = model.inference(t.copy())
 
     assert_tensors_equal["almost"](results[0], expected1)
     assert_tensors_equal["almost"](results[1], expected2)
@@ -340,7 +354,7 @@ def test_SPLIT_2() raises:
     fill(ug2, 2.0)
     fill(ug3, 3.0)
 
-    model.backward(ug1, ug2, ug3)
+    model.backward(ug1.copy(), ug2.copy(), ug3.copy())
 
     var grad_expected = Tensor[dtype](t_shape)
     for i in range(4):
@@ -353,8 +367,9 @@ def test_SPLIT_2() raises:
                 else:
                     grad_expected[i * 5 * 6 + j * 6 + k] = 3.0
 
+    comptime grad = graph.nodes[0].inputs[0]
     assert_tensors_equal["almost"](
-        model.parameters.grads[graph.nodes[0].inputs[0]], grad_expected
+        model.parameters.grads[grad], grad_expected
     )
 
 

@@ -109,7 +109,7 @@ def main():
                 correct += 1
 
     print("Accuracy: ", correct / train_data.data.dim(0) * 100, "%")
-    print("Testing finished: ", (now() - start) / 1e9, "seconds")
+    print("Testing finished: ", Float64(now() - start) / 1e9, "seconds")
 
     # model.print_perf_metrics("ms", True)
 

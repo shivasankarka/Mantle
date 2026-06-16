@@ -12,7 +12,7 @@ from basalt import seed, dtype
 from basalt import Tensor, TensorShape
 
 
-struct Graph(Copyable, Movable):
+struct Graph(Copyable, ImplicitlyCopyable, Movable):
     var inputs: List[Symbol]
     var params: ParamDict
     var nodes: List[Node]
@@ -28,13 +28,21 @@ struct Graph(Copyable, Movable):
         self.loss_out = None
         self.symbol_count = 0
 
-    def __init__(out self, *, deinit take: Graph):
+    def __init__(out self, *, deinit take: Self):
         self.inputs = take.inputs^
         self.params = take.params^
         self.nodes = take.nodes^
         self.outputs = take.outputs^
         self.loss_out = take.loss_out
         self.symbol_count = take.symbol_count
+
+    def __init__(out self, *, copy: Self):
+        self.inputs = copy.inputs.copy()
+        self.params = copy.params.copy()
+        self.nodes = copy.nodes.copy()
+        self.outputs = copy.outputs.copy()
+        self.loss_out = copy.loss_out
+        self.symbol_count = copy.symbol_count
 
     def create_symbol(
         mut self,

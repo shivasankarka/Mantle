@@ -15,7 +15,7 @@ from basalt.utils.tensor_creation_utils import to_numpy, to_tensor
 # assert_tensors_equal["$3"]($1, $2)
 def assert_tensors_equal[
     mode: String = "exact", msg: String = "Error"
-](t1: Tensor[dtype], t2: Tensor[dtype]) raises:
+](ref t1: Tensor[dtype], ref t2: Tensor[dtype]) raises:
     comptime assert mode == "exact" or mode == "almost", "Mode must be either 'exact' or 'almost'"
 
     assert_equal(t1.shape(), t2.shape(), "Tensor shape mismatch")

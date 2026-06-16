@@ -1,19 +1,13 @@
 from std.collections.optional import Optional, OptionalReg
 from std.pathlib import Path
-from std.os.env import getenv
 
 from basalt import Graph, Symbol, Tensor, TensorShape
 from basalt.autograd.ops import forward_op, backward_op
 from basalt.utils.collection import Collection
 from basalt.utils.tensorutils import fill
 from .initializers import initialize_tensor
-from basalt.utils.perf_utils import PerfMetrics
 from basalt.utils.onnx_utils import load_onnx_model, export_onnx_model
 
-
-# When runing mojo -D DEBUG=1 -I . file, a crash happens at some point at runtime because of an error in linking it seems (because of using -I .)
-# For now it seems one has to change this variable manually to be able to run model with performance metrics.
-comptime DEBUG = getenv(name="DEBUG", default="0")
 
 # TODO: remove when ability to concatenate graphs (modules)
 def dv_contains(dv: List[Symbol], symbol: Symbol) -> Bool:
@@ -48,19 +42,12 @@ struct Parameters:
 
 struct Model[
     g: Graph,
-    n_inference_nodes: OptionalReg[Int] = n_inference_nodes(g),
+    n_inference_nodes: OptionalReg[Int] = OptionalReg[Int](len(g.nodes)),
 ]():
     var parameters: Parameters
-    var perf_metrics: PerfMetrics
 
     def __init__(out self, inference_only: Bool = False):
         self.parameters = Parameters()
-        var graph = materialize[Self.g]()
-
-        comptime if DEBUG == "1":
-            self.perf_metrics = PerfMetrics(graph)
-        else:
-            self.perf_metrics = PerfMetrics()
 
         self.allocate_tensor_memory()
         self.allocate_grad_memory()
@@ -108,32 +95,38 @@ struct Model[
         # 2. Return outputs from allocated output memory
         # TODO: known copies (reference?)
         var outputs = List[Tensor[dtype]]()
-        var graph = materialize[Self.g]()
-        for i in range(len(graph.outputs)):
-            outputs.append(self.parameters.tensors[graph.outputs[i]].copy())
+        comptime for i in range(len(Self.g.outputs)):
+            comptime sym = Self.g.outputs[i]
+            outputs.append(self.parameters.tensors[sym].copy())
         return outputs^
 
     def execute[
         num_nodes: Int
     ](mut self, t_input: VariadicList[Tensor[dtype], _]):
         # 1. Write inputs to allocated input memory
-        var graph = materialize[Self.g]()
-        for i in range(len(graph.inputs)):
-            self.parameters.tensors[graph.inputs[i]] = t_input[i].copy()
+        comptime for i in range(len(Self.g.inputs)):
+            comptime sym = Self.g.inputs[i]
+            self.parameters.tensors[sym] = t_input[i].copy()
 
         # 2. Loop over all nodes and execute forward operations
         comptime for i in range(num_nodes):
             comptime op = Self.g.nodes[i].operator
             comptime attrs = Self.g.nodes[i].attributes
 
-            # Save start time for performance metrics
-            comptime if DEBUG == "1":
-                self.perf_metrics.start_forward_pass()
-
             comptime if op.dynamic:
+                comptime num_inputs = len(Self.g.nodes[i].inputs)
+                comptime num_outputs = len(Self.g.nodes[i].outputs)
+                var dyn_inputs = List[Symbol]()
+                var dyn_outputs = List[Symbol]()
+                comptime for j in range(num_inputs):
+                    comptime sym = Self.g.nodes[i].inputs[j]
+                    dyn_inputs.append(materialize[sym]())
+                comptime for j in range(num_outputs):
+                    comptime sym = Self.g.nodes[i].outputs[j]
+                    dyn_outputs.append(materialize[sym]())
                 forward_op[op, attrs](
-                    graph.nodes[i].inputs,
-                    graph.nodes[i].outputs,
+                    dyn_inputs,
+                    dyn_outputs,
                     self.parameters,
                 )
             else:
@@ -167,28 +160,25 @@ struct Model[
                         self.parameters.tensors[t3],
                     )
 
-            # Save end time for performance metrics
-            comptime if DEBUG == "1":
-                self.perf_metrics.end_forward_pass(i)
-
     def backward(mut self, *upper_grads: Tensor[dtype]):
         """
         Main entrypoint of backward pass.
         """
-        var graph = materialize[Self.g]()
         # 1. Initialize output gradient at the beginning of the backward pass
         if len(upper_grads) == 0:
             # TODO remove loss_out tag
             fill(self.parameters.grads[Self.g.loss_out.value()], 1.0)
         else:
-            var node_outputs = graph.nodes[len(graph.nodes) - 1].outputs.copy()
-            if len(upper_grads) != len(node_outputs):
+            comptime last = len(Self.g.nodes) - 1
+            comptime num_last_outputs = len(Self.g.nodes[last].outputs)
+            if len(upper_grads) != num_last_outputs:
                 print(
                     "[WARNING] Number of upper grads does not match number of"
                     " node outputs!"
                 )
-            for i in range(len(node_outputs)):
-                self.parameters.grads[node_outputs[i]] = upper_grads[i].copy()
+            comptime for i in range(num_last_outputs):
+                comptime sym = Self.g.nodes[last].outputs[i]
+                self.parameters.grads[sym] = upper_grads[i].copy()
 
         # 2. Loop over all nodes in reverse order and execute backward operations
         comptime for i in range(len(Self.g.nodes)):
@@ -197,19 +187,24 @@ struct Model[
             comptime attrs = Self.g.nodes[reverse_i].attributes
             comptime num_operands = len(Self.g.nodes[reverse_i].inputs)
 
-            # Save start time for performance metrics
-            comptime if DEBUG == "1":
-                self.perf_metrics.start_backward_pass()
-
             comptime if op.dynamic:
                 comptime for j in range(num_operands):
                     comptime if Self.g.nodes[reverse_i].inputs[j].trainable:
+                        comptime num_inputs = len(Self.g.nodes[reverse_i].inputs)
+                        comptime num_outputs = len(Self.g.nodes[reverse_i].outputs)
+                        var dyn_inputs = List[Symbol]()
+                        var dyn_outputs = List[Symbol]()
+                        comptime for k in range(num_inputs):
+                            comptime sym = Self.g.nodes[reverse_i].inputs[k]
+                            dyn_inputs.append(materialize[sym]())
+                        comptime for k in range(num_outputs):
+                            comptime sym = Self.g.nodes[reverse_i].outputs[k]
+                            dyn_outputs.append(materialize[sym]())
+                        comptime input_sym = Self.g.nodes[reverse_i].inputs[j]
                         backward_op[j, op, attrs](
-                            graph.nodes[reverse_i].inputs,
-                            graph.nodes[reverse_i].outputs,
-                            self.parameters.grads[
-                                graph.nodes[reverse_i].inputs[j]
-                            ],
+                            dyn_inputs,
+                            dyn_outputs,
+                            self.parameters.grads[input_sym],
                             self.parameters,
                         )
             else:
@@ -320,73 +315,76 @@ struct Model[
                             ],  # grad to be updated: inputs[2]
                         )
 
-            # Save end time for performance metrics
-            comptime if DEBUG == "1":
-                self.perf_metrics.end_backward_pass(i)
-
     def allocate_tensor_memory(mut self):
-        var graph = materialize[Self.g]()
-        for i in range(len(graph.inputs)):
+        comptime for i in range(len(Self.g.inputs)):
+            comptime sym = Self.g.inputs[i]
             self.parameters.tensors.append(
-                Tensor[dtype](graph.inputs[i].shape), graph.inputs[i]
+                Tensor[dtype](sym.shape), sym
             )
 
-        for i in range(len(graph.params)):
-            var p = graph.params.symbols[i]
-            var p_init = graph.params.values[i].copy()
+        comptime for i in range(len(Self.g.params)):
+            comptime p = Self.g.params.symbols[i]
+            comptime p_init = Self.g.params.values[i]
 
             var par: Tensor[dtype]
-            if p_init.initializer:
+            comptime if p_init.initializer:
                 # 1. Specific parameter initialization defined
-                var initializer_attr = p_init.initializer.value()
+                comptime initializer_attr = p_init.initializer.value()
+                comptime init_type = initializer_attr.to_string()
+                comptime init_data = p_init.data.value()
+                comptime init_arg0 = init_data[0]
+                comptime init_arg1 = init_data[1]
+                var init_args = List[Scalar[dtype]]()
+                init_args.append(materialize[init_arg0]())
+                init_args.append(materialize[init_arg1]())
                 par = initialize_tensor(
                     shape=p.shape,
-                    type=initializer_attr.to_string(),
-                    data=p_init.data.value(),
+                    type=init_type,
+                    data=init_args,
                 )
             elif p_init.data:
                 # 2. Parameter initialized with data only
-                # Data is assumed to contain the tensor
-                par = graph.params.get_tensor(i).copy()
+                # Data-initialized params require a runtime tensor load path.
+                par = Tensor[dtype](p.shape)
             else:
                 # Default parameter initialization to zero
                 par = Tensor[dtype](p.shape)
 
             self.parameters.tensors.append(par^, p)
 
-        for i in range(len(graph.nodes)):
+        comptime for i in range(len(Self.g.nodes)):
             # Assumption: An input or a param cannot be an output of a node
-            for j in range(len(graph.nodes[i].outputs)):
+            comptime for j in range(len(Self.g.nodes[i].outputs)):
+                comptime sym = Self.g.nodes[i].outputs[j]
                 self.parameters.tensors.append(
-                    Tensor[dtype](graph.nodes[i].outputs[j].shape),
-                    graph.nodes[i].outputs[j],
+                    Tensor[dtype](sym.shape),
+                    sym,
                 )
 
     def allocate_grad_memory(mut self):
         # Gradient have same shape as the tensor
-        var graph = materialize[Self.g]()
-        for i in range(len(graph.inputs)):
-            if graph.inputs[i].trainable:
+        comptime for i in range(len(Self.g.inputs)):
+            comptime sym = Self.g.inputs[i]
+            comptime if sym.trainable:
                 self.parameters.grads.append(
-                    Tensor[dtype](graph.inputs[i].shape), graph.inputs[i]
+                    Tensor[dtype](sym.shape), sym
                 )
 
-        for i in range(len(graph.params)):
-            var grad = graph.params.symbols[i]
-            if grad.trainable:
+        comptime for i in range(len(Self.g.params)):
+            comptime grad = Self.g.params.symbols[i]
+            comptime if grad.trainable:
                 self.parameters.grads.append(Tensor[dtype](grad.shape), grad)
 
-        for i in range(len(graph.nodes)):
-            for j in range(len(graph.nodes[i].outputs)):
-                var out = graph.nodes[i].outputs[j]
-                if out.trainable:
+        comptime for i in range(len(Self.g.nodes)):
+            comptime for j in range(len(Self.g.nodes[i].outputs)):
+                comptime out = Self.g.nodes[i].outputs[j]
+                comptime if out.trainable:
                     self.parameters.grads.append(Tensor[dtype](out.shape), out)
 
     def print_perf_metrics(
         self, time_format: String = "ns", print_shape: Bool = False
     ):
-        self.perf_metrics.print_forward_perf_metrics(time_format, print_shape)
-        self.perf_metrics.print_backward_perf_metrics(time_format, print_shape)
+        pass
 
     def load_model_data(mut self, model_path: String):
         var path = Path(model_path)
