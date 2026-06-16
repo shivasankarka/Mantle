@@ -2,8 +2,7 @@ from basalt import Tensor, TensorShape
 
 # I don't know what's the shape doing yet and why there's no initializer
 
-@register_passable("trivial")
-struct Symbol(ImplicitlyCopyable, Movable, Stringable, EqualityComparable):
+struct Symbol(ImplicitlyCopyable, Movable, Writable, Equatable, TrivialRegisterPassable):
     var name: UInt32 # name of the symbol
     var dtype: DType
     var shape: TensorShape

@@ -1,5 +1,5 @@
-from collections.optional import Optional
-from memory import UnsafePointer
+from std.collections.optional import Optional
+from std.memory import UnsafePointer
 
 from basalt import dtype
 from basalt import Tensor, TensorShape
@@ -7,7 +7,8 @@ from .symbol import Symbol
 from .attributes import Attribute
 
 
-struct Param(ImplicitlyCopyable, Movable, Stringable):
+struct Param(Copyable, Movable, Writable):
+
     var data: Optional[List[Scalar[dtype]]]
     var initializer: Optional[Attribute]
 
@@ -20,7 +21,9 @@ struct Param(ImplicitlyCopyable, Movable, Stringable):
         self.initializer = None
 
     def __init__(out self, data: Scalar[dtype]):
-        self.data = List[Scalar[dtype]](data)
+        var data_list = List[Scalar[dtype]]()
+        data_list.append(data)
+        self.data = data_list^
         self.initializer = None
 
     def __init__(out self, initializer: String, *args: Scalar[dtype]):

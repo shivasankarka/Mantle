@@ -1,5 +1,5 @@
-from collections.optional import Optional
-from utils.variant import Variant
+from std.collections.optional import Optional
+from std.utils.variant import Variant
 
 from basalt.autograd import Symbol
 from basalt.autograd.ops import OP
@@ -7,7 +7,7 @@ from basalt.autograd.ops import OP
 from .attributes import AttributeVector
 
 
-struct Node(Copyable, Movable, Stringable):
+struct Node(Copyable, Movable, Writable):
     var operator: OP
     var inputs: List[Symbol]
     var outputs: List[Symbol]
