@@ -24,9 +24,7 @@ def calculate_block[
 
             def inner_n[
                 nelts: Int
-            ](n: Int) {
-                mut acc, read t1, read t2, read acc, read bm, read bn, read k
-            }:
+            ](n: Int) {mut acc, read t1, read t2, read bm, read bn, read k}:
                 acc.store(
                     m * BLOCK_N + n,
                     SIMD[dtype, nelts](t1[(bm + m) * K + k]).fma(
@@ -42,15 +40,14 @@ def calculate_block[
 
         def vec_store[
             nelts: Int
-        ](n: Int) {mut res, read acc, read bm, read bn, read m, read n}:
+        ](n: Int) {mut res, read acc, read bm, read bn, read m}:
             res.store(
                 (bm + m) * N + (bn + n), acc.load[width=nelts](m * BLOCK_N + n)
             )
 
-        vectorize[vec_store, nelts](BLOCK_N)
+        vectorize[nelts](BLOCK_N, vec_store)
 
 
-@parameter
 @always_inline
 def dot[
     t1_shape: TensorShape, t2_shape: TensorShape
@@ -58,14 +55,13 @@ def dot[
     dot[t1_shape, t2_shape](res.data(), t1.data(), t2.data())
 
 
-@parameter
 @always_inline
 def dot[
     t1_shape: TensorShape, t2_shape: TensorShape
 ](
-    res: UnsafePointer[Scalar[dtype]],
-    t1: UnsafePointer[Scalar[dtype]],
-    t2: UnsafePointer[Scalar[dtype]],
+    res: UnsafePointer[Scalar[dtype], _],
+    t1: UnsafePointer[Scalar[dtype], _],
+    t2: UnsafePointer[Scalar[dtype], _],
 ):
     comptime M = t1_shape[0]  # t1[0]
     comptime K = t1_shape[1]  # t1[1], t2[0]
@@ -125,9 +121,9 @@ def dot[
 def dot_transpose_t2[
     A_shape: TensorShape, B_shape: TensorShape
 ](
-    mut C: UnsafePointer[Scalar[dtype]],
-    A: UnsafePointer[Scalar[dtype]],
-    B: UnsafePointer[Scalar[dtype]],
+    mut C: UnsafePointer[Scalar[dtype], _],
+    A: UnsafePointer[Scalar[dtype], _],
+    B: UnsafePointer[Scalar[dtype], _],
 ):
     dot[A_shape, TensorShape(B_shape[1], B_shape[0])](
         C, A, transpose_2D[B_shape](B)
