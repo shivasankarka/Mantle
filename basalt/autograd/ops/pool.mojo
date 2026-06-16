@@ -1,4 +1,4 @@
-from utils.numerics import min_or_neg_inf
+from std.utils.numerics import min_or_neg_inf
 
 from basalt import Tensor, TensorShape
 from basalt.autograd.attributes import AttributeVector

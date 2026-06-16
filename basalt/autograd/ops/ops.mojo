@@ -37,8 +37,7 @@ from ..attributes import AttributeVector
 
 
 # Define operators as named parameter expression
-@register_passable("trivial")
-struct OP(Stringable, Writable):
+struct OP(Writable, TrivialRegisterPassable):
     """
     Compile time Operators list.
     """
@@ -236,8 +235,7 @@ def forward_op[
     Forward pass for unary operators.
     """
 
-    @parameter
-    if op == OP.EXP:
+    comptime if op == OP.EXP:
         EXP.forward[t1_shape](res, t1)
     elif op == OP.LOG:
         LOG.forward[t1_shape](res, t1)
@@ -285,8 +283,7 @@ def forward_op[
     Forward pass for binary operators.
     """
 
-    @parameter
-    if op == OP.ADD:
+    comptime if op == OP.ADD:
         ADD.forward[t1_shape, t2_shape](res, t1, t2)
     elif op == OP.SUB:
         SUB.forward[t1_shape, t2_shape](res, t1, t2)
@@ -318,8 +315,7 @@ def forward_op[
     Forward pass for ternary operators.
     """
 
-    @parameter
-    if op == OP.CONV2D:
+    comptime if op == OP.CONV2D:
         CONV2D.forward[t1_shape, t2_shape, t3_shape, attributes](
             res, t1, t2, t3
         )
@@ -356,8 +352,7 @@ def backward_op[
     """
     var res_grad: Tensor[dtype]
 
-    @parameter
-    if op == OP.EXP:
+    comptime if op == OP.EXP:
         res_grad = EXP.backward[ug_shape, t1_shape](ug, t1)
     elif op == OP.LOG:
         res_grad = LOG.backward[ug_shape, t1_shape](ug, t1)
@@ -416,8 +411,7 @@ def backward_op[
     """
     var res_grad: Tensor[dtype]
 
-    @parameter
-    if op == OP.ADD:
+    comptime if op == OP.ADD:
         res_grad = ADD.backward[tensor_id, ug_shape, t1_shape, t2_shape](
             ug, t1, t2
         )
@@ -448,8 +442,7 @@ def backward_op[
     def broadcastable(op: OP) -> Bool:
         return op == OP.ADD or op == OP.SUB or op == OP.MUL or op == OP.DIV
 
-    @parameter
-    if broadcastable(op):
+    comptime if broadcastable(op):
         accumulate_grad[
             grad_shape=t1_shape if tensor_id == 0 else t2_shape,
             res_grad_shape=broadcast_shapes(t1_shape, t2_shape),
@@ -478,8 +471,7 @@ def backward_op[
     """
     var res_grad: Tensor[dtype]
 
-    @parameter
-    if op == OP.CONV2D:
+    comptime if op == OP.CONV2D:
         res_grad = CONV2D.backward[
             tensor_id, ug_shape, t1_shape, t2_shape, t3_shape, attributes
         ](ug, t1, t2, t3)
