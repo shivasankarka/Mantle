@@ -1,7 +1,7 @@
-from math import log, exp
-from algorithm import vectorize
-from memory import memcpy
-from utils.numerics import isinf
+from std.math import log, exp
+from std.algorithm import vectorize
+from std.memory import memcpy
+from std.utils.numerics import isinf
 
 from basalt import Tensor, TensorShape
 from basalt.nn.tensor import MAX_RANK
@@ -70,8 +70,7 @@ struct SUB:
 
         # d(x - y) / dx = 1
         # d(x - y) / dy = -1
-        @parameter
-        if tensor_id == 0:
+        comptime if tensor_id == 0:
             return ug
         else:
             var res_grad = Tensor[dtype](ug_shape)
@@ -106,8 +105,7 @@ struct MUL:
 
         # d(x * y) / dx = y
         # d(x * y) / dy = x
-        @parameter
-        if tensor_id == 0:
+        comptime if tensor_id == 0:
             var res_grad = Tensor[dtype](ug_shape)
             elwise_op[ug_shape, t2_shape, mul](res_grad, ug, t2)
             return res_grad ^
@@ -143,8 +141,7 @@ struct DIV:
         # d(x/y) / dx = 1/y
         # d(x/y) / dy = -x/y^2
 
-        @parameter
-        if tensor_id == 0:
+        comptime if tensor_id == 0:
             var res_grad = Tensor[dtype](ug_shape)
             elwise_op[ug_shape, t2_shape, div](res_grad, ug, t2)
             return res_grad ^
@@ -153,25 +150,22 @@ struct DIV:
             comptime is_scalar = (t2_shape == TensorShape(1))
             var res_grad = Tensor[dtype](ug_shape)
 
-            @parameter
-            if is_scalar:
+            comptime if is_scalar:
                 var factor: Scalar[dtype] = -1.0 / (t2[0] ** 2)
 
-                @parameter
-                def vec_div_bw_scalar[nelts: Int](i: Int):
+                def vec_div_bw_scalar[nelts: Int](i: Int) {mut res_grad, read ug, read t1, read t2, read factor}:
                     res_grad.store[nelts](
                         i, factor * t1.load[nelts](i) * ug.load[nelts](i)
                     )
 
-                vectorize[vec_div_bw_scalar, nelts](ug_shape.num_elements())
+                vectorize[nelts](ug_shape.num_elements(), vec_div_bw_scalar)
 
             elif broadcast and not is_scalar:
                 comptime size = ug_shape.rank()
                 comptime strides1 = broadcast_calculate_strides[size, t1_shape, ug_shape]()
                 comptime strides2 = broadcast_calculate_strides[size, t2_shape, ug_shape]()
 
-                @parameter
-                def vec_div_bw_broadcast[netls: Int](i: Int):
+                def vec_div_bw_broadcast[netls: Int](i: Int) {mut res_grad, read ug, read t1, read t2, read strides1, read strides2}:
                     var index1 = get_real_index[size, strides1, ug_shape](i)
                     var index2 = get_real_index[size, strides2, ug_shape](i)
                     res_grad.store[nelts](
@@ -181,12 +175,11 @@ struct DIV:
                         * ug.load[nelts](i),
                     )
 
-                vectorize[vec_div_bw_broadcast, 1](ug_shape.num_elements())
+                vectorize[1](ug_shape.num_elements(), vec_div_bw_broadcast)
 
             else:
 
-                @parameter
-                def vec_div_bw[nelts: Int](i: Int):
+                def vec_div_bw[nelts: Int](i: Int) {mut res_grad, read ug, read t1, read t2}:
                     res_grad.store[nelts](
                         i,
                         -t1.load[nelts](i)
@@ -194,7 +187,7 @@ struct DIV:
                         * ug.load[nelts](i),
                     )
 
-                vectorize[vec_div_bw, nelts](ug_shape.num_elements())
+                vectorize[nelts](ug_shape.num_elements(), vec_div_bw)
 
             return res_grad ^
 
@@ -224,8 +217,7 @@ struct DOT:
     ](ug: Tensor[dtype], t1: Tensor[dtype], t2: Tensor[dtype]) -> Tensor[dtype]:
         """Backward operation of dot product."""
 
-        @parameter
-        if tensor_id == 0:
+        comptime if tensor_id == 0:
             # dot(ug, t2.T)
             var res_grad = Tensor[dtype](t1_shape)
             dot_transpose_t2[ug_shape, t2_shape](res_grad, ug, t2)
@@ -258,11 +250,10 @@ struct EXP:
         # d(exp(x)) / dx = exp(x)
         var res_grad = Tensor[dtype](ug_shape)
 
-        @parameter
-        def vec_exp_bw[nelts: Int](i: Int):
+        def vec_exp_bw[nelts: Int](i: Int) {mut res_grad, read t1, read ug}:
             res_grad.store[nelts](i, exp(t1.load[nelts](i)) * ug.load[nelts](i))
 
-        vectorize[vec_exp_bw, nelts](ug_shape.num_elements())
+        vectorize[nelts](ug_shape.num_elements(), vec_exp_bw)
         return res_grad ^
 
 
@@ -320,8 +311,7 @@ struct POW:
 
         comptime epsilon = 1e-12
 
-        @parameter
-        if tensor_id == 0:
+        comptime if tensor_id == 0:
             res_grad = Tensor[dtype](t1_shape)
 
             @parameter
@@ -334,8 +324,7 @@ struct POW:
             # Gradient of the exponent
             res_grad = Tensor[dtype](t2_shape)  # t2_shape == TensorShape(1)
 
-            @parameter
-            def vec_pow_bw_y[nelts: Int](i: Int):
+            comptime def vec_pow_bw_y[nelts: Int](i: Int):
                 # the case when the value passed to log is 0.0
                 var temp_log = log(t1.load[nelts](i))
                 var temp_log_is_inf = isinf(temp_log)
@@ -371,8 +360,7 @@ struct SUM:
 
         comptime axis = attributes["axis"]
 
-        @parameter
-        if axis:
+        comptime if axis:
             tsum(res, t, axis.value().to_int())
         else:
             res[0] = tsum(t)
@@ -417,9 +405,7 @@ struct MEAN:
         """
 
         comptime axis = attributes["axis"]
-
-        @parameter
-        if axis:
+        comptime if axis:
             tmean(res, t, axis.value().to_int())
         else:
             res[0] = tmean(t)
@@ -432,8 +418,7 @@ struct MEAN:
 
         comptime axis = attributes["axis"]
 
-        @parameter
-        if axis:
+        comptime if axis:
             return Self.backward[ug_shape, t_shape](ug, t, axis.value().to_int())
         else:
             return Self.backward[ug_shape, t_shape](ug, t)
@@ -452,11 +437,10 @@ struct MEAN:
             grad * ug[0]
         )  # because ug is a tensor of size 1 when mean is used without an axis
 
-        @parameter
-        def v_mean_d[nelts: Int](i: Int):
+        def v_mean_d[nelts: Int](i: Int) {mut res_grad, read grad}:
             res_grad.store[nelts](i, grad)
 
-        vectorize[v_mean_d, nelts](t_shape.num_elements())
+        vectorize[nelts](t_shape.num_elements(), v_mean_d)
 
         return res_grad ^
 
@@ -497,8 +481,7 @@ struct MAX:
 
         comptime axis = attributes["axis"]
 
-        @parameter
-        if axis:
+        comptime if axis:
             tmax(res, t, axis.value().to_int())
         else:
             res[0] = tmax(t)
@@ -510,8 +493,7 @@ struct MAX:
         """Backward operation of max."""
         comptime axis = attributes["axis"]
 
-        @parameter
-        if axis:
+        comptime if axis:
             return Self.backward[ug_shape, t_shape](ug, t, axis.value().to_int())
         else:
             return Self.backward[ug_shape, t_shape](ug, t)
@@ -612,8 +594,7 @@ struct TRANSPOSE:
         """
         comptime axes = attributes["axes"]
 
-        @parameter
-        if axes:
+        comptime if axes:
             var axes_shape = axes.value().to_shape()
             transpose(res, t, axes_shape)
         else:
@@ -639,8 +620,7 @@ struct TRANSPOSE:
 
         var res_grad = Tensor[dtype](t_shape)
 
-        @parameter
-        if axes:
+        comptime if axes:
 
             def create_inverse_axes() -> TensorShape:
                 var axes_shape = axes.value().to_shape()
@@ -743,13 +723,12 @@ struct FMA:
         Forward pass of the fma operation.
         """
 
-        @parameter
-        def vec_fma[nelts: Int](i: Int):
+        def vec_fma[nelts: Int](i: Int) {mut res, read t1, read t2, read t3}:
             res.store[nelts](
                 i, t1.load[nelts](i).fma(t2.load[nelts](i), t3.load[nelts](i))
             )
 
-        vectorize[vec_fma, nelts, size = t1_shape.num_elements()]()
+        vectorize[nelts, size = t1_shape.num_elements()](vec_fma)
 
     @staticmethod
     def backward[
@@ -766,8 +745,7 @@ struct FMA:
         # d(x * y + z) / dy = x
         # d(x * y + z) / dz = 1
 
-        @parameter
-        if tensor_id == 0:
+        comptime if tensor_id == 0:
             var res_grad = Tensor[dtype](ug_shape)
             elwise_op[ug_shape, t2_shape, mul](res_grad, ug, t2)
             return res_grad ^
