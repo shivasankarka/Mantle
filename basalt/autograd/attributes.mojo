@@ -1,6 +1,6 @@
-from collections import Optional, OptionalReg
-from utils.static_tuple import StaticTuple
-from utils.index import IndexList
+from std.collections import Optional, OptionalReg
+from std.utils.static_tuple import StaticTuple
+from std.utils.index import IndexList
 
 from basalt.nn.tensor import Tensor, TensorShape, MAX_RANK
 from basalt.utils.bytes import Bytes, scalar_to_bytes, bytes_to_scalar
@@ -18,8 +18,7 @@ comptime MAX_NAME_CHARS = 16
 comptime MAX_DATA_BYTES = 32
 
 
-@register_passable("trivial")
-struct AttributeType(Stringable):
+struct AttributeType(Writable, TrivialRegisterPassable):
     comptime BOOL = AttributeType(0, "BOOL")
     comptime INT = AttributeType(1, "INT")
     comptime FLOAT = AttributeType(2, "FLOAT")
@@ -49,8 +48,7 @@ struct AttributeType(Stringable):
         return String(self.name)
 
 
-@register_passable("trivial")
-struct AttributeVector(Sized, Stringable, Copyable, Movable):
+struct AttributeVector(Sized, Writable, Copyable, Movable, TrivialRegisterPassable):
     var attributes: StaticTuple[Attribute, MAX_ATTRS]
     var size: Int
 
@@ -84,8 +82,7 @@ struct AttributeVector(Sized, Stringable, Copyable, Movable):
         return s + "]"
 
 
-@register_passable("trivial")
-struct Attribute(Stringable, Copyable, Movable):
+struct Attribute(Writable, Copyable, Movable, TrivialRegisterPassable):
     var data_shape: IndexList[MAX_RANK]
     var name: Bytes[MAX_NAME_CHARS]
     var data: Bytes[MAX_DATA_BYTES]
@@ -97,7 +94,7 @@ struct Attribute(Stringable, Copyable, Movable):
         self.name = Bytes[MAX_NAME_CHARS](name)
         self.data = Bytes[MAX_DATA_BYTES](value)
         self.type = AttributeType.STRING
-        self.size = len(value)
+        self.size = value.byte_length() # check if it should be byte_length or codepoints.
 
     def __init__(out self, name: String, value: TensorShape):
         self.data_shape = IndexList[MAX_RANK]()
@@ -110,8 +107,7 @@ struct Attribute(Stringable, Copyable, Movable):
             self.data_shape[i] = value._shape[i]
 
     def __init__[N: Int](out self, name: String, value: IndexList[N]):
-        constrained[N < MAX_RANK, "Attribute rank must be less than MAX_RANK."]()
-
+        comptime assert N < MAX_RANK, "Attribute rank must be less than MAX_RANK."
         self.data_shape = IndexList[MAX_RANK]()
         self.name = Bytes[MAX_NAME_CHARS](name)
         self.data = Bytes[MAX_DATA_BYTES]()
@@ -142,7 +138,7 @@ struct Attribute(Stringable, Copyable, Movable):
             self.data_shape[i] = value[i]
 
     def __init__[dtype: DType](out self, name: String, value: Scalar[dtype]):
-        constrained[dtype.is_numeric(), "Attribute value must be numeric."]()
+        comptime assert dtype.is_numeric(), "Attribute value must be numeric."
 
         self.data_shape = IndexList[MAX_RANK]()
         self.name = Bytes[MAX_NAME_CHARS](name)
@@ -173,7 +169,7 @@ struct Attribute(Stringable, Copyable, Movable):
         for i in range(self.size):
             result.append(self.data_shape[i])
 
-        return result
+        return result^
 
     @always_inline("nodebug")
     def to_shape(self) -> TensorShape:
@@ -181,10 +177,9 @@ struct Attribute(Stringable, Copyable, Movable):
 
     @always_inline("nodebug")
     def to_static[N: Int](self) -> IndexList[N]:
-        constrained[N < MAX_RANK, "Attribute rank must be less than MAX_RANK."]()
+        comptime assert N < MAX_RANK, "Attribute rank must be less than MAX_RANK."
 
         var result = IndexList[N]()
-
         for i in range(N):
             result[i] = Int(self.data_shape[i])
 
@@ -192,7 +187,7 @@ struct Attribute(Stringable, Copyable, Movable):
 
     @always_inline("nodebug")
     def to_scalar[dtype: DType](self) -> Scalar[dtype]:
-        constrained[dtype.is_numeric(), "Attribute value must be numeric."]()
+        comptime assert dtype.is_numeric(), "Attribute value must be numeric."
 
         return bytes_to_scalar[dtype](self.data)
 
