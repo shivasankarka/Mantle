@@ -1,7 +1,7 @@
 from std.math import sqrt
 from std.algorithm import vectorize, parallelize
 
-from .model import Parameters
+from src.utils.parameters import Parameters
 from src.autograd.graph import Graph
 from src.autograd.symbol import Symbol
 from src.nn.tensor import Tensor, TensorShape

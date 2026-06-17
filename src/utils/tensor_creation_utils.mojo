@@ -1,10 +1,13 @@
 from std.python import Python, PythonObject
 from std.memory import memcpy, UnsafePointer
 
+from src import f32
+from src.nn.tensor import Tensor, TensorShape
+
 # maybe this functions should be from the Tensor struct (like tensor.to_numpy()) and tensor.__init__(np_array: PythonObject) to create a tensor from a numpy array and tensor.copy_np_data(np_array: PythonObject) to copy the numpy array to the tensor.
 
 
-def to_numpy(tensor: Tensor) -> PythonObject:
+def to_numpy[dtype: DType](tensor: Tensor[dtype]) -> PythonObject:
     try:
         var np = Python.import_module("numpy")
 
@@ -30,18 +33,39 @@ def to_numpy(tensor: Tensor) -> PythonObject:
         return PythonObject()
 
 
-def to_tensor(np_array: PythonObject) raises -> Tensor[dtype]:
+def to_tensor(np_array: PythonObject) raises -> Tensor[f32]:
     var shape = List[Int]()
     for i in range(Int(py=np_array.ndim)):
         shape.append(Int(py=np_array.shape[i]))
     if np_array.ndim == 0:
         # When the numpy array is a scalar, you need or the reshape to a size 1 ndarray or do this, if not the memcpy gets a memory error (Maybe because it is a register value?).
-        var tensor = Tensor[dtype](TensorShape(1))
-        tensor[0] = Scalar[dtype](py=np_array)
+        var tensor = Tensor[f32](TensorShape(1))
+        tensor[0] = Scalar[f32](py=np_array)
         return tensor^
 
-    var tensor = Tensor[dtype](TensorShape(shape))
+    var tensor = Tensor[f32](TensorShape(shape))
 
+    var np_array_2: PythonObject
+    try:
+        var np = Python.import_module("numpy")
+        # copy is also necessary for ops like slices to make them contiguous instead of references.
+        np_array_2 = np.float32(np_array.copy())
+    except e:
+        np_array_2 = np_array.copy()
+        print("Error in to_tensor", e)
+
+    var pointer_d = np_array_2.__array_interface__["data"][
+        0
+    ].unsafe_get_as_pointer[f32]()
+    memcpy(dest=tensor.mut_ptr(), src=pointer_d, count=tensor.num_elements())
+
+    _ = np_array_2
+    _ = np_array
+
+    return tensor^
+
+
+def copy_np_data[dtype: DType](mut tensor: Tensor[dtype], np_array: PythonObject) raises:
     var np_array_2: PythonObject
     try:
         var np = Python.import_module("numpy")
@@ -55,28 +79,6 @@ def to_tensor(np_array: PythonObject) raises -> Tensor[dtype]:
         0
     ].unsafe_get_as_pointer[dtype]()
     memcpy(dest=tensor.mut_ptr(), src=pointer_d, count=tensor.num_elements())
-
-    _ = np_array_2
-    _ = np_array
-
-    return tensor^
-
-
-def copy_np_data(mut tensor: Tensor, np_array: PythonObject) raises:
-    var np_array_2: PythonObject
-    try:
-        var np = Python.import_module("numpy")
-        # copy is also necessary for ops like slices to make them contiguous instead of references.
-        np_array_2 = np.float32(np_array.copy())
-    except e:
-        np_array_2 = np_array.copy()
-        print("Error in to_tensor", e)
-
-    var pointer_d = np_array_2.__array_interface__["data"][
-        0
-    ].unsafe_get_as_pointer[dtype]()
-    var d = tensor.mut_ptr().bitcast[Float32]()
-    memcpy(dest=d, src=pointer_d, count=tensor.num_elements())
 
     # This shouldn't be necessary anymore, but I'm leaving it here for now.
     # _ = np_array_2

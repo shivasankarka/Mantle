@@ -3,8 +3,8 @@ from std.memory import UnsafePointer
 
 from src import f32
 from src.nn.tensor import Tensor, TensorShape
-from .symbol import Symbol
-from .attributes import Attribute
+from src.autograd.symbol import Symbol
+from src.autograd.attributes import Attribute
 
 
 struct Param(Copyable, Movable, Writable):

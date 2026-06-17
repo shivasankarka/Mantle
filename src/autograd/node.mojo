@@ -1,10 +1,9 @@
 from std.collections.optional import Optional
 from std.utils.variant import Variant
 
-from src.autograd import Symbol
+from src.autograd.symbol import Symbol
 from src.autograd.ops import OP
-
-from .attributes import AttributeVector
+from src.autograd.attributes import AttributeVector
 
 
 struct Node(Copyable, Movable, Writable):

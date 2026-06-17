@@ -6,7 +6,7 @@ from src.autograd.graph import Graph
 from src.autograd.symbol import Symbol
 from src.nn.tensor import Tensor, TensorShape
 from src.autograd.ops import forward_op, backward_op
-from src.utils.collection import Collection
+from src.utils.parameters import Parameters
 from src.utils.tensorutils import fill
 from .initializers import initialize_tensor
 from src.utils.onnx_utils import load_onnx_model, export_onnx_model
@@ -32,15 +32,6 @@ def n_inference_nodes(g: Graph) -> OptionalReg[Int]:
             if dv_contains(g.outputs, g.nodes[i].outputs[j]):
                 return i + 1
     return None
-
-
-struct Parameters:
-    var tensors: Collection
-    var grads: Collection
-
-    def __init__(out self):
-        self.tensors = Collection()
-        self.grads = Collection()
 
 
 struct Model[

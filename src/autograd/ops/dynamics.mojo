@@ -1,8 +1,8 @@
 from src import f32
 from src.autograd.symbol import Symbol
 from src.nn.tensor import Tensor, TensorShape
-from src.nn.model import Parameters
-from ..attributes import AttributeVector
+from src.utils.parameters import Parameters
+from src.autograd.attributes import AttributeVector
 
 from std.memory import memcpy
 

@@ -2,11 +2,12 @@ from std.python import Python, PythonObject
 from std.pathlib import Path
 from std.collections import Set
 
-from src.nn.model import Parameters
+from src.utils.parameters import Parameters
 from src.nn.tensor import Tensor, TensorShape
 from src.autograd.attributes import Attribute, AttributeType
 from src.autograd.ops import OP
-from src.autograd.graph import Node
+from src.autograd.node import Node
+from src.autograd.graph import Graph
 
 from .tensor_creation_utils import to_numpy, copy_np_data
 

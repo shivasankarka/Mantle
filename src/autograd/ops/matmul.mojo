@@ -2,6 +2,8 @@ from std.algorithm import vectorize, parallelize
 from std.memory import memset_zero, stack_allocation, UnsafePointer
 from std.sys.info import simd_width_of
 
+from src import f32
+from src.nn.tensor import Tensor, TensorShape
 from src.utils.tensorutils import transpose_2D
 
 

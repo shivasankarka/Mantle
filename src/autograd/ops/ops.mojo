@@ -29,11 +29,12 @@ from .dynamics import CONCAT, SPLIT
 from .conv import CONV2D
 from .pool import MAXPOOL2D
 
+from src.autograd.symbol import Symbol
 from src.nn.tensor import Tensor, TensorShape
-from src.nn.model import Parameters
+from src.utils.parameters import Parameters
 from src.utils.bytes import Bytes
 from src.utils.tensorutils import broadcast_shapes, accumulate_grad
-from ..attributes import AttributeVector
+from src.autograd.attributes import AttributeVector
 
 
 # Define operators as named parameter expression

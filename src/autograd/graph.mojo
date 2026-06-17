@@ -1,12 +1,12 @@
 from std.python.python import Python
 from std.collections.optional import Optional, OptionalReg
 
-from .node import Node
-from .attributes import AttributeVector, Attribute
-from .symbol import Symbol
-from .ops import OP, static_result_shape, dynamic_result_shape
-from .ops.dynamics import SPLIT
-from .params import ParamDict, Param
+from src.autograd.node import Node
+from src.autograd.attributes import AttributeVector, Attribute
+from src.autograd.symbol import Symbol
+from src.autograd.ops import OP, static_result_shape, dynamic_result_shape
+from src.autograd.ops.dynamics import SPLIT
+from src.autograd.params import ParamDict, Param
 
 from src import seed, f32
 from src.nn.tensor import Tensor, TensorShape
