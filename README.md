@@ -52,7 +52,21 @@ python examples/sin_estimate.py
 python examples/mnist.py
 ```
 
+Each of the three examples above also has two alternate versions showing newer,
+more PyTorch/sklearn-like ways to define a model - same training results, different
+model-definition ergonomics:
+
+```
+mojo -I . examples/housing_module.mojo       # reflection-based struct-of-layers
+mojo -I . examples/housing_sequential.mojo   # Sequential(Linear(...), ReLU(), ...)
+```
+
+(and likewise `sin_estimate_module.mojo`/`_sequential.mojo`, `mnist_module.mojo`/`_sequential.mojo`)
+
 ## Roadmap
+
+See `ROADMAP.md` for the current, detailed plan (graph-building ergonomics,
+training utilities, operator coverage). Short version below.
 
 ### v0.1.0 ✅
 - [x] Improve matrix multiplication and convolution kernels
@@ -61,6 +75,8 @@ python examples/mnist.py
 - [x] Add profiling and additional performance tests
 
 ### v0.2.0 (WIP)
+- [x] Reflection-based and `Sequential` model-building styles (see `ROADMAP.md`)
+- [ ] `fit()`-style high-level training loop
 - [ ] Add additional operators: Slice, (Un)Squeeze, Concat, Clip, Gather, Split, FMA ...
 - [ ] Better layer support and more activation functions
 - [ ] Graph submodules & graph concatenation
