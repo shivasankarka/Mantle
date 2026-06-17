@@ -3,6 +3,7 @@ from basalt import Tensor, TensorShape
 from basalt.utils import q_sqrt
 from basalt.autograd.params import Param
 from basalt.autograd.attributes import AttributeVector, Attribute
+from basalt.nn.module import Layer
 
 from std.utils.index import IndexList
 
@@ -51,3 +52,41 @@ def Conv2d(
             Attribute("dilation", dilation),
         ),
     )
+
+
+struct Conv2dLayer(Layer, Copyable, Movable):
+    """
+    `Layer`-conforming wrapper around `Conv2d`, for use in a reflection-based
+    Module struct.
+    """
+
+    var out_channels: Int
+    var kernel_size: IndexList[2]
+    var padding: IndexList[2]
+    var stride: IndexList[2]
+    var dilation: IndexList[2]
+
+    def __init__(
+        out self,
+        out_channels: Int,
+        kernel_size: IndexList[2],
+        padding: IndexList[2] = IndexList[2](0, 0),
+        stride: IndexList[2] = IndexList[2](1, 1),
+        dilation: IndexList[2] = IndexList[2](1, 1),
+    ):
+        self.out_channels = out_channels
+        self.kernel_size = kernel_size
+        self.padding = padding
+        self.stride = stride
+        self.dilation = dilation
+
+    def forward(self, mut g: Graph, input: Symbol) -> Symbol:
+        return Conv2d(
+            g,
+            input,
+            self.out_channels,
+            self.kernel_size,
+            self.padding,
+            self.stride,
+            self.dilation,
+        )
