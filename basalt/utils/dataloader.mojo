@@ -5,6 +5,65 @@ from basalt import dtype, nelts
 from basalt import Tensor, TensorShape
 
 
+def slice_rows[
+    dtype: DType
+](t: Tensor[dtype], start: Int, num_rows: Int) -> Tensor[dtype]:
+    """
+    Copies a contiguous range of leading-dimension rows out of `t`.
+
+    Args:
+        t: The tensor to slice, with the row dimension as its first axis.
+        start: Index of the first row to copy.
+        num_rows: Number of rows to copy.
+
+    Returns:
+        A new tensor of shape `(num_rows, *t.shape()[1:])` holding the
+        copied rows.
+    """
+    var row_stride = t.strides()[0]
+    var out_shape = t.shape()
+    out_shape[0] = num_rows
+
+    var out = Tensor[dtype](out_shape)
+    memcpy(
+        dest=out.mut_ptr(),
+        src=t.ptr() + start * row_stride,
+        count=num_rows * row_stride,
+    )
+    return out^
+
+
+def cycle_pad_rows[
+    dtype: DType
+](t: Tensor[dtype], num_rows: Int) -> Tensor[dtype]:
+    """
+    Builds a tensor with `num_rows` leading-dimension rows by repeatedly
+    cycling through `t`'s rows, used to pad a small held-out set up to a
+    model's fixed batch size.
+
+    Args:
+        t: The tensor to cycle through, with the row dimension as its
+            first axis.
+        num_rows: Number of rows the returned tensor should have.
+
+    Returns:
+        A new tensor of shape `(num_rows, *t.shape()[1:])`.
+    """
+    var row_stride = t.strides()[0]
+    var out_shape = t.shape()
+    out_shape[0] = num_rows
+
+    var out = Tensor[dtype](out_shape)
+    for i in range(num_rows):
+        var src_row = i % t.dim(0)
+        memcpy(
+            dest=out.mut_ptr() + i * row_stride,
+            src=t.ptr() + src_row * row_stride,
+            count=row_stride,
+        )
+    return out^
+
+
 struct Batch[dtype: DType](Copyable, Movable):
     var data: Tensor[Self.dtype]
     var labels: Tensor[Self.dtype]
