@@ -374,7 +374,7 @@ struct PaddingData:
 
         var B = generate_expected_tensor(expected, 4)
 
-        return PaddingData(A, B, pad_with)
+        return PaddingData(A^, B^, pad_with^)
 
     @staticmethod
     def generate_1d_test_case_before_after() -> PaddingData:
@@ -387,7 +387,7 @@ struct PaddingData:
 
         var B = generate_expected_tensor(expected, 6)
 
-        return PaddingData(A, B, pad_with)
+        return PaddingData(A^, B^, pad_with^)
 
     @staticmethod
     def generate_2d_test_case() -> PaddingData:
@@ -448,7 +448,7 @@ struct PaddingData:
 
         var B = generate_expected_tensor[45](expected, 5, 9)
 
-        return PaddingData(A, B, pad_with)
+        return PaddingData(A^, B^, pad_with^)
 
     @staticmethod
     def generate_3d_test_case_simple() -> PaddingData:
@@ -467,7 +467,7 @@ struct PaddingData:
 
         var B = generate_expected_tensor[16](expected, 2, 4, 2)
 
-        return PaddingData(A, B, pad_with)
+        return PaddingData(A^, B^, pad_with^)
 
     @staticmethod
     def generate_3d_test_case() -> PaddingData:
@@ -530,7 +530,7 @@ struct PaddingData:
 
         var B = generate_expected_tensor[45](expected, 3, 3, 5)
 
-        return PaddingData(A, B, pad_with)
+        return PaddingData(A^, B^, pad_with^)
 
     @staticmethod
     def generate_4d_test_case() -> PaddingData:
@@ -632,7 +632,7 @@ struct PaddingData:
 
         var B = generate_expected_tensor[81](expected, 3, 3, 3, 3)
 
-        return PaddingData(A, B, pad_with)
+        return PaddingData(A^, B^, pad_with^)
 
 
 struct SumMeanStdData:
