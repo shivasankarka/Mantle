@@ -1,6 +1,6 @@
 from std.algorithm import vectorize
 
-from basalt import dtype
+from basalt import f32
 from basalt import Tensor, TensorShape
 from basalt.utils.tensorutils import elwise_op, tmean, tstd
 
@@ -15,8 +15,8 @@ def div[
 struct BostonHousing:
     comptime n_inputs = 13
 
-    var data: Tensor[dtype]
-    var labels: Tensor[dtype]
+    var data: Tensor[f32]
+    var labels: Tensor[f32]
 
     def __init__(out self, file_path: String) raises:
         var s = open(file_path, "r").read()
@@ -28,26 +28,26 @@ struct BostonHousing:
         # Length is number of lines
         var N = len(list_of_lines)
 
-        self.data = Tensor[dtype](
+        self.data = Tensor[f32](
             N, self.n_inputs
         )  # All columns except the last one
-        self.labels = Tensor[dtype](N, 1)  # Only the last column (MEDV)
+        self.labels = Tensor[f32](N, 1)  # Only the last column (MEDV)
 
         # Load data in Tensor
         for item in range(N):
             var line = list_of_lines[item].split(",")
             # var line_strings = List[String](line)
-            self.labels[item] = cast_string[dtype](String(line[len(line) - 1]))
+            self.labels[item] = cast_string[f32](String(line[len(line) - 1]))
 
             for n in range(self.n_inputs):
-                self.data[item * self.n_inputs + n] = cast_string[dtype](
+                self.data[item * self.n_inputs + n] = cast_string[f32](
                     String(line[n])
                 )
 
         # Normalize data
         # TODO: redo when tensorutils tmean2 and tstd2 are implemented
-        comptime nelts = simd_width_of[dtype]()
-        var col = Tensor[dtype](N)
+        comptime nelts = simd_width_of[f32]()
+        var col = Tensor[f32](N)
         for j in range(self.n_inputs):
             for k in range(N):
                 col[k] = self.data[k * self.n_inputs + j]
@@ -58,8 +58,8 @@ struct BostonHousing:
 
 
 struct MNIST:
-    var data: Tensor[dtype]
-    var labels: Tensor[dtype]
+    var data: Tensor[f32]
+    var labels: Tensor[f32]
 
     def __init__(out self, file_path: String) raises:
         # var s = read_file(file_path)
@@ -71,21 +71,21 @@ struct MNIST:
 
         # Length is number of lines
         var N = len(list_of_lines)
-        self.data = Tensor[dtype](N, 1, 28, 28)
-        self.labels = Tensor[dtype](N)
+        self.data = Tensor[f32](N, 1, 28, 28)
+        self.labels = Tensor[f32](N)
 
         # Load data in Tensor
         for item in range(N):
             var line = list_of_lines[item].split(",")
-            self.labels[item] = Scalar[dtype](atol(String(line[0])))
+            self.labels[item] = Scalar[f32](atol(String(line[0])))
             for i in range(self.data.shape()[2]):
                 for j in range(self.data.shape()[3]):
-                    self.data[item * 28 * 28 + i * 28 + j] = Scalar[dtype](
+                    self.data[item * 28 * 28 + i * 28 + j] = Scalar[f32](
                         atol(String(line[i * 28 + j + 1]))
                     )
 
         # Normalize data
-        comptime nelts = simd_width_of[dtype]()
+        comptime nelts = simd_width_of[f32]()
 
         def vecdiv[nelts: Int](idx: Int) {mut self}:
             self.data.store[nelts](idx, div(self.data.load[nelts](idx), 255.0))

@@ -1,7 +1,7 @@
 from std.testing import assert_equal
 from std.memory import memcpy
 
-from basalt import dtype, nelts
+from basalt import f32, nelts
 from basalt import Tensor, TensorShape
 
 
@@ -110,8 +110,8 @@ struct Batch[dtype: DType](Copyable, Movable):
 
 
 struct DataLoader(Copyable, Movable):
-    var data: Tensor[dtype]
-    var labels: Tensor[dtype]
+    var data: Tensor[f32]
+    var labels: Tensor[f32]
     var batch_size: Int
     var _current_index: Int
     var _num_batches: Int
@@ -120,8 +120,8 @@ struct DataLoader(Copyable, Movable):
 
     def __init__(
         out self,
-        data: Tensor[dtype],
-        labels: Tensor[dtype],
+        data: Tensor[f32],
+        labels: Tensor[f32],
         batch_size: Int,
     ):
         self.data = data.copy()
@@ -151,13 +151,13 @@ struct DataLoader(Copyable, Movable):
         # Does this mean that the whole dataset is copied every epoch ?!
         return self.copy()
 
-    def __next__(mut self) raises StopIteration -> Batch[dtype]:
+    def __next__(mut self) raises StopIteration -> Batch[f32]:
         if self._num_batches <= 0:
             raise StopIteration()
         var temp_current_index = self._current_index
         self._current_index += self.batch_size
         self._num_batches -= 1
-        return Batch[dtype](
+        return Batch[f32](
             self.data,
             self.labels,
             temp_current_index,
