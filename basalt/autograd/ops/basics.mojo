@@ -1,4 +1,3 @@
-from std.math import log, exp
 from std.algorithm import vectorize
 from std.memory import memcpy
 from std.utils.numerics import isinf
@@ -8,7 +7,7 @@ from basalt.nn.tensor import MAX_RANK
 from basalt.utils.tensorutils import *
 from basalt.autograd.attributes import Attribute, AttributeVector
 from basalt.autograd.ops.matmul import dot, dot_transpose_t1, dot_transpose_t2
-from basalt.utils.math_util import add, sub, mul, div
+from basalt.utils.math_util import add, sub, mul, div, exp, log
 
 
 # """
