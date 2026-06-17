@@ -164,7 +164,7 @@ struct Tensor[dtype: DType](Copyable, Movable, Writable):
             ].unsafe_dangling()
         else:
             self._data = alloc[Scalar[Self.dtype]](shape.num_elements())
-            memcpy(dest=self._data, mantle=data, count=self._shape.num_elements())
+            memcpy(dest=self._data, src=data, count=self._shape.num_elements())
         _ = data
 
     def __init__(out self, *, deinit take: Tensor[Self.dtype]):
@@ -182,7 +182,7 @@ struct Tensor[dtype: DType](Copyable, Movable, Writable):
             ].unsafe_dangling()
         else:
             self._data = alloc[Scalar[Self.dtype]](copy.num_elements())
-            memcpy(dest=self._data, mantle=copy._data, count=copy.num_elements())
+            memcpy(dest=self._data, src=copy._data, count=copy.num_elements())
 
     def __init__(
         out self,

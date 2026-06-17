@@ -27,7 +27,7 @@ def slice_rows[
     var out = Tensor[dtype](out_shape)
     memcpy(
         dest=out.mut_ptr(),
-        mantle=t.ptr() + start * row_stride,
+        src=t.ptr() + start * row_stride,
         count=num_rows * row_stride,
     )
     return out^
@@ -58,7 +58,7 @@ def cycle_pad_rows[
         var src_row = i % t.dim(0)
         memcpy(
             dest=out.mut_ptr() + i * row_stride,
-            mantle=t.ptr() + src_row * row_stride,
+            src=t.ptr() + src_row * row_stride,
             count=row_stride,
         )
     return out^
@@ -90,12 +90,12 @@ struct Batch[dtype: DType](Copyable, Movable):
         self.labels = Tensor[Self.dtype](batch_labels_shape)
         memcpy(
             dest=self.data.mut_ptr(),
-            mantle=df_data.ptr() + (start * batch_data_shape.strides()[0]),
+            src=df_data.ptr() + (start * batch_data_shape.strides()[0]),
             count=batch_data_shape.num_elements(),
         )
         memcpy(
             dest=self.labels.mut_ptr(),
-            mantle=df_labels.ptr() + (start * batch_labels_shape.strides()[0]),
+            src=df_labels.ptr() + (start * batch_labels_shape.strides()[0]),
             count=batch_labels_shape.num_elements(),
         )
 

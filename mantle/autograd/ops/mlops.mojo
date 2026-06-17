@@ -307,7 +307,7 @@ struct SQUEEZE:
         t1_shape: TensorShape,
         attributes: AttributeVector,
     ](mut res: Tensor[f32], t1: Tensor[f32]):
-        memcpy(dest=res.mut_ptr(), mantle=t1.ptr(), count=t1.num_elements())
+        memcpy(dest=res.mut_ptr(), src=t1.ptr(), count=t1.num_elements())
 
     @staticmethod
     def backward[
@@ -315,7 +315,7 @@ struct SQUEEZE:
         t1_shape: TensorShape,
     ](ug: Tensor[f32], t1: Tensor[f32]) -> Tensor[f32]:
         var res_grad = Tensor[f32](t1_shape)
-        memcpy(dest=res_grad.mut_ptr(), mantle=ug.ptr(), count=ug.num_elements())
+        memcpy(dest=res_grad.mut_ptr(), src=ug.ptr(), count=ug.num_elements())
         return res_grad^
 
 
@@ -346,7 +346,7 @@ struct UNSQUEEZE:
         t1_shape: TensorShape,
         attributes: AttributeVector,
     ](mut res: Tensor[f32], t1: Tensor[f32]):
-        memcpy(dest=res.mut_ptr(), mantle=t1.ptr(), count=t1.num_elements())
+        memcpy(dest=res.mut_ptr(), src=t1.ptr(), count=t1.num_elements())
 
     @staticmethod
     def backward[
@@ -354,7 +354,7 @@ struct UNSQUEEZE:
         t1_shape: TensorShape,
     ](ug: Tensor[f32], t1: Tensor[f32]) -> Tensor[f32]:
         var res_grad = Tensor[f32](t1_shape)
-        memcpy(dest=res_grad.mut_ptr(), mantle=ug.ptr(), count=ug.num_elements())
+        memcpy(dest=res_grad.mut_ptr(), src=ug.ptr(), count=ug.num_elements())
         return res_grad^
 
 

@@ -702,7 +702,7 @@ struct FLATTEN:
         """
         Forward pass of the flatten operation.
         """
-        memcpy(dest=res.mut_ptr(), mantle=t.ptr(), count=t_shape.num_elements())
+        memcpy(dest=res.mut_ptr(), src=t.ptr(), count=t_shape.num_elements())
 
     @staticmethod
     def backward[
@@ -711,7 +711,7 @@ struct FLATTEN:
         """Backward operation of flatten."""
         var res_grad = Tensor[f32](t_shape)
         memcpy(
-            dest=res_grad.mut_ptr(), mantle=ug.ptr(), count=ug_shape.num_elements()
+            dest=res_grad.mut_ptr(), src=ug.ptr(), count=ug_shape.num_elements()
         )
 
         return res_grad^
@@ -730,7 +730,7 @@ struct RESHAPE:
         """
         Forward pass of the reshape operation.
         """
-        memcpy(dest=res.mut_ptr(), mantle=t.ptr(), count=t_shape.num_elements())
+        memcpy(dest=res.mut_ptr(), src=t.ptr(), count=t_shape.num_elements())
 
     @staticmethod
     def backward[
@@ -739,7 +739,7 @@ struct RESHAPE:
         """Backward operation of reshape."""
         var res_grad = Tensor[f32](t_shape)
         memcpy(
-            dest=res_grad.mut_ptr(), mantle=ug.ptr(), count=ug_shape.num_elements()
+            dest=res_grad.mut_ptr(), src=ug.ptr(), count=ug_shape.num_elements()
         )
 
         return res_grad^

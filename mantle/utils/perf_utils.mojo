@@ -10,7 +10,7 @@ def fit_string[num: Int](s: String) -> String:
     var data = alloc[Byte](num + 1)
     var copy_len = min(num, s.byte_length())
 
-    memcpy(dest=data, mantle=s.unsafe_ptr(), count=copy_len)
+    memcpy(dest=data, src=s.unsafe_ptr(), count=copy_len)
     memset(data + copy_len, UInt8(ord(" ")), num - copy_len)
     data[num] = 0
 

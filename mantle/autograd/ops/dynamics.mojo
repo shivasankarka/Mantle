@@ -56,7 +56,7 @@ struct CONCAT:
                     dest=out_tensor.mut_ptr()
                     + i * chunk_offsets[len(inputs)]
                     + chunk_offsets[j],
-                    mantle=in_tensor.ptr() + i * chunks[j],
+                    src=in_tensor.ptr() + i * chunks[j],
                     count=chunks[j],
                 )
 
@@ -84,7 +84,7 @@ struct CONCAT:
         for i in range(n_chunks):
             memcpy(
                 dest=res_grad.mut_ptr() + i * chunks[input_id],
-                mantle=out_grad.ptr()
+                src=out_grad.ptr()
                 + i * chunk_offsets[len(inputs)]
                 + chunk_offsets[input_id],
                 count=chunks[input_id],
@@ -142,7 +142,7 @@ struct SPLIT:
                 var out_tensor = parameters.tensors[outputs[j]]
                 memcpy(
                     dest=out_tensor.mut_ptr() + i * chunks[j],
-                    mantle=in_tensor.ptr()
+                    src=in_tensor.ptr()
                     + i * chunk_offsets[len(outputs)]
                     + chunk_offsets[j],
                     count=chunks[j],
@@ -177,7 +177,7 @@ struct SPLIT:
                     dest=res_grad.mut_ptr()
                     + i * chunk_offsets[len(outputs)]
                     + chunk_offsets[j],
-                    mantle=out_grad.ptr() + i * chunks[j],
+                    src=out_grad.ptr() + i * chunks[j],
                     count=chunks[j],
                 )
 

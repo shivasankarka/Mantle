@@ -23,7 +23,7 @@ def to_numpy[dtype: DType](tensor: Tensor[dtype]) -> PythonObject:
             0
         ].unsafe_get_as_pointer[DType.float32]()
         var d = tensor.ptr().bitcast[Float32]()
-        memcpy(dest=pointer_d, mantle=d, count=tensor.num_elements())
+        memcpy(dest=pointer_d, src=d, count=tensor.num_elements())
 
         _ = tensor
 
@@ -57,7 +57,7 @@ def to_tensor(np_array: PythonObject) raises -> Tensor[f32]:
     var pointer_d = np_array_2.__array_interface__["data"][
         0
     ].unsafe_get_as_pointer[f32]()
-    memcpy(dest=tensor.mut_ptr(), mantle=pointer_d, count=tensor.num_elements())
+    memcpy(dest=tensor.mut_ptr(), src=pointer_d, count=tensor.num_elements())
 
     _ = np_array_2
     _ = np_array
@@ -78,7 +78,7 @@ def copy_np_data[dtype: DType](mut tensor: Tensor[dtype], np_array: PythonObject
     var pointer_d = np_array_2.__array_interface__["data"][
         0
     ].unsafe_get_as_pointer[dtype]()
-    memcpy(dest=tensor.mut_ptr(), mantle=pointer_d, count=tensor.num_elements())
+    memcpy(dest=tensor.mut_ptr(), src=pointer_d, count=tensor.num_elements())
 
     # This shouldn't be necessary anymore, but I'm leaving it here for now.
     # _ = np_array_2

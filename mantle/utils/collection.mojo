@@ -78,7 +78,7 @@ struct Collection(Copyable, Movable, Sized):
             var new_map = alloc[Int](copy.index_map_capacity)
             memcpy(
                 dest=new_map,
-                mantle=copy.index_map_owner.value(),
+                src=copy.index_map_owner.value(),
                 count=copy.index_map_capacity,
             )
             self.index_map_owner = new_map
@@ -141,7 +141,7 @@ struct Collection(Copyable, Movable, Sized):
         if self.index_map_owner:
             memcpy(
                 dest=new_map,
-                mantle=self.index_map_owner.value(),
+                src=self.index_map_owner.value(),
                 count=self.index_map_capacity,
             )
             self.index_map_owner.value().free()
@@ -189,7 +189,7 @@ struct Collection(Copyable, Movable, Sized):
         ref tensor = self.data_ref[index]
         memcpy(
             dest=tensor.mut_ptr(),
-            mantle=value.ptr(),
+            src=value.ptr(),
             count=tensor.num_elements(),
         )
 
