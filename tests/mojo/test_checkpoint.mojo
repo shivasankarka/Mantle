@@ -1,7 +1,7 @@
 from std.testing import assert_equal, assert_true
 
 import basalt.nn as nn
-from basalt import Graph, Symbol, OP, Tensor, TensorShape, dtype
+from basalt import Graph, Symbol, OP, Tensor, TensorShape, f32
 from basalt.nn.optim import Adam
 from basalt.utils.checkpoint import (
     save_checkpoint,
@@ -27,8 +27,8 @@ def test_save_load_checkpoint_plain() raises:
     comptime param_sym = graph.params.symbols[0]
 
     var model = nn.Model[graph]()
-    var x = Tensor[dtype](TensorShape(4, 3))
-    var y = Tensor[dtype](TensorShape(4, 1))
+    var x = Tensor[f32](TensorShape(4, 3))
+    var y = Tensor[f32](TensorShape(4, 1))
     for i in range(12):
         x[i] = Float32(i) * 0.1
     for i in range(4):
@@ -54,8 +54,8 @@ def test_save_load_checkpoint_with_optim() raises:
     var model = nn.Model[graph]()
     var optim = Adam[graph](model.parameters, lr=0.01)
 
-    var x = Tensor[dtype](TensorShape(4, 3))
-    var y = Tensor[dtype](TensorShape(4, 1))
+    var x = Tensor[f32](TensorShape(4, 3))
+    var y = Tensor[f32](TensorShape(4, 1))
     for i in range(12):
         x[i] = Float32(i) * 0.1
     for i in range(4):

@@ -2,7 +2,7 @@ from std.python import Python
 from std.collections import OptionalReg
 from std.testing import assert_equal, assert_almost_equal
 
-from basalt import dtype
+from basalt import f32
 from basalt.autograd import Graph, OP
 from basalt.autograd.ops.ops import backward_op
 from basalt.autograd.attributes import AttributeVector
@@ -15,7 +15,7 @@ from basalt.utils.tensor_creation_utils import to_numpy, to_tensor
 # assert_tensors_equal["$3"]($1, $2)
 def assert_tensors_equal[
     mode: String = "exact", msg: String = "Error"
-](ref t1: Tensor[dtype], ref t2: Tensor[dtype]) raises:
+](ref t1: Tensor[f32], ref t2: Tensor[f32]) raises:
     comptime assert mode == "exact" or mode == "almost", "Mode must be either 'exact' or 'almost'"
 
     assert_equal(t1.shape(), t2.shape(), "Tensor shape mismatch")
@@ -29,7 +29,7 @@ def assert_tensors_equal[
 
 def test_unary_op[
     op: OP, t1_shape: TensorShape, attrs: OptionalReg[AttributeVector] = None
-](t1: Tensor[dtype], expected: Tensor[dtype]) raises:
+](t1: Tensor[f32], expected: Tensor[f32]) raises:
     def create_graph() -> Graph:
         var g = Graph()
         var t1 = g.input(t1_shape)
@@ -58,7 +58,7 @@ def test_binary_op[
     t1_shape: TensorShape,
     t2_shape: TensorShape,
     attrs: OptionalReg[AttributeVector] = None,
-](t1: Tensor[dtype], t2: Tensor[dtype], expected: Tensor[dtype]) raises:
+](t1: Tensor[f32], t2: Tensor[f32], expected: Tensor[f32]) raises:
     def create_graph() -> Graph:
         var g = Graph()
         var t1 = g.input(t1_shape)
@@ -86,7 +86,7 @@ def test_binary_op[
 def test_ternary_op[
     op: OP, t1_shape: TensorShape, t2_shape: TensorShape, t3_shape: TensorShape
 ](
-    t1: Tensor[dtype], t2: Tensor[dtype], t3: Tensor[dtype], expected: Tensor[dtype]
+    t1: Tensor[f32], t2: Tensor[f32], t3: Tensor[f32], expected: Tensor[f32]
 ) raises:
     def create_graph() -> Graph:
         var g = Graph()
@@ -114,8 +114,8 @@ def test_unary_op_backward[
     t1_shape: TensorShape,
     ug_shape: TensorShape,
     attrs: AttributeVector = AttributeVector(),
-](t1: Tensor[dtype], ug: Tensor[dtype], grad_1_expected: Tensor[dtype],) raises:
-    var grad_1 = Tensor[dtype](t1_shape)
+](t1: Tensor[f32], ug: Tensor[f32], grad_1_expected: Tensor[f32],) raises:
+    var grad_1 = Tensor[f32](t1_shape)
     backward_op[0, op, ug_shape, t1_shape, attrs](ug, t1, grad_1)
     assert_tensors_equal["almost"](grad_1, grad_1_expected)
 
@@ -127,17 +127,17 @@ def test_binary_op_backward[
     ug_shape: TensorShape,
     attrs: AttributeVector = AttributeVector(),
 ](
-    t1: Tensor[dtype],
-    t2: Tensor[dtype],
-    ug: Tensor[dtype],
-    grad_1_expected: Tensor[dtype],
-    grad_2_expected: Tensor[dtype],
+    t1: Tensor[f32],
+    t2: Tensor[f32],
+    ug: Tensor[f32],
+    grad_1_expected: Tensor[f32],
+    grad_2_expected: Tensor[f32],
 ) raises:
-    var grad_1 = Tensor[dtype](t1_shape)
+    var grad_1 = Tensor[f32](t1_shape)
     backward_op[0, op, ug_shape, t1_shape, t2_shape, attrs](ug, t1, t2, grad_1)
     assert_tensors_equal["almost"](grad_1, grad_1_expected)
 
-    var grad_2 = Tensor[dtype](t2_shape)
+    var grad_2 = Tensor[f32](t2_shape)
     backward_op[1, op, ug_shape, t1_shape, t2_shape, attrs](ug, t1, t2, grad_2)
     assert_tensors_equal["almost"](grad_2, grad_2_expected)
 
@@ -150,27 +150,27 @@ def test_ternary_op_backward[
     ug_shape: TensorShape,
     attrs: AttributeVector = AttributeVector(),
 ](
-    t1: Tensor[dtype],
-    t2: Tensor[dtype],
-    t3: Tensor[dtype],
-    ug: Tensor[dtype],
-    grad_1_expected: Tensor[dtype],
-    grad_2_expected: Tensor[dtype],
-    grad_3_expected: Tensor[dtype],
+    t1: Tensor[f32],
+    t2: Tensor[f32],
+    t3: Tensor[f32],
+    ug: Tensor[f32],
+    grad_1_expected: Tensor[f32],
+    grad_2_expected: Tensor[f32],
+    grad_3_expected: Tensor[f32],
 ) raises:
-    var grad_1 = Tensor[dtype](t1_shape)
+    var grad_1 = Tensor[f32](t1_shape)
     backward_op[0, op, ug_shape, t1_shape, t2_shape, t3_shape, attrs](
         ug, t1, t2, t3, grad_1
     )
     assert_tensors_equal["almost"](grad_1, grad_1_expected)
 
-    var grad_2 = Tensor[dtype](t2_shape)
+    var grad_2 = Tensor[f32](t2_shape)
     backward_op[1, op, ug_shape, t1_shape, t2_shape, t3_shape, attrs](
         ug, t1, t2, t3, grad_2
     )
     assert_tensors_equal["almost"](grad_2, grad_2_expected)
 
-    var grad_3 = Tensor[dtype](t3_shape)
+    var grad_3 = Tensor[f32](t3_shape)
     backward_op[2, op, ug_shape, t1_shape, t2_shape, t3_shape, attrs](
         ug, t1, t2, t3, grad_3
     )

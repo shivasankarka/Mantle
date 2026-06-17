@@ -1,6 +1,6 @@
 from std.testing import assert_equal, assert_almost_equal
 
-from basalt import dtype, nelts
+from basalt import f32, nelts
 from basalt.autograd import Graph, Symbol, OP
 from basalt.nn import Model, Tensor, TensorShape, MSELoss, CrossEntropyLoss
 from basalt.utils.tensorutils import fill
@@ -25,8 +25,8 @@ def test_MSE_perfect() raises:
     comptime graph = create_graph()
     assert_equal(comptime(len(graph.nodes)), 3)
 
-    var y_pred = Tensor[dtype](y_pred_shape)
-    var y_true = Tensor[dtype](y_true_shape)
+    var y_pred = Tensor[f32](y_pred_shape)
+    var y_true = Tensor[f32](y_true_shape)
 
     fill(y_pred, 1.0)
     fill(y_true, 1.0)
@@ -59,8 +59,8 @@ def test_MSE_imperfect() raises:
     comptime graph = create_graph()
     assert_equal(comptime(len(graph.nodes)), 3)
 
-    var y_pred = Tensor[dtype](y_pred_shape)
-    var y_true = Tensor[dtype](y_true_shape)
+    var y_pred = Tensor[f32](y_pred_shape)
+    var y_true = Tensor[f32](y_true_shape)
 
     fill(y_pred, 1.0)
 
@@ -72,7 +72,7 @@ def test_MSE_imperfect() raises:
     var outputs = model.inference(y_pred.share(), y_true.share())
     var loss = outputs[0].copy()
 
-    var expected_loss: Scalar[dtype] = 0.0
+    var expected_loss: Scalar[f32] = 0.0
 
     for i in range(10):
         expected_loss += (y_pred[i] - y_true[i]) ** 2
@@ -101,8 +101,8 @@ def test_CrossEntropy_perfect() raises:
     comptime graph = create_graph()
     assert_equal(comptime(len(graph.nodes)), 9)
 
-    var y_pred = Tensor[dtype](y_pred_shape)
-    var y_true = Tensor[dtype](y_true_shape)
+    var y_pred = Tensor[f32](y_pred_shape)
+    var y_true = Tensor[f32](y_true_shape)
 
     y_pred[0 * y_pred.dim(1) + 0] = 0.1
     y_pred[0 * y_pred.dim(1) + 1] = 0.2
@@ -145,8 +145,8 @@ def test_CrossEntropy_imperfect() raises:
 
     comptime graph = create_graph()
 
-    var y_pred = Tensor[dtype](y_pred_shape)
-    var y_true = Tensor[dtype](y_true_shape)
+    var y_pred = Tensor[f32](y_pred_shape)
+    var y_true = Tensor[f32](y_true_shape)
 
     y_pred[0 * y_pred.dim(1) + 0] = 0.1
     y_pred[0 * y_pred.dim(1) + 1] = 0.2

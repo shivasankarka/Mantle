@@ -1,7 +1,7 @@
 from std.time import perf_counter_ns as now
 
 import basalt.nn as nn
-from basalt import Tensor, TensorShape, dtype
+from basalt import Tensor, TensorShape, f32
 from basalt import Graph, Symbol, OP
 from basalt.utils.datasets import BostonHousing
 from basalt.utils.dataloader import DataLoader, slice_rows, cycle_pad_rows
@@ -90,7 +90,7 @@ def main():
     # declared order, even ones (like y_true) that the inference subgraph
     # itself doesn't read.
     var test_x_padded = cycle_pad_rows(test_x, batch_size)
-    var dummy_y = Tensor[dtype](TensorShape(batch_size, 1))
+    var dummy_y = Tensor[f32](TensorShape(batch_size, 1))
     var inference_outputs = model.inference(test_x_padded, dummy_y)
     var predictions = inference_outputs[0].copy()
 

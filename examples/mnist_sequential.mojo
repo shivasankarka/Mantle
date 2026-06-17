@@ -3,7 +3,7 @@ from std.utils.index import IndexList
 
 import basalt.nn as nn
 from basalt import Tensor, TensorShape
-from basalt import Graph, Symbol, OP, dtype
+from basalt import Graph, Symbol, OP, f32
 from basalt.utils.datasets import MNIST
 from basalt.utils.dataloader import DataLoader
 from basalt.autograd.attributes import AttributeVector, Attribute
@@ -69,7 +69,7 @@ def main():
         var epoch_start = now()
         for batch in training_loader:
             # [ONE HOT ENCODING!]
-            var labels_one_hot = Tensor[dtype](batch.labels.dim(0), 10)
+            var labels_one_hot = Tensor[f32](batch.labels.dim(0), 10)
             for bb in range(batch.labels.dim(0)):
                 labels_one_hot[bb * 10 + Int(batch.labels[bb])] = 1.0
 

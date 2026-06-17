@@ -1,6 +1,6 @@
 from std.testing import assert_equal
 
-from basalt import dtype
+from basalt import f32
 from basalt.nn import Tensor, TensorShape
 from basalt.autograd import Symbol
 from basalt.utils.collection import Collection
@@ -12,28 +12,28 @@ from tests import assert_tensors_equal
 def test_append_tensors() raises:
     comptime t1_shape = TensorShape(1, 10)
     comptime t2_shape = TensorShape(2, 20)
-    var s1 = Symbol(0, dtype, t1_shape, True)
-    var s2 = Symbol(1, dtype, t2_shape, True)
+    var s1 = Symbol(0, f32, t1_shape, True)
+    var s2 = Symbol(1, f32, t2_shape, True)
 
     var c = Collection(capacity=2)
     assert_equal(c.capacity, 2)
     assert_equal(c.size, 0)
 
-    c.append(Tensor[dtype](s1.shape), s1)
+    c.append(Tensor[f32](s1.shape), s1)
     assert_equal(c.size, 1)
 
-    c.append(Tensor[dtype](s2.shape), s2)
+    c.append(Tensor[f32](s2.shape), s2)
     assert_equal(c.size, 2)
 
 
 def test_get_tensor_reference() raises:
     comptime t1_shape = TensorShape(1, 10)
     comptime t2_shape = TensorShape(2, 20)
-    var s1 = Symbol(0, dtype, t1_shape, True)
-    var s2 = Symbol(1, dtype, t2_shape, True)
+    var s1 = Symbol(0, f32, t1_shape, True)
+    var s2 = Symbol(1, f32, t2_shape, True)
 
-    var t1 = Tensor[dtype](s1.shape)
-    var t2 = Tensor[dtype](s2.shape)
+    var t1 = Tensor[f32](s1.shape)
+    var t2 = Tensor[f32](s2.shape)
     fill(t1, 1)
     fill(t2, 2)
 
@@ -41,8 +41,8 @@ def test_get_tensor_reference() raises:
     c.append(t1, s1)
     c.append(t2, s2)
 
-    var t1_expected = Tensor[dtype](s1.shape)
-    var t2_expected = Tensor[dtype](s2.shape)
+    var t1_expected = Tensor[f32](s1.shape)
+    var t2_expected = Tensor[f32](s2.shape)
     fill(t1_expected, 1)
     fill(t2_expected, 2)
 
@@ -54,13 +54,13 @@ def test_resize_collection() raises:
     comptime t1_shape = TensorShape(1, 10)
     comptime t2_shape = TensorShape(2, 20)
     comptime t3_shape = TensorShape(3, 30)
-    var s1 = Symbol(0, dtype, t1_shape, True)
-    var s2 = Symbol(1, dtype, t2_shape, True)
-    var s3 = Symbol(2, dtype, t3_shape, True)
+    var s1 = Symbol(0, f32, t1_shape, True)
+    var s2 = Symbol(1, f32, t2_shape, True)
+    var s3 = Symbol(2, f32, t3_shape, True)
 
-    var t1 = Tensor[dtype](s1.shape)
-    var t2 = Tensor[dtype](s2.shape)
-    var t3 = Tensor[dtype](s3.shape)
+    var t1 = Tensor[f32](s1.shape)
+    var t2 = Tensor[f32](s2.shape)
+    var t3 = Tensor[f32](s3.shape)
     fill(t1, 1)
     fill(t2, 2)
     fill(t3, 3)
@@ -81,9 +81,9 @@ def test_resize_collection() raises:
     assert_equal(c.size, 3)
     assert_equal(c.capacity, 4)
 
-    var t1_expected = Tensor[dtype](s1.shape)
-    var t2_expected = Tensor[dtype](s2.shape)
-    var t3_expected = Tensor[dtype](s3.shape)
+    var t1_expected = Tensor[f32](s1.shape)
+    var t2_expected = Tensor[f32](s2.shape)
+    var t3_expected = Tensor[f32](s3.shape)
     fill(t1_expected, 1)
     fill(t2_expected, 2)
     fill(t3_expected, 3)
@@ -96,10 +96,10 @@ def test_resize_collection() raises:
 def test_set_zero() raises:
     comptime t1_shape = TensorShape(1, 10)
     comptime t2_shape = TensorShape(2, 20)
-    var s1 = Symbol(0, dtype, t1_shape, True)
-    var s2 = Symbol(1, dtype, t2_shape, True)
-    var t1 = Tensor[dtype](s1.shape)
-    var t2 = Tensor[dtype](s2.shape)
+    var s1 = Symbol(0, f32, t1_shape, True)
+    var s2 = Symbol(1, f32, t2_shape, True)
+    var t1 = Tensor[f32](s1.shape)
+    var t2 = Tensor[f32](s2.shape)
     fill(t1, 1)
     fill(t2, 2)
 
@@ -107,8 +107,8 @@ def test_set_zero() raises:
     c.append(t1, s1)
     c.append(t2, s2)
 
-    var t1_expected = Tensor[dtype](s1.shape)
-    var t2_expected = Tensor[dtype](s2.shape)
+    var t1_expected = Tensor[f32](s1.shape)
+    var t2_expected = Tensor[f32](s2.shape)
     fill(t1_expected, 1)
     fill(t2_expected, 2)
     assert_tensors_equal(c[s1], t1_expected)
@@ -116,17 +116,17 @@ def test_set_zero() raises:
 
     c.set_zero()
 
-    assert_tensors_equal(c[s1], Tensor[dtype](t1_shape))
-    assert_tensors_equal(c[s2], Tensor[dtype](t2_shape))
+    assert_tensors_equal(c[s1], Tensor[f32](t1_shape))
+    assert_tensors_equal(c[s2], Tensor[f32](t2_shape))
 
 
 def test_operate_on_reference() raises:
     comptime res_shape = TensorShape(1, 10)
     comptime t1_shape = TensorShape(1, 10)
-    var sr = Symbol(0, dtype, t1_shape, True)
-    var s1 = Symbol(1, dtype, t1_shape, True)
-    var res = Tensor[dtype](res_shape)
-    var t1 = Tensor[dtype](s1.shape)
+    var sr = Symbol(0, f32, t1_shape, True)
+    var s1 = Symbol(1, f32, t1_shape, True)
+    var res = Tensor[f32](res_shape)
+    var t1 = Tensor[f32](s1.shape)
 
     var c = Collection(capacity=2)
     c.append(res, sr)
@@ -134,7 +134,7 @@ def test_operate_on_reference() raises:
 
     def some_operation[
         res_shape: TensorShape, t_shape: TensorShape
-    ](mut res: Tensor[dtype], t1: Tensor[dtype]):
+    ](mut res: Tensor[f32], t1: Tensor[f32]):
         for i in range(res.num_elements()):
             res[i] = t1[i]
 
@@ -142,8 +142,8 @@ def test_operate_on_reference() raises:
         some_operation[res_shape, t1_shape](c[sr], c[s1])
         fill(c[s1], Float32(i))
 
-        var res_expected = Tensor[dtype](res_shape)
-        var t1_expected = Tensor[dtype](t1_shape)
+        var res_expected = Tensor[f32](res_shape)
+        var t1_expected = Tensor[f32](t1_shape)
         fill(res_expected, Float32(i - 1))
         fill(t1_expected, Float32(i))
 

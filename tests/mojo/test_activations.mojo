@@ -1,6 +1,6 @@
 from std.testing import assert_equal
 
-from basalt import dtype
+from basalt import f32
 from basalt.nn import (
     Tensor,
     TensorShape,
@@ -21,7 +21,7 @@ from tests import assert_tensors_equal
 comptime Activation = def (mut g: Graph, input: Symbol) thin -> Symbol
 comptime AxisActivation = def (mut g: Graph, input: Symbol, axis: Int) thin -> Symbol
 comptime LeakyReLUActivation = def (
-    mut g: Graph, input: Symbol, negative_slope: Scalar[dtype]
+    mut g: Graph, input: Symbol, negative_slope: Scalar[f32]
 ) thin -> Symbol
 
 
@@ -40,7 +40,7 @@ def create_graph[
 def create_graph[
     shape: TensorShape,
     func: LeakyReLUActivation,
-    negative_slope: Scalar[dtype],
+    negative_slope: Scalar[f32],
 ]() -> Graph:
     var g = Graph()
     var x = g.input(shape)
@@ -62,7 +62,7 @@ def test_graph[
     func: AxisActivation,
     nodes: Int,
     axis: Int,
-](var input: Tensor[dtype], expected: Tensor[dtype]) raises:
+](var input: Tensor[f32], expected: Tensor[f32]) raises:
     comptime graph = create_graph[shape, func, axis]()
 
     var model = Model[graph](inference_only=True)
@@ -76,8 +76,8 @@ def test_graph[
     shape: TensorShape,
     func: LeakyReLUActivation,
     nodes: Int,
-    negative_slope: Scalar[dtype],
-](var input: Tensor[dtype], expected: Tensor[dtype]) raises:
+    negative_slope: Scalar[f32],
+](var input: Tensor[f32], expected: Tensor[f32]) raises:
     comptime graph = create_graph[shape, func, negative_slope]()
 
     var model = Model[graph](inference_only=True)
@@ -92,7 +92,7 @@ def test_graph[
     shape: TensorShape,
     func: Activation,
     nodes: Int,
-](var input: Tensor[dtype], expected: Tensor[dtype]) raises:
+](var input: Tensor[f32], expected: Tensor[f32]) raises:
     comptime graph = create_graph[shape, func]()
 
     var model = Model[graph](inference_only=True)
@@ -106,10 +106,10 @@ def test_SOFTMAX() raises:
     comptime shape = TensorShape(2, 3, 2)
     comptime nodes = 5
 
-    var input = Tensor[dtype](shape)
+    var input = Tensor[f32](shape)
     fill(input, 4)
 
-    var expected = Tensor[dtype](shape)
+    var expected = Tensor[f32](shape)
 
     fill(expected, 0.5)
     test_graph[shape, Softmax, nodes, 0](input.copy(), expected)
@@ -125,10 +125,10 @@ def test_LOGSOFTMAX() raises:
     comptime shape = TensorShape(2, 3, 2)
     comptime nodes = 6
 
-    var input = Tensor[dtype](shape)
+    var input = Tensor[f32](shape)
     fill(input, 4)
 
-    var expected = Tensor[dtype](shape)
+    var expected = Tensor[f32](shape)
 
     fill(expected, -0.69314718)
     test_graph[shape, LogSoftmax, nodes, 0](input.copy(), expected)
@@ -144,12 +144,12 @@ def test_RELU() raises:
     comptime shape = TensorShape(2, 3)
     comptime nodes = 1
 
-    var input = Tensor[dtype](shape)
+    var input = Tensor[f32](shape)
 
     for i in range(6):
         input[i] = 3 if i < 3 else -3
 
-    var expected = Tensor[dtype](shape)
+    var expected = Tensor[f32](shape)
 
     for i in range(6):
         expected[i] = 3 if i < 3 else 0
@@ -163,12 +163,12 @@ def test_LEAKYRELU() raises:
     comptime shape = TensorShape(2, 3)
     comptime nodes = 1
 
-    var input = Tensor[dtype](shape)
+    var input = Tensor[f32](shape)
 
     for i in range(6):
         input[i] = Float32(i - 3)
 
-    var expected = Tensor[dtype](shape)
+    var expected = Tensor[f32](shape)
 
     for i in range(6):
         expected[i] = Float32(i - 3) if i - 3 > 0 else negative_slope * Float32(i - 3)
@@ -180,10 +180,10 @@ def test_SIGMOID() raises:
     comptime shape = TensorShape(2, 3)
     comptime nodes = 1
 
-    var input = Tensor[dtype](shape)
+    var input = Tensor[f32](shape)
     fill(input, 0)
 
-    var expected = Tensor[dtype](shape)
+    var expected = Tensor[f32](shape)
 
     fill(expected, 0.5)
     test_graph[shape, Sigmoid, nodes](input.copy(), expected)
@@ -193,10 +193,10 @@ def test_TANH() raises:
     comptime shape = TensorShape(2, 3)
     comptime nodes = 1
 
-    var input = Tensor[dtype](shape)
+    var input = Tensor[f32](shape)
     fill(input, 0)
 
-    var expected = Tensor[dtype](shape)
+    var expected = Tensor[f32](shape)
 
     fill(expected, 0.0)
     test_graph[shape, Tanh, nodes](input.copy(), expected)

@@ -1,6 +1,6 @@
 from std.utils.index import IndexList
 
-from basalt import dtype, nelts
+from basalt import f32, nelts
 from basalt.autograd import OP
 from basalt.autograd.attributes import AttributeVector, Attribute
 from basalt.autograd.ops.mlops import (
@@ -25,9 +25,9 @@ from tests import (
 
 def test_SIGMOID() raises:
     comptime t1_shape = TensorShape(2, 3)
-    var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
+    var t1: Tensor[f32] = Tensor[f32](t1_shape)
 
-    var expected = Tensor[dtype](2, 3)
+    var expected = Tensor[f32](2, 3)
     fill(expected, 0.5)
 
     test_unary_op[OP.SIGMOID, t1_shape](t1, expected)
@@ -36,11 +36,11 @@ def test_SIGMOID() raises:
 def test_backward_SIGMOID() raises:
     comptime t1_shape = TensorShape(2, 3)
     comptime ug_shape = TensorShape(2, 3)
-    var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
-    var ug: Tensor[dtype] = Tensor[dtype](ug_shape)
+    var t1: Tensor[f32] = Tensor[f32](t1_shape)
+    var ug: Tensor[f32] = Tensor[f32](ug_shape)
     fill(ug, 5.0)
 
-    var expected_grad = Tensor[dtype](2, 3)
+    var expected_grad = Tensor[f32](2, 3)
     fill(
         expected_grad, 5.0 * 0.25
     )  # 0.25 = d(sigmoid(0))/dx = sigmoid(0) * (1 - sigmoid(0))
@@ -52,14 +52,14 @@ def test_backward_SIGMOID() raises:
 
 def test_RELU() raises:
     comptime t1_shape = TensorShape(2, 3)
-    var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
+    var t1: Tensor[f32] = Tensor[f32](t1_shape)
     # TODO: When tensors can do slices, this could be changed to two fill functions.
     for i in range(3):
         t1[i] = 3
     for i in range(3, 6):
         t1[i] = -3
 
-    var expected = Tensor[dtype](2, 3)
+    var expected = Tensor[f32](2, 3)
     for i in range(3):
         expected[i] = 3
     for i in range(3, 6):
@@ -71,15 +71,15 @@ def test_RELU() raises:
 def test_backward_RELU() raises:
     comptime t1_shape = TensorShape(2, 3)
     comptime ug_shape = TensorShape(2, 3)
-    var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
-    var ug: Tensor[dtype] = Tensor[dtype](ug_shape)
+    var t1: Tensor[f32] = Tensor[f32](t1_shape)
+    var ug: Tensor[f32] = Tensor[f32](ug_shape)
     for i in range(3):
         t1[i] = 3
     for i in range(3, 6):
         t1[i] = -3
     fill(ug, 5.0)
 
-    var expected_grad = Tensor[dtype](2, 3)
+    var expected_grad = Tensor[f32](2, 3)
     for i in range(3):
         expected_grad[i] = Float32(1) * 5.0  # 1 = d(relu(3))/dx
     for i in range(3, 6):
@@ -90,14 +90,14 @@ def test_backward_RELU() raises:
 
 def test_LEAKYRELU() raises:
     comptime t1_shape = TensorShape(2, 3)
-    var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
+    var t1: Tensor[f32] = Tensor[f32](t1_shape)
     # TODO: When tensors can do slices, this could be changed to two fill functions.
     for i in range(3):
         t1[i] = 3
     for i in range(3, 6):
         t1[i] = -3
 
-    var expected = Tensor[dtype](2, 3)
+    var expected = Tensor[f32](2, 3)
     for i in range(3):
         expected[i] = 3
     for i in range(3, 6):
@@ -113,15 +113,15 @@ def test_LEAKYRELU() raises:
 def test_backward_LEAKYRELU() raises:
     comptime t1_shape = TensorShape(2, 3)
     comptime ug_shape = TensorShape(2, 3)
-    var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
-    var ug: Tensor[dtype] = Tensor[dtype](ug_shape)
+    var t1: Tensor[f32] = Tensor[f32](t1_shape)
+    var ug: Tensor[f32] = Tensor[f32](ug_shape)
     for i in range(3):
         t1[i] = 3
     for i in range(3, 6):
         t1[i] = -3
     fill(ug, 5.0)
 
-    var expected_grad = Tensor[dtype](2, 3)
+    var expected_grad = Tensor[f32](2, 3)
     for i in range(3):
         expected_grad[i] = Float32(1) * 5.0
     for i in range(3, 6):
@@ -137,9 +137,9 @@ def test_backward_LEAKYRELU() raises:
 
 def test_TANH() raises:
     comptime t1_shape = TensorShape(2, 3)
-    var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
+    var t1: Tensor[f32] = Tensor[f32](t1_shape)
 
-    var expected = Tensor[dtype](2, 3)
+    var expected = Tensor[f32](2, 3)
     fill(expected, 0.0)
 
     test_unary_op[OP.TANH, t1_shape](t1, expected)
@@ -148,11 +148,11 @@ def test_TANH() raises:
 def test_backward_TANH() raises:
     comptime t1_shape = TensorShape(2, 3)
     comptime ug_shape = TensorShape(2, 3)
-    var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
-    var ug: Tensor[dtype] = Tensor[dtype](ug_shape)
+    var t1: Tensor[f32] = Tensor[f32](t1_shape)
+    var ug: Tensor[f32] = Tensor[f32](ug_shape)
     fill(ug, 5.0)
 
-    var expected_grad = Tensor[dtype](2, 3)
+    var expected_grad = Tensor[f32](2, 3)
     fill(expected_grad, 5.0 * 1.0)  # 1.0 = d(tanh(0))/dx = 1 - tanh(0)^2
 
     test_unary_op_backward[OP.TANH, t1_shape, ug_shape](t1, ug, expected_grad)
@@ -160,7 +160,7 @@ def test_backward_TANH() raises:
 
 def test_CLIP() raises:
     comptime t1_shape = TensorShape(2, 3)
-    var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
+    var t1: Tensor[f32] = Tensor[f32](t1_shape)
     for i in range(6):
         t1[i] = Float32(i - 3)
 
@@ -170,9 +170,9 @@ def test_CLIP() raises:
 
     # Clip with min
     comptime min_attr = Attribute("min", -1.1)
-    var expected_min = Tensor[dtype](2, 3)
+    var expected_min = Tensor[f32](2, 3)
     for i in range(6):
-        var val = Scalar[dtype](i - 3)
+        var val = Scalar[f32](i - 3)
         expected_min[i] = val if (val > -1.1) else -1.1
     test_unary_op[OP.CLIP, t1_shape, AttributeVector(min_attr)](
         t1, expected_min
@@ -180,18 +180,18 @@ def test_CLIP() raises:
 
     # Clip with max
     comptime max_attr = Attribute("max", 1.1)
-    var expected_max = Tensor[dtype](2, 3)
+    var expected_max = Tensor[f32](2, 3)
     for i in range(6):
-        var val = Scalar[dtype](i - 3)
+        var val = Scalar[f32](i - 3)
         expected_max[i] = val if (val < 1.1) else 1.1
     test_unary_op[OP.CLIP, t1_shape, AttributeVector(max_attr)](
         t1, expected_max
     )
 
     # Clip with min and max
-    var expected = Tensor[dtype](2, 3)
+    var expected = Tensor[f32](2, 3)
     for i in range(6):
-        var val = Scalar[dtype](i - 3)
+        var val = Scalar[f32](i - 3)
         if val < -1.1:
             expected[i] = -1.1
         elif val > 1.1:
@@ -206,10 +206,10 @@ def test_CLIP() raises:
 def test_backward_CLIP() raises:
     comptime t1_shape = TensorShape(2, 3)
     comptime ug_shape = TensorShape(2, 3)
-    var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
+    var t1: Tensor[f32] = Tensor[f32](t1_shape)
     for i in range(6):
         t1[i] = Float32(i - 3)
-    var ug: Tensor[dtype] = Tensor[dtype](ug_shape)
+    var ug: Tensor[f32] = Tensor[f32](ug_shape)
     fill(ug, 5.0)
 
     # Clip without min and max
@@ -218,29 +218,29 @@ def test_backward_CLIP() raises:
 
     # Clip with min
     comptime min_attr = AttributeVector(Attribute("min", -1.1))
-    var expected_min = Tensor[dtype](2, 3)
+    var expected_min = Tensor[f32](2, 3)
     for i in range(6):
-        var val = Scalar[dtype](i - 3)
-        expected_min[i] = (5.0 if (val > -1.1) else 0.0).cast[dtype]()
+        var val = Scalar[f32](i - 3)
+        expected_min[i] = (5.0 if (val > -1.1) else 0.0).cast[f32]()
     test_unary_op_backward[OP.CLIP, t1_shape, ug_shape, min_attr](
         t1, ug, expected_min
     )
 
     # Clip with max
     comptime max_attr = AttributeVector(Attribute("max", 1.1))
-    var expected_max = Tensor[dtype](2, 3)
+    var expected_max = Tensor[f32](2, 3)
     for i in range(6):
-        var val = Scalar[dtype](i - 3)
-        expected_max[i] = (5.0 if (val < 1.1) else 0.0).cast[dtype]()
+        var val = Scalar[f32](i - 3)
+        expected_max[i] = (5.0 if (val < 1.1) else 0.0).cast[f32]()
     test_unary_op_backward[OP.CLIP, t1_shape, ug_shape, max_attr](
         t1, ug, expected_max
     )
 
     # Clip with min and max
     comptime attrs = AttributeVector(Attribute("min", -1.1), Attribute("max", 1.1))
-    var expected = Tensor[dtype](2, 3)
+    var expected = Tensor[f32](2, 3)
     for i in range(6):
-        var val = Scalar[dtype](i - 3)
+        var val = Scalar[f32](i - 3)
         if val < -1.1 or val > 1.1:
             expected[i] = 0.0
         else:
@@ -250,29 +250,29 @@ def test_backward_CLIP() raises:
 
 def test_SQUEEZE() raises:
     comptime t1_shape = TensorShape(1, 2, 1, 3, 1)
-    var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
+    var t1: Tensor[f32] = Tensor[f32](t1_shape)
     fill(t1, 5.0)
 
     # Test with no dims
-    var expected = Tensor[dtype](2, 3)
+    var expected = Tensor[f32](2, 3)
     fill(expected, 5.0)
     test_unary_op[OP.SQUEEZE, t1_shape](t1, expected)
 
     # Test with one dim
-    expected = Tensor[dtype](1, 2, 1, 3)
+    expected = Tensor[f32](1, 2, 1, 3)
     fill(expected, 5.0)
     test_unary_op[
         OP.SQUEEZE, t1_shape, AttributeVector(Attribute("dims", TensorShape(4)))
     ](t1, expected)
 
-    expected = Tensor[dtype](1, 2, 3, 1)
+    expected = Tensor[f32](1, 2, 3, 1)
     fill(expected, 5.0)
     test_unary_op[
         OP.SQUEEZE, t1_shape, AttributeVector(Attribute("dims", TensorShape(2)))
     ](t1, expected)
 
     # Test with multiple dims
-    expected = Tensor[dtype](1, 2, 3)
+    expected = Tensor[f32](1, 2, 3)
     fill(expected, 5.0)
     test_unary_op[
         OP.SQUEEZE,
@@ -284,12 +284,12 @@ def test_SQUEEZE() raises:
 def test_backward_SQUEEZE() raises:
     comptime t1_shape = TensorShape(2, 1, 3, 1)
     comptime ug_shape = TensorShape(2, 3)
-    var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
+    var t1: Tensor[f32] = Tensor[f32](t1_shape)
     fill(t1, 5.0)
-    var ug: Tensor[dtype] = Tensor[dtype](ug_shape)
+    var ug: Tensor[f32] = Tensor[f32](ug_shape)
     fill(ug, 5.0)
 
-    var expected_grad = Tensor[dtype](2, 1, 3, 1)
+    var expected_grad = Tensor[f32](2, 1, 3, 1)
     fill(expected_grad, 5.0)
 
     test_unary_op_backward[OP.SQUEEZE, t1_shape, ug_shape](
@@ -300,10 +300,10 @@ def test_backward_SQUEEZE() raises:
 def test_UNSQUEEZE() raises:
     # UNSQUEEZE here is more similar to jax expand_dims
     comptime t1_shape = TensorShape(2, 3)
-    var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
+    var t1: Tensor[f32] = Tensor[f32](t1_shape)
     fill(t1, 5.0)
 
-    var expected = Tensor[dtype](2, 1, 3, 1)
+    var expected = Tensor[f32](2, 1, 3, 1)
     fill(expected, 5.0)
     test_unary_op[
         OP.UNSQUEEZE,
@@ -311,7 +311,7 @@ def test_UNSQUEEZE() raises:
         AttributeVector(Attribute("dims", TensorShape(1, 3))),
     ](t1, expected)
 
-    expected = Tensor[dtype](2, 1, 3)
+    expected = Tensor[f32](2, 1, 3)
     fill(expected, 5.0)
 
     test_unary_op[
@@ -320,7 +320,7 @@ def test_UNSQUEEZE() raises:
         AttributeVector(Attribute("dims", TensorShape(1))),
     ](t1, expected)
 
-    expected = Tensor[dtype](1, 2, 3)
+    expected = Tensor[f32](1, 2, 3)
     fill(expected, 5.0)
     test_unary_op[
         OP.UNSQUEEZE,
@@ -328,7 +328,7 @@ def test_UNSQUEEZE() raises:
         AttributeVector(Attribute("dims", TensorShape(-3))),
     ](t1, expected)
 
-    expected = Tensor[dtype](2, 1, 3, 1)
+    expected = Tensor[f32](2, 1, 3, 1)
     fill(expected, 5.0)
     test_unary_op[
         OP.UNSQUEEZE,
@@ -340,12 +340,12 @@ def test_UNSQUEEZE() raises:
 def test_backward_UNSQUEEZE() raises:
     comptime t1_shape = TensorShape(2, 3)
     comptime ug_shape = TensorShape(2, 1, 3)
-    var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
+    var t1: Tensor[f32] = Tensor[f32](t1_shape)
     fill(t1, 5.0)
-    var ug: Tensor[dtype] = Tensor[dtype](ug_shape)
+    var ug: Tensor[f32] = Tensor[f32](ug_shape)
     fill(ug, 5.0)
 
-    var expected_grad = Tensor[dtype](2, 3)
+    var expected_grad = Tensor[f32](2, 3)
     fill(expected_grad, 5.0)
 
     test_unary_op_backward[OP.UNSQUEEZE, t1_shape, ug_shape](
@@ -355,14 +355,14 @@ def test_backward_UNSQUEEZE() raises:
 
 def test_SLICE() raises:
     comptime t1_shape = TensorShape(3, 4, 5)
-    var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
+    var t1: Tensor[f32] = Tensor[f32](t1_shape)
     for i in range(t1.num_elements()):
         t1[i] = Float32(i)
 
     comptime slice = Slice(1, 3, 1)
 
     # dim = 0
-    var expected_0 = Tensor[dtype](2, 4, 5)
+    var expected_0 = Tensor[f32](2, 4, 5)
     for i in range(2):
         for j in range(4):
             for k in range(5):
@@ -382,7 +382,7 @@ def test_SLICE() raises:
     ](t1, expected_0)
 
     # dim = 1
-    var expected_1 = Tensor[dtype](3, 2, 5)
+    var expected_1 = Tensor[f32](3, 2, 5)
     for i in range(3):
         for j in range(2):
             for k in range(5):
@@ -402,7 +402,7 @@ def test_SLICE() raises:
     ](t1, expected_1)
 
     # dim = 2
-    var expected_2 = Tensor[dtype](3, 4, 2)
+    var expected_2 = Tensor[f32](3, 4, 2)
     for i in range(3):
         for j in range(4):
             for k in range(2):
@@ -427,11 +427,11 @@ def test_SLICE_step() raises:
 
     # dim = 0
     comptime t0_shape = TensorShape(10, 2, 2)
-    var t0: Tensor[dtype] = Tensor[dtype](t0_shape)
+    var t0: Tensor[f32] = Tensor[f32](t0_shape)
     for i in range(t0.num_elements()):
         t0[i] = Float32(i)
 
-    var expected_0 = Tensor[dtype](3, 2, 2)
+    var expected_0 = Tensor[f32](3, 2, 2)
     for i in range(3):
         for j in range(2):
             for k in range(2):
@@ -452,11 +452,11 @@ def test_SLICE_step() raises:
 
     # dim = 1
     comptime t1_shape = TensorShape(2, 10, 2)
-    var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
+    var t1: Tensor[f32] = Tensor[f32](t1_shape)
     for i in range(t1.num_elements()):
         t1[i] = Float32(i)
 
-    var expected_1 = Tensor[dtype](2, 3, 2)
+    var expected_1 = Tensor[f32](2, 3, 2)
     for i in range(2):
         for j in range(3):
             for k in range(2):
@@ -477,11 +477,11 @@ def test_SLICE_step() raises:
 
     # dim = 2
     comptime t2_shape = TensorShape(2, 2, 10)
-    var t2: Tensor[dtype] = Tensor[dtype](t2_shape)
+    var t2: Tensor[f32] = Tensor[f32](t2_shape)
     for i in range(t2.num_elements()):
         t2[i] = Float32(i)
 
-    var expected_2 = Tensor[dtype](2, 2, 3)
+    var expected_2 = Tensor[f32](2, 2, 3)
     for i in range(2):
         for j in range(2):
             for k in range(3):
@@ -506,11 +506,11 @@ def test_SLICE_neg() raises:
 
     # dim = 0
     comptime t0_shape = TensorShape(10, 2, 2)
-    var t0: Tensor[dtype] = Tensor[dtype](t0_shape)
+    var t0: Tensor[f32] = Tensor[f32](t0_shape)
     for i in range(t0.num_elements()):
         t0[i] = Float32(i)
 
-    var expected_0 = Tensor[dtype](3, 2, 2)
+    var expected_0 = Tensor[f32](3, 2, 2)
     for i in range(3):
         for j in range(2):
             for k in range(2):
@@ -531,11 +531,11 @@ def test_SLICE_neg() raises:
 
     # dim = 1
     comptime t1_shape = TensorShape(2, 10, 2)
-    var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
+    var t1: Tensor[f32] = Tensor[f32](t1_shape)
     for i in range(t1.num_elements()):
         t1[i] = Float32(i)
 
-    var expected_1 = Tensor[dtype](2, 3, 2)
+    var expected_1 = Tensor[f32](2, 3, 2)
     for i in range(2):
         for j in range(3):
             for k in range(2):
@@ -556,11 +556,11 @@ def test_SLICE_neg() raises:
 
     # dim = 2
     comptime t2_shape = TensorShape(2, 2, 10)
-    var t2: Tensor[dtype] = Tensor[dtype](t2_shape)
+    var t2: Tensor[f32] = Tensor[f32](t2_shape)
     for i in range(t2.num_elements()):
         t2[i] = Float32(i)
 
-    var expected_2 = Tensor[dtype](2, 2, 3)
+    var expected_2 = Tensor[f32](2, 2, 3)
     for i in range(2):
         for j in range(2):
             for k in range(3):
@@ -582,7 +582,7 @@ def test_SLICE_neg() raises:
 
 def test_SLICE_multiple_axes() raises:
     comptime t1_shape = TensorShape(20, 32, 40)
-    var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
+    var t1: Tensor[f32] = Tensor[f32](t1_shape)
     for i in range(t1.num_elements()):
         t1[i] = Float32(i)
 
@@ -590,7 +590,7 @@ def test_SLICE_multiple_axes() raises:
     comptime slice_1 = Slice(3, 10, 3)
     comptime slice_2 = Slice(5, 15, 2)
 
-    var expected = Tensor[dtype](3, 3, 5)
+    var expected = Tensor[f32](3, 3, 5)
     for i in range(3):
         for j in range(3):
             for k in range(5):
@@ -619,7 +619,7 @@ def test_SLICE_multiple_axes() raises:
     ](t1, expected)
 
     comptime t2_shape = TensorShape(20, 32, 40, 50)
-    var t2: Tensor[dtype] = Tensor[dtype](t2_shape)
+    var t2: Tensor[f32] = Tensor[f32](t2_shape)
     for i in range(t2.num_elements()):
         t2[i] = Float32(i)
 
@@ -628,7 +628,7 @@ def test_SLICE_multiple_axes() raises:
     comptime slice_2_3 = Slice(5, 15, 2)
     comptime slice_2_4 = Slice(-43, -30, 4)
 
-    var expected_2 = Tensor[dtype](3, 3, 5, 4)
+    var expected_2 = Tensor[f32](3, 3, 5, 4)
 
     for i in range(3):
         for j in range(3):
@@ -677,14 +677,14 @@ def test_backward_SLICE() raises:
     # dim = 0 (step = 1)
     comptime slice_0 = Slice(1, 3, 1)
     comptime t0_shape = TensorShape(3, 4, 5)
-    var t0: Tensor[dtype] = Tensor[dtype](t0_shape)
+    var t0: Tensor[f32] = Tensor[f32](t0_shape)
     fill(t0, 5.0)
 
     comptime ug0_shape = TensorShape(2, 4, 5)
-    var ug0: Tensor[dtype] = Tensor[dtype](ug0_shape)
+    var ug0: Tensor[f32] = Tensor[f32](ug0_shape)
     fill(ug0, 1.0)
 
-    var expected_ug0 = Tensor[dtype](t0_shape)
+    var expected_ug0 = Tensor[f32](t0_shape)
     for i in range(2):
         for j in range(4):
             for k in range(5):
@@ -705,14 +705,14 @@ def test_backward_SLICE() raises:
     # dim = 1 (step = 2)
     comptime slice_1 = Slice(1, 6, 2)
     comptime t1_shape = TensorShape(2, 10, 2)
-    var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
+    var t1: Tensor[f32] = Tensor[f32](t1_shape)
     fill(t1, 5.0)
 
     comptime ug1_shape = TensorShape(2, 3, 2)
-    var ug1: Tensor[dtype] = Tensor[dtype](ug1_shape)
+    var ug1: Tensor[f32] = Tensor[f32](ug1_shape)
     fill(ug1, 1.0)
 
-    var expected_ug1 = Tensor[dtype](t1_shape)
+    var expected_ug1 = Tensor[f32](t1_shape)
     for i in range(2):
         for j in range(3):
             for k in range(2):
@@ -733,14 +733,14 @@ def test_backward_SLICE() raises:
     # dim = 2 (step = -2)
     comptime slice_2 = Slice(6, 1, -2)
     comptime t2_shape = TensorShape(2, 2, 10)
-    var t2: Tensor[dtype] = Tensor[dtype](t2_shape)
+    var t2: Tensor[f32] = Tensor[f32](t2_shape)
     fill(t2, 5.0)
 
     comptime ug2_shape = TensorShape(2, 2, 3)
-    var ug2: Tensor[dtype] = Tensor[dtype](ug2_shape)
+    var ug2: Tensor[f32] = Tensor[f32](ug2_shape)
     fill(ug2, 1.0)
 
-    var expected_ug2 = Tensor[dtype](t2_shape)
+    var expected_ug2 = Tensor[f32](t2_shape)
     for i in range(2):
         for j in range(2):
             for k in range(3):
@@ -763,7 +763,7 @@ def test_backward_SLICE() raises:
 
 def test_backward_SLICE_multiple_axes() raises:
     comptime t1_shape = TensorShape(20, 32, 40)
-    var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
+    var t1: Tensor[f32] = Tensor[f32](t1_shape)
     for i in range(t1.num_elements()):
         t1[i] = Float32(i)
 
@@ -771,7 +771,7 @@ def test_backward_SLICE_multiple_axes() raises:
     comptime slice_1 = Slice(3, 10, 3)
     comptime slice_2 = Slice(5, 15, 2)
 
-    var expected = Tensor[dtype](3, 3, 5)
+    var expected = Tensor[f32](3, 3, 5)
     for i in range(3):
         for j in range(3):
             for k in range(5):
@@ -782,10 +782,10 @@ def test_backward_SLICE_multiple_axes() raises:
                 )
 
     comptime ug_shape = TensorShape(3, 3, 5)
-    var ug: Tensor[dtype] = Tensor[dtype](ug_shape)
+    var ug: Tensor[f32] = Tensor[f32](ug_shape)
     fill(ug, 1.0)
 
-    var expected_ug = Tensor[dtype](t1_shape)
+    var expected_ug = Tensor[f32](t1_shape)
     for i in range(3):
         for j in range(3):
             for k in range(5):

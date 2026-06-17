@@ -1,4 +1,4 @@
-from basalt import dtype, nelts
+from basalt import f32, nelts
 from basalt.nn import Tensor, TensorShape
 from basalt.utils.tensorutils import fill, elwise_op, accumulate_op
 from basalt.utils.math_util import add
@@ -6,8 +6,8 @@ from basalt.utils.math_util import add
 from std.utils.index import IndexList
 
 
-def generate_tensor(*shape: Int) -> Tensor[dtype]:
-    var A = Tensor[dtype](shape)
+def generate_tensor(*shape: Int) -> Tensor[f32]:
+    var A = Tensor[f32](shape)
     var size = A.num_elements()
     for i in range(size):
         A[i] = Float32(i + 1)
@@ -16,22 +16,22 @@ def generate_tensor(*shape: Int) -> Tensor[dtype]:
 
 def generate_expected_tensor[
     size: Int
-](data: IndexList[size], *shape: Int) -> Tensor[dtype]:
-    var A = Tensor[dtype](shape)
+](data: IndexList[size], *shape: Int) -> Tensor[f32]:
+    var A = Tensor[f32](shape)
     for i in range(size):
         A[i] = Float32(data[i])
     return A ^
 
 
 struct TransposeData:
-    var A: Tensor[dtype]
-    var expected: Tensor[dtype]
+    var A: Tensor[f32]
+    var expected: Tensor[f32]
     var transpose_dims: List[Int]
 
     def __init__(
         out self,
-        var A: Tensor[dtype],
-        var expected: Tensor[dtype],
+        var A: Tensor[f32],
+        var expected: Tensor[f32],
         var transpose_dims: List[Int],
     ):
         self.A = A^
@@ -349,14 +349,14 @@ struct TransposeData:
 
 
 struct PaddingData:
-    var A: Tensor[dtype]
-    var expected: Tensor[dtype]
+    var A: Tensor[f32]
+    var expected: Tensor[f32]
     var pad_with: List[Int]
 
     def __init__(
         out self,
-        var A: Tensor[dtype],
-        var expected: Tensor[dtype],
+        var A: Tensor[f32],
+        var expected: Tensor[f32],
         var pad_with: List[Int],
     ):
         self.A = A^
@@ -636,19 +636,19 @@ struct PaddingData:
 
 
 struct SumMeanStdData:
-    var A: Tensor[dtype]
+    var A: Tensor[f32]
     var axis: Int
-    var expected_sum: Tensor[dtype]
-    var expected_mean: Tensor[dtype]
-    var expected_std: Tensor[dtype]
+    var expected_sum: Tensor[f32]
+    var expected_mean: Tensor[f32]
+    var expected_std: Tensor[f32]
 
     def __init__(
         out self,
-        var A: Tensor[dtype],
+        var A: Tensor[f32],
         axis: Int,
-        var expected_sum: Tensor[dtype],
-        var expected_mean: Tensor[dtype],
-        var expected_std: Tensor[dtype],
+        var expected_sum: Tensor[f32],
+        var expected_mean: Tensor[f32],
+        var expected_std: Tensor[f32],
     ):
         self.A = A^
         self.axis = axis
@@ -707,7 +707,7 @@ struct SumMeanStdData:
             40,
         )
 
-        var expected_std = Tensor[dtype](1, 4, 5)
+        var expected_std = Tensor[f32](1, 4, 5)
         fill(expected_std, 16.32993162)
 
         var B = generate_expected_tensor[20](expected_sum, 1, 4, 5)
@@ -756,7 +756,7 @@ struct SumMeanStdData:
             52,
         )  # 0.5 added afterwards
 
-        var expected_std = Tensor[dtype](3, 1, 5)
+        var expected_std = Tensor[f32](3, 1, 5)
         fill(expected_std, 5.59016994)
 
         var B = generate_expected_tensor[15](expected_sum, 3, 1, 5)
@@ -800,7 +800,7 @@ struct SumMeanStdData:
             58,
         )
 
-        var expected_std = Tensor[dtype](3, 4, 1)
+        var expected_std = Tensor[f32](3, 4, 1)
         fill(expected_std, 1.41421356)
 
         var B = generate_expected_tensor[12](expected_sum, 3, 4, 1)

@@ -3,7 +3,7 @@ from std.pathlib import Path
 
 import basalt.nn as nn
 from basalt import Tensor, TensorShape
-from basalt import Graph, Symbol, OP, dtype
+from basalt import Graph, Symbol, OP, f32
 from basalt.utils.datasets import MNIST
 from basalt.utils.dataloader import DataLoader
 from basalt.autograd.attributes import AttributeVector, Attribute
@@ -83,14 +83,14 @@ def main():
 
     var correct = 0
     for batch in training_loader:
-        var labels_one_hot = Tensor[dtype](batch.labels.dim(0), 10)
+        var labels_one_hot = Tensor[f32](batch.labels.dim(0), 10)
         for bb in range(batch.labels.dim(0)):
             labels_one_hot[int(bb * 10 + batch.labels[bb])] = 1.0
 
         var output = model.inference(batch.data, labels_one_hot)[0]
         
-        def argmax(tensor: Tensor[dtype], dim: Int) -> Tensor[dtype]:
-            var result = Tensor[dtype](tensor.dim(0))
+        def argmax(tensor: Tensor[f32], dim: Int) -> Tensor[f32]:
+            var result = Tensor[f32](tensor.dim(0))
             for i in range(tensor.dim(0)):
                 var max_val = tensor[i * 10]
                 var max_idx = 0

@@ -4,7 +4,7 @@ import std.math as math
 
 import basalt.nn as nn
 from basalt import Tensor, TensorShape
-from basalt import dtype
+from basalt import f32
 from basalt import Graph, Symbol, OP
 from basalt.utils.tensorutils import fill
 
@@ -59,13 +59,13 @@ def main():
     var model = nn.Model[graph]()
     var optimizer = nn.optim.Adam[graph](model.parameters, lr=learning_rate)
 
-    var x_data = Tensor[dtype](batch_size, n_inputs)
-    var y_data = Tensor[dtype](batch_size, n_outputs)
+    var x_data = Tensor[f32](batch_size, n_inputs)
+    var y_data = Tensor[f32](batch_size, n_outputs)
 
     print("Training started")
     var start = now()
     for i in range(epochs):
-        rand[dtype](x_data.mut_ptr(), x_data.num_elements())
+        rand[f32](x_data.mut_ptr(), x_data.num_elements())
 
         for j in range(batch_size):
             x_data[j] = x_data[j] * 2 - 1

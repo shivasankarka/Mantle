@@ -1,4 +1,4 @@
-from basalt import dtype, nelts
+from basalt import f32, nelts
 from basalt.autograd import Graph, Symbol, OP
 from basalt.autograd.ops.dynamics import CONCAT, SPLIT
 from basalt.nn import Model, Tensor, TensorShape
@@ -13,14 +13,14 @@ def test_CONCAT_0() raises:
     comptime t1_shape = TensorShape(1, 2, 3)
     comptime t2_shape = TensorShape(1, 2, 3)
     comptime t3_shape = TensorShape(2, 2, 3)
-    var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
-    var t2: Tensor[dtype] = Tensor[dtype](t2_shape)
-    var t3: Tensor[dtype] = Tensor[dtype](t3_shape)
+    var t1: Tensor[f32] = Tensor[f32](t1_shape)
+    var t2: Tensor[f32] = Tensor[f32](t2_shape)
+    var t3: Tensor[f32] = Tensor[f32](t3_shape)
     fill(t1, 5.0)
     fill(t2, 10.0)
     fill(t3, 15.0)
 
-    var expected = Tensor[dtype](4, 2, 3)
+    var expected = Tensor[f32](4, 2, 3)
     for i in range(4):
         for j in range(2):
             for k in range(3):
@@ -37,7 +37,7 @@ def test_CONCAT_0() raises:
     assert_tensors_equal["almost"](res, expected)
 
     # BACKWARD
-    var ug = Tensor[dtype](4, 2, 3)
+    var ug = Tensor[f32](4, 2, 3)
     for i in range(4):
         for j in range(2):
             for k in range(3):
@@ -50,9 +50,9 @@ def test_CONCAT_0() raises:
 
     model.backward(ug.copy())
 
-    var grad1_expected = Tensor[dtype](t1_shape)
-    var grad2_expected = Tensor[dtype](t2_shape)
-    var grad3_expected = Tensor[dtype](t3_shape)
+    var grad1_expected = Tensor[f32](t1_shape)
+    var grad2_expected = Tensor[f32](t2_shape)
+    var grad3_expected = Tensor[f32](t3_shape)
     fill(grad1_expected, 1.0)
     fill(grad2_expected, 2.0)
     fill(grad3_expected, 3.0)
@@ -78,14 +78,14 @@ def test_CONCAT_1() raises:
     comptime t1_shape = TensorShape(2, 2, 5)
     comptime t2_shape = TensorShape(2, 4, 5)
     comptime t3_shape = TensorShape(2, 1, 5)
-    var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
-    var t2: Tensor[dtype] = Tensor[dtype](t2_shape)
-    var t3: Tensor[dtype] = Tensor[dtype](t3_shape)
+    var t1: Tensor[f32] = Tensor[f32](t1_shape)
+    var t2: Tensor[f32] = Tensor[f32](t2_shape)
+    var t3: Tensor[f32] = Tensor[f32](t3_shape)
     fill(t1, 5.0)
     fill(t2, 10.0)
     fill(t3, 15.0)
 
-    var expected = Tensor[dtype](2, 7, 5)
+    var expected = Tensor[f32](2, 7, 5)
     for i in range(2):
         for j in range(7):
             for k in range(5):
@@ -102,7 +102,7 @@ def test_CONCAT_1() raises:
     assert_tensors_equal["almost"](res, expected)
 
     # BACKWARD
-    var ug = Tensor[dtype](2, 7, 5)
+    var ug = Tensor[f32](2, 7, 5)
     for i in range(2):
         for j in range(7):
             for k in range(5):
@@ -115,9 +115,9 @@ def test_CONCAT_1() raises:
 
     model.backward(ug.copy())
 
-    var grad1_expected = Tensor[dtype](t1_shape)
-    var grad2_expected = Tensor[dtype](t2_shape)
-    var grad3_expected = Tensor[dtype](t3_shape)
+    var grad1_expected = Tensor[f32](t1_shape)
+    var grad2_expected = Tensor[f32](t2_shape)
+    var grad3_expected = Tensor[f32](t3_shape)
     fill(grad1_expected, 1.0)
     fill(grad2_expected, 2.0)
     fill(grad3_expected, 3.0)
@@ -143,14 +143,14 @@ def test_CONCAT_2() raises:
     comptime t1_shape = TensorShape(2, 3, 1)
     comptime t2_shape = TensorShape(2, 3, 2)
     comptime t3_shape = TensorShape(2, 3, 3)
-    var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
-    var t2: Tensor[dtype] = Tensor[dtype](t2_shape)
-    var t3: Tensor[dtype] = Tensor[dtype](t3_shape)
+    var t1: Tensor[f32] = Tensor[f32](t1_shape)
+    var t2: Tensor[f32] = Tensor[f32](t2_shape)
+    var t3: Tensor[f32] = Tensor[f32](t3_shape)
     fill(t1, 5.0)
     fill(t2, 10.0)
     fill(t3, 15.0)
 
-    var expected = Tensor[dtype](2, 3, 6)
+    var expected = Tensor[f32](2, 3, 6)
     for i in range(2):
         for j in range(3):
             for k in range(6):
@@ -167,7 +167,7 @@ def test_CONCAT_2() raises:
     assert_tensors_equal["almost"](res, expected)
 
     # BACKWARD
-    var ug = Tensor[dtype](2, 3, 6)
+    var ug = Tensor[f32](2, 3, 6)
     for i in range(2):
         for j in range(3):
             for k in range(6):
@@ -180,9 +180,9 @@ def test_CONCAT_2() raises:
 
     model.backward(ug.copy())
 
-    var grad1_expected = Tensor[dtype](t1_shape)
-    var grad2_expected = Tensor[dtype](t2_shape)
-    var grad3_expected = Tensor[dtype](t3_shape)
+    var grad1_expected = Tensor[f32](t1_shape)
+    var grad2_expected = Tensor[f32](t2_shape)
+    var grad3_expected = Tensor[f32](t3_shape)
     fill(grad1_expected, 1.0)
     fill(grad2_expected, 2.0)
     fill(grad3_expected, 3.0)
@@ -206,7 +206,7 @@ def test_SPLIT_0() raises:
     comptime t_shape = TensorShape(4, 5, 6)
     comptime sections: List[Int] = [1, 2, 1]
 
-    var t: Tensor[dtype] = Tensor[dtype](t_shape)
+    var t: Tensor[f32] = Tensor[f32](t_shape)
     for i in range(4):
         for j in range(5):
             for k in range(6):
@@ -217,9 +217,9 @@ def test_SPLIT_0() raises:
                 else:
                     t[i * 5 * 6 + j * 6 + k] = 15.0
 
-    var expected1 = Tensor[dtype](1, 5, 6)
-    var expected2 = Tensor[dtype](2, 5, 6)
-    var expected3 = Tensor[dtype](1, 5, 6)
+    var expected1 = Tensor[f32](1, 5, 6)
+    var expected2 = Tensor[f32](2, 5, 6)
+    var expected3 = Tensor[f32](1, 5, 6)
     fill(expected1, 5.0)
     fill(expected2, 10.0)
     fill(expected3, 15.0)
@@ -233,16 +233,16 @@ def test_SPLIT_0() raises:
     assert_tensors_equal["almost"](results[2], expected3)
 
     # BACKWARD
-    var ug1 = Tensor[dtype](1, 5, 6)
-    var ug2 = Tensor[dtype](2, 5, 6)
-    var ug3 = Tensor[dtype](1, 5, 6)
+    var ug1 = Tensor[f32](1, 5, 6)
+    var ug2 = Tensor[f32](2, 5, 6)
+    var ug3 = Tensor[f32](1, 5, 6)
     fill(ug1, 1.0)
     fill(ug2, 2.0)
     fill(ug3, 3.0)
 
     model.backward(ug1.copy(), ug2.copy(), ug3.copy())
 
-    var grad_expected = Tensor[dtype](t_shape)
+    var grad_expected = Tensor[f32](t_shape)
     for i in range(4):
         for j in range(5):
             for k in range(6):
@@ -263,7 +263,7 @@ def test_SPLIT_1() raises:
     comptime t_shape = TensorShape(4, 5, 6)
     comptime sections: List[Int] = [1, 3, 1]
 
-    var t: Tensor[dtype] = Tensor[dtype](t_shape)
+    var t: Tensor[f32] = Tensor[f32](t_shape)
     for i in range(4):
         for j in range(5):
             for k in range(6):
@@ -274,9 +274,9 @@ def test_SPLIT_1() raises:
                 else:
                     t[i * 5 * 6 + j * 6 + k] = 15.0
 
-    var expected1 = Tensor[dtype](4, 1, 6)
-    var expected2 = Tensor[dtype](4, 3, 6)
-    var expected3 = Tensor[dtype](4, 1, 6)
+    var expected1 = Tensor[f32](4, 1, 6)
+    var expected2 = Tensor[f32](4, 3, 6)
+    var expected3 = Tensor[f32](4, 1, 6)
     fill(expected1, 5.0)
     fill(expected2, 10.0)
     fill(expected3, 15.0)
@@ -290,16 +290,16 @@ def test_SPLIT_1() raises:
     assert_tensors_equal["almost"](results[2], expected3)
 
     # BACKWARD
-    var ug1 = Tensor[dtype](4, 1, 6)
-    var ug2 = Tensor[dtype](4, 3, 6)
-    var ug3 = Tensor[dtype](4, 1, 6)
+    var ug1 = Tensor[f32](4, 1, 6)
+    var ug2 = Tensor[f32](4, 3, 6)
+    var ug3 = Tensor[f32](4, 1, 6)
     fill(ug1, 1.0)
     fill(ug2, 2.0)
     fill(ug3, 3.0)
 
     model.backward(ug1.copy(), ug2.copy(), ug3.copy())
 
-    var grad_expected = Tensor[dtype](t_shape)
+    var grad_expected = Tensor[f32](t_shape)
     for i in range(4):
         for j in range(5):
             for k in range(6):
@@ -320,7 +320,7 @@ def test_SPLIT_2() raises:
     comptime t_shape = TensorShape(4, 5, 6)
     comptime sections: List[Int] = [1, 4, 1]
 
-    var t: Tensor[dtype] = Tensor[dtype](t_shape)
+    var t: Tensor[f32] = Tensor[f32](t_shape)
     for i in range(4):
         for j in range(5):
             for k in range(6):
@@ -331,9 +331,9 @@ def test_SPLIT_2() raises:
                 else:
                     t[i * 5 * 6 + j * 6 + k] = 15.0
 
-    var expected1 = Tensor[dtype](4, 5, 1)
-    var expected2 = Tensor[dtype](4, 5, 4)
-    var expected3 = Tensor[dtype](4, 5, 1)
+    var expected1 = Tensor[f32](4, 5, 1)
+    var expected2 = Tensor[f32](4, 5, 4)
+    var expected3 = Tensor[f32](4, 5, 1)
     fill(expected1, 5.0)
     fill(expected2, 10.0)
     fill(expected3, 15.0)
@@ -347,16 +347,16 @@ def test_SPLIT_2() raises:
     assert_tensors_equal["almost"](results[2], expected3)
 
     # BACKWARD
-    var ug1 = Tensor[dtype](4, 5, 1)
-    var ug2 = Tensor[dtype](4, 5, 4)
-    var ug3 = Tensor[dtype](4, 5, 1)
+    var ug1 = Tensor[f32](4, 5, 1)
+    var ug2 = Tensor[f32](4, 5, 4)
+    var ug3 = Tensor[f32](4, 5, 1)
     fill(ug1, 1.0)
     fill(ug2, 2.0)
     fill(ug3, 3.0)
 
     model.backward(ug1.copy(), ug2.copy(), ug3.copy())
 
-    var grad_expected = Tensor[dtype](t_shape)
+    var grad_expected = Tensor[f32](t_shape)
     for i in range(4):
         for j in range(5):
             for k in range(6):
