@@ -308,7 +308,7 @@ struct SQUEEZE:
         t1_shape: TensorShape,
         attributes: AttributeVector,
     ](mut res: Tensor[dtype], t1: Tensor[dtype]):
-        memcpy(dest=res.data(), src=t1.data(), count=t1.num_elements())
+        memcpy(dest=res.mut_ptr(), src=t1.ptr(), count=t1.num_elements())
 
     @staticmethod
     def backward[
@@ -316,7 +316,7 @@ struct SQUEEZE:
         t1_shape: TensorShape,
     ](ug: Tensor[dtype], t1: Tensor[dtype]) -> Tensor[dtype]:
         var res_grad = Tensor[dtype](t1_shape)
-        memcpy(dest=res_grad.data(), src=ug.data(), count=ug.num_elements())
+        memcpy(dest=res_grad.mut_ptr(), src=ug.ptr(), count=ug.num_elements())
         return res_grad^
 
 
@@ -347,7 +347,7 @@ struct UNSQUEEZE:
         t1_shape: TensorShape,
         attributes: AttributeVector,
     ](mut res: Tensor[dtype], t1: Tensor[dtype]):
-        memcpy(dest=res.data(), src=t1.data(), count=t1.num_elements())
+        memcpy(dest=res.mut_ptr(), src=t1.ptr(), count=t1.num_elements())
 
     @staticmethod
     def backward[
@@ -355,7 +355,7 @@ struct UNSQUEEZE:
         t1_shape: TensorShape,
     ](ug: Tensor[dtype], t1: Tensor[dtype]) -> Tensor[dtype]:
         var res_grad = Tensor[dtype](t1_shape)
-        memcpy(dest=res_grad.data(), src=ug.data(), count=ug.num_elements())
+        memcpy(dest=res_grad.mut_ptr(), src=ug.ptr(), count=ug.num_elements())
         return res_grad^
 
 
@@ -501,7 +501,7 @@ struct SLICE:
                     else:
                         res.store[nelts](
                             idx_temp + k,
-                            (t1.data() + idx_original_temp).strided_load[
+                            (t1.ptr() + idx_original_temp).strided_load[
                                 width=nelts
                             ](stride),
                         )
@@ -511,7 +511,7 @@ struct SLICE:
                             idx_original_temp, t1.load[nelts](idx_temp + k)
                         )
                     else:
-                        (res.data() + idx_original_temp).strided_store[
+                        (res.mut_ptr() + idx_original_temp).strided_store[
                             width=nelts
                         ](t1.load[nelts](idx_temp + k), stride)
 

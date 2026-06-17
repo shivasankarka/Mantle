@@ -46,13 +46,15 @@ struct CONCAT:
             chunks.append(inputs[i].shape.num_elements() // n_chunks)
             chunk_offsets.append(chunk_offsets[i] + chunks[i])
 
+        var out_tensor = parameters.tensors[outputs[0]]
         for i in range(n_chunks):
             for j in range(len(inputs)):
+                var in_tensor = parameters.tensors[inputs[j]]
                 memcpy(
-                    dest=parameters.tensors[outputs[0]].data()
+                    dest=out_tensor.mut_ptr()
                     + i * chunk_offsets[len(inputs)]
                     + chunk_offsets[j],
-                    src=parameters.tensors[inputs[j]].data() + i * chunks[j],
+                    src=in_tensor.ptr() + i * chunks[j],
                     count=chunks[j],
                 )
 
@@ -76,10 +78,11 @@ struct CONCAT:
             chunk_offsets.append(chunk_offsets[i] + chunks[i])
 
         var res_grad = Tensor[dtype](inputs[input_id].shape)
+        var out_grad = parameters.grads[outputs[0]]
         for i in range(n_chunks):
             memcpy(
-                dest=res_grad.data() + i * chunks[input_id],
-                src=parameters.grads[outputs[0]].data()
+                dest=res_grad.mut_ptr() + i * chunks[input_id],
+                src=out_grad.ptr()
                 + i * chunk_offsets[len(inputs)]
                 + chunk_offsets[input_id],
                 count=chunks[input_id],
@@ -131,11 +134,13 @@ struct SPLIT:
             chunks.append(outputs[i].shape.num_elements() // n_chunks)
             chunk_offsets.append(chunk_offsets[i] + chunks[i])
 
+        var in_tensor = parameters.tensors[inputs[0]]
         for i in range(n_chunks):
             for j in range(len(outputs)):
+                var out_tensor = parameters.tensors[outputs[j]]
                 memcpy(
-                    dest=parameters.tensors[outputs[j]].data() + i * chunks[j],
-                    src=parameters.tensors[inputs[0]].data()
+                    dest=out_tensor.mut_ptr() + i * chunks[j],
+                    src=in_tensor.ptr()
                     + i * chunk_offsets[len(outputs)]
                     + chunk_offsets[j],
                     count=chunks[j],
@@ -165,11 +170,12 @@ struct SPLIT:
 
         for i in range(n_chunks):
             for j in range(len(outputs)):
+                var out_grad = parameters.grads[outputs[j]]
                 memcpy(
-                    dest=res_grad.data()
+                    dest=res_grad.mut_ptr()
                     + i * chunk_offsets[len(outputs)]
                     + chunk_offsets[j],
-                    src=parameters.grads[outputs[j]].data() + i * chunks[j],
+                    src=out_grad.ptr() + i * chunks[j],
                     count=chunks[j],
                 )
 
