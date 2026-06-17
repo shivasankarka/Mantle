@@ -2,6 +2,7 @@ from basalt import Tensor, TensorShape
 from basalt import Graph, Symbol, OP
 from basalt.utils import q_sqrt
 from basalt.autograd.params import Param
+from basalt.nn.module import Layer
 
 
 def Linear(
@@ -26,3 +27,16 @@ def Linear(
 
     var res = g.op(OP.DOT, inputs, weights)
     return g.op(OP.ADD, res, b)
+
+
+@fieldwise_init
+struct LinearLayer(Layer, Copyable, Movable):
+    """
+    `Layer`-conforming wrapper around `Linear`, for use in a reflection-based
+    Module struct.
+    """
+
+    var n_outputs: Int
+
+    def forward(self, mut g: Graph, input: Symbol) -> Symbol:
+        return Linear(g, input, self.n_outputs)
