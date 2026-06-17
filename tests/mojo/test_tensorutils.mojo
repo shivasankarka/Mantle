@@ -30,7 +30,7 @@ from tests import assert_tensors_equal
 def test_zero() raises:
     var A = Tensor[dtype](2, 3)
     var B = Tensor[dtype](2, 3)
-    rand[dtype](B.data(), B.num_elements())
+    rand[dtype](B.mut_ptr(), B.num_elements())
     B.zero()
     assert_tensors_equal(A, B)
 
