@@ -320,10 +320,7 @@ def transpose_2D[t_shape: TensorShape](t: Tensor[dtype]) -> Tensor[dtype]:
     @parameter
     def proc_row(i: Int):
         def proc_column[nelts: Int](j: Int) {mut t_new, read t, read i}:
-            # t_new.data() + (j * t_shape[0] + i).strided_store[width=nelts](
-            #     t.load[nelts](i * t_shape[1] + j), stride
-            # )
-            (t_new.data() + (j * t_shape[0] + i)).strided_store[width=nelts](
+            (t_new.mut_ptr() + (j * t_shape[0] + i)).strided_store[width=nelts](
                 t.load[nelts](i * t_shape[1] + j), stride
             )
 
@@ -425,7 +422,7 @@ def reduce[
                 m[0] = op[dtype, 1](
                     SIMD[dtype, 1](m[0]),
                     SIMD[dtype, 1](
-                        (t.data() + index).strided_load[width=_nelts](
+                        (t.ptr() + index).strided_load[width=_nelts](
                             strides[axis]
                         )[0]
                     ),
@@ -433,7 +430,7 @@ def reduce[
             else:
                 m = op(
                     m,
-                    (t.data() + index).strided_load[width=nelts](strides[axis]),
+                    (t.ptr() + index).strided_load[width=nelts](strides[axis]),
                 )
 
         vectorize[nelts](t.dim(axis), axisreduce)
@@ -680,7 +677,7 @@ def transpose(mut res: Tensor[dtype], t: Tensor[dtype], axes: TensorShape):
 
                 new_index += index * transposed_strides[k]
 
-            (res.data() + new_index).strided_store[width=nelts](
+            (res.mut_ptr() + new_index).strided_store[width=nelts](
                 t.load[nelts](original_index),
                 transposed_strides[position_of_last_rank_new_shape],
             )
