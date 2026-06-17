@@ -56,7 +56,7 @@ def test_attribute_scalar() raises:
         )
 
     def test_float_literal() raises:
-        comptime value_c = FloatLiteral(-1.1)
+        comptime value_c = -1.1
         comptime a3 = Attribute(name="test", value=value_c)
         assert_true(
             a3.to_scalar[DType.float32]() == value_c,
