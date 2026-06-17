@@ -69,7 +69,7 @@ struct Model[
     # Removes the need for splitting in forward and inference mode
     def forward(
         mut self, *t_inputs: Tensor[dtype]
-    ) -> ref[origin_of(self)] Tensor[dtype]:
+    ) -> Tensor[dtype]:
         # NOTE: Important detail here is that the order of the inputs must be the same as the order the inputs were defined in the graph.
         # Example: If you were te define the y_true before the x when creating the graph
         #
@@ -344,13 +344,16 @@ struct Model[
                 )
             elif p_init.data:
                 # 2. Parameter initialized with data only
-                # Data-initialized params require a runtime tensor load path.
                 par = Tensor[dtype](p.shape)
+                comptime init_data = p_init.data.value()
+                comptime for j in range(len(init_data)):
+                    comptime value = init_data[j]
+                    par[j] = materialize[value]()
             else:
                 # Default parameter initialization to zero
                 par = Tensor[dtype](p.shape)
 
-            self.parameters.tensors.append(par^, p)
+            self.parameters.tensors.append(par, p)
 
         comptime for i in range(len(Self.g.nodes)):
             # Assumption: An input or a param cannot be an output of a node
