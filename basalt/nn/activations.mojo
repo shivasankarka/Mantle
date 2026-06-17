@@ -1,11 +1,23 @@
 from basalt import Tensor, TensorShape
 from basalt import Graph, Symbol, OP
 from basalt.autograd.attributes import Attribute, AttributeVector
+from basalt.nn.module import Layer
 
 
 # '''Activation functions.'''
 def ReLU(mut g: Graph, input: Symbol) -> Symbol:
     return g.op(OP.RELU, input)
+
+
+@fieldwise_init
+struct ReLULayer(Layer, Copyable, Movable):
+    """
+    `Layer`-conforming wrapper around `ReLU`, for use in a reflection-based
+    Module struct.
+    """
+
+    def forward(self, mut g: Graph, input: Symbol) -> Symbol:
+        return ReLU(g, input)
 
 
 def LeakyReLU(
