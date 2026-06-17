@@ -69,10 +69,10 @@ struct CONV2D:
         bias_shape: TensorShape,
         attributes: AttributeVector,
     ](
-        mut outputs: Tensor[dtype],
-        inputs: Tensor[dtype],
-        kernel: Tensor[dtype],
-        bias: Tensor[dtype],
+        mut outputs: Tensor[f32],
+        inputs: Tensor[f32],
+        kernel: Tensor[f32],
+        bias: Tensor[f32],
     ):
         """
         Performs a 2D convolution on the input tensor using the kernel and bias.
@@ -118,7 +118,7 @@ struct CONV2D:
         comptime outputs_strides = output_shape.strides()
         comptime col_strides = col_shape.strides()
 
-        var col_ptr = alloc[Scalar[dtype]](col_shape.num_elements())
+        var col_ptr = alloc[Scalar[f32]](col_shape.num_elements())
         memset_zero(col_ptr, col_shape.num_elements())
 
         @parameter
@@ -160,7 +160,7 @@ struct CONV2D:
             for out_ch in range(out_channels):
                 for ux in range(out_x):
                     for uy in range(out_y):
-                        var result: SIMD[dtype, nelts] = 0.0
+                        var result: SIMD[f32, nelts] = 0.0
 
                         def v_im2col[
                             _nelts: Int
@@ -219,11 +219,11 @@ struct CONV2D:
         bias_shape: TensorShape,
         attributes: AttributeVector,
     ](
-        ug: Tensor[dtype],
-        inputs: Tensor[dtype],
-        kernel: Tensor[dtype],
-        bias: Tensor[dtype],
-    ) -> Tensor[dtype]:
+        ug: Tensor[f32],
+        inputs: Tensor[f32],
+        kernel: Tensor[f32],
+        bias: Tensor[f32],
+    ) -> Tensor[f32]:
         """
         Backward operation of 2D convolution.
 
@@ -264,13 +264,13 @@ struct CONV2D:
         comptime ug_shape_2 = ug_shape[2]
         comptime ug_shape_3 = ug_shape[3]
 
-        var res: Tensor[dtype]
+        var res: Tensor[f32]
 
         comptime if tensor_id == 0:
             # Inputs
             # Sum of upper gradient over batch, X, Y dimensions
 
-            res = Tensor[dtype](input_shape)
+            res = Tensor[f32](input_shape)
 
             @parameter
             def input_grad(batch: Int):
@@ -325,7 +325,7 @@ struct CONV2D:
         elif tensor_id == 1:
             # Kernel
             # Sum of upper gradient over batch and X, Y dimensions
-            res = Tensor[dtype](kernel_shape)
+            res = Tensor[f32](kernel_shape)
 
             @parameter
             def kernel_grad(out_ch: Int):
@@ -338,7 +338,7 @@ struct CONV2D:
 
                     # TODO: Cant vectorize since you are going different directions across input and upper grad
                     # But theoretically could transpose or split somehow
-                    var result: Scalar[dtype] = 0
+                    var result: Scalar[f32] = 0
                     for batch in range(input_shape_0):
                         for ux in range(ug_shape_2):
                             for uy in range(ug_shape_3):
@@ -381,7 +381,7 @@ struct CONV2D:
             # Bias
             # Sum of upper gradient over batch and X, Y dimensions
             # out_channels == ug_shape[1] == bias_shape[0]
-            res = Tensor[dtype](bias_shape)
+            res = Tensor[f32](bias_shape)
 
             # Psuedocode
             # For every channel in the bias tensor,
@@ -392,7 +392,7 @@ struct CONV2D:
             @parameter
             def bias_grad(out_ch: Int):
                 var channel_offset = out_ch * ug_strides_1
-                var sum: Scalar[dtype] = 0
+                var sum: Scalar[f32] = 0
                 for batch in range(ug_shape_0):
                     var batch_offset = batch * ug_strides_0 + channel_offset
 

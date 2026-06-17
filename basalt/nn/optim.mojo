@@ -27,10 +27,10 @@ struct Adam[
 ]:
     var parameters: Pointer[Parameters, MutAnyOrigin]
 
-    var lr: Scalar[dtype]
-    var beta1: Scalar[dtype]
-    var beta2: Scalar[dtype]
-    var epsilon: Scalar[dtype]
+    var lr: Scalar[f32]
+    var beta1: Scalar[f32]
+    var beta2: Scalar[f32]
+    var epsilon: Scalar[f32]
     var iter: Int
 
     var rms_grads: Collection
@@ -39,10 +39,10 @@ struct Adam[
     def __init__(
         out self,
         ref[MutAnyOrigin] parameters: Parameters,
-        lr: Scalar[dtype] = 0.001,
-        beta1: Scalar[dtype] = 0.9,
-        beta2: Scalar[dtype] = 0.999,
-        epsilon: Scalar[dtype] = 1e-8,
+        lr: Scalar[f32] = 0.001,
+        beta1: Scalar[f32] = 0.9,
+        beta2: Scalar[f32] = 0.999,
+        epsilon: Scalar[f32] = 1e-8,
     ):
         # self.parameters = Pointer.address_of(parameters)
         self.parameters = Pointer(to=parameters)
@@ -118,5 +118,5 @@ struct Adam[
         var tr = materialize[Self.trainable_parameters]()
         for i in range(len(tr)):
             var param = tr[i]
-            self.rms_grads.append(Tensor[dtype](param.shape), param)
-            self.momentum_grads.append(Tensor[dtype](param.shape), param)
+            self.rms_grads.append(Tensor[f32](param.shape), param)
+            self.momentum_grads.append(Tensor[f32](param.shape), param)

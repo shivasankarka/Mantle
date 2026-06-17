@@ -65,7 +65,7 @@ struct CONCAT:
         inputs: List[Symbol],
         outputs: List[Symbol],
         mut parameters: Parameters,
-    ) -> Tensor[dtype]:
+    ) -> Tensor[f32]:
         comptime dim = attributes["dim"].value().to_int() if attributes[
             "dim"
         ] else 0
@@ -77,7 +77,7 @@ struct CONCAT:
             chunks.append(inputs[i].shape.num_elements() // n_chunks)
             chunk_offsets.append(chunk_offsets[i] + chunks[i])
 
-        var res_grad = Tensor[dtype](inputs[input_id].shape)
+        var res_grad = Tensor[f32](inputs[input_id].shape)
         var out_grad = parameters.grads[outputs[0]]
         for i in range(n_chunks):
             memcpy(
@@ -153,7 +153,7 @@ struct SPLIT:
         inputs: List[Symbol],
         outputs: List[Symbol],
         mut parameters: Parameters,
-    ) -> Tensor[dtype]:
+    ) -> Tensor[f32]:
         comptime dim = attributes["dim"].value().to_int() if attributes[
             "dim"
         ] else 0
@@ -166,7 +166,7 @@ struct SPLIT:
             chunks.append(outputs[i].shape.num_elements() // n_chunks)
             chunk_offsets.append(chunk_offsets[i] + chunks[i])
 
-        var res_grad = Tensor[dtype](inputs[input_id].shape)
+        var res_grad = Tensor[f32](inputs[input_id].shape)
 
         for i in range(n_chunks):
             for j in range(len(outputs)):

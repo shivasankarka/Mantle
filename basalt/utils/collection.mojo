@@ -18,9 +18,9 @@ struct Collection(Copyable, Movable, Sized):
 
     var size: Int
     var capacity: Int
-    var data_owner: Optional[UnsafePointer[Tensor[dtype], MutUntrackedOrigin]]
+    var data_owner: Optional[UnsafePointer[Tensor[f32], MutUntrackedOrigin]]
     var symbols_owner: Optional[UnsafePointer[UInt32, MutUntrackedOrigin]]
-    var data_ref: UnsafePointer[Tensor[dtype], MutUntrackedOrigin]
+    var data_ref: UnsafePointer[Tensor[f32], MutUntrackedOrigin]
     var symbols_ref: UnsafePointer[UInt32, MutUntrackedOrigin]
 
     var index_map_capacity: Int
@@ -31,7 +31,7 @@ struct Collection(Copyable, Movable, Sized):
     def __init__(out self, *, capacity: Int = 1):
         self.size = 0
         self.capacity = capacity
-        self.data_owner = alloc[Tensor[dtype]](capacity)
+        self.data_owner = alloc[Tensor[f32]](capacity)
         self.symbols_owner = alloc[UInt32](capacity)
         self.data_ref = self.data_owner.value()
         self.symbols_ref = self.symbols_owner.value()
@@ -61,7 +61,7 @@ struct Collection(Copyable, Movable, Sized):
     def __init__(out self, *, copy: Self):
         self.size = copy.size
         self.capacity = copy.capacity
-        self.data_owner = alloc[Tensor[dtype]](copy.capacity)
+        self.data_owner = alloc[Tensor[f32]](copy.capacity)
         self.symbols_owner = alloc[UInt32](copy.capacity)
         self.data_ref = self.data_owner.value()
         self.symbols_ref = self.symbols_owner.value()
@@ -106,7 +106,7 @@ struct Collection(Copyable, Movable, Sized):
 
     @always_inline("nodebug")
     def _realloc(mut self, new_capacity: Int):
-        var new_data = alloc[Tensor[dtype]](new_capacity)
+        var new_data = alloc[Tensor[f32]](new_capacity)
         var new_symbols = alloc[UInt32](new_capacity)
 
         for i in range(self.size):
@@ -156,11 +156,11 @@ struct Collection(Copyable, Movable, Sized):
         self.index_map_ref[id] = slot
 
     @always_inline("nodebug")
-    def append(mut self, value: Tensor[dtype], symbol: Symbol):
+    def append(mut self, value: Tensor[f32], symbol: Symbol):
         self.append(value, symbol.name)
 
     @always_inline("nodebug")
-    def append(mut self, value: Tensor[dtype], symbol_name: UInt32):
+    def append(mut self, value: Tensor[f32], symbol_name: UInt32):
         if self.size >= self.capacity:
             self._realloc(max(1, self.capacity * 2))
         UnsafePointer.init_pointee_move(self.data_ref + self.size, value.copy())
@@ -178,12 +178,12 @@ struct Collection(Copyable, Movable, Sized):
     def __getitem__(
         self,
         symbol: Symbol,
-    ) -> Tensor[dtype]:
+    ) -> Tensor[f32]:
         var index = self.get_index(symbol.name)
         ref tensor = self.data_ref[index]
         return tensor.share()
 
-    def __setitem__(mut self, symbol: Symbol, value: Tensor[dtype]):
+    def __setitem__(mut self, symbol: Symbol, value: Tensor[f32]):
         var index = self.get_index(symbol.name)
         ref tensor = self.data_ref[index]
         memcpy(

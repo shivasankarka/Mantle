@@ -230,7 +230,7 @@ def dynamic_result_shape(
 
 def forward_op[
     op: OP, t1_shape: TensorShape, attributes: AttributeVector
-](mut res: Tensor[dtype], t1: Tensor[dtype]):
+](mut res: Tensor[f32], t1: Tensor[f32]):
     """
     Forward pass for unary operators.
     """
@@ -278,7 +278,7 @@ def forward_op[
     t1_shape: TensorShape,
     t2_shape: TensorShape,
     attributes: AttributeVector,
-](mut res: Tensor[dtype], t1: Tensor[dtype], t2: Tensor[dtype]):
+](mut res: Tensor[f32], t1: Tensor[f32], t2: Tensor[f32]):
     """
     Forward pass for binary operators.
     """
@@ -306,10 +306,10 @@ def forward_op[
     t3_shape: TensorShape,
     attributes: AttributeVector,
 ](
-    mut res: Tensor[dtype],
-    t1: Tensor[dtype],
-    t2: Tensor[dtype],
-    t3: Tensor[dtype],
+    mut res: Tensor[f32],
+    t1: Tensor[f32],
+    t2: Tensor[f32],
+    t3: Tensor[f32],
 ):
     """
     Forward pass for ternary operators.
@@ -346,11 +346,11 @@ def backward_op[
     ug_shape: TensorShape,
     t1_shape: TensorShape,
     attributes: AttributeVector,
-](ug: Tensor[dtype], t1: Tensor[dtype], mut grad: Tensor[dtype]):
+](ug: Tensor[f32], t1: Tensor[f32], mut grad: Tensor[f32]):
     """
     Backward pass for unary operators.
     """
-    var res_grad: Tensor[dtype]
+    var res_grad: Tensor[f32]
 
     comptime if op == OP.EXP:
         res_grad = EXP.backward[ug_shape, t1_shape](ug, t1)
@@ -388,7 +388,7 @@ def backward_op[
         res_grad = SLICE.backward[ug_shape, t1_shape, attributes](ug, t1)
     else:
         print("[ERROR] Operator not found.")
-        res_grad = Tensor[dtype](-1)
+        res_grad = Tensor[f32](-1)
 
     accumulate_grad(grad, res_grad)
 
@@ -401,15 +401,15 @@ def backward_op[
     t2_shape: TensorShape,
     attributes: AttributeVector,
 ](
-    ug: Tensor[dtype],
-    t1: Tensor[dtype],
-    t2: Tensor[dtype],
-    mut grad: Tensor[dtype],
+    ug: Tensor[f32],
+    t1: Tensor[f32],
+    t2: Tensor[f32],
+    mut grad: Tensor[f32],
 ):
     """
     Backward pass for binary operators.
     """
-    var res_grad: Tensor[dtype]
+    var res_grad: Tensor[f32]
 
     comptime if op == OP.ADD:
         res_grad = ADD.backward[tensor_id, ug_shape, t1_shape, t2_shape](
@@ -437,7 +437,7 @@ def backward_op[
         )
     else:
         print("[ERROR] Operator not found.")
-        res_grad = Tensor[dtype](-1, -1)
+        res_grad = Tensor[f32](-1, -1)
 
     def broadcastable(op: OP) -> Bool:
         return op == OP.ADD or op == OP.SUB or op == OP.MUL or op == OP.DIV
@@ -460,16 +460,16 @@ def backward_op[
     t3_shape: TensorShape,
     attributes: AttributeVector,
 ](
-    ug: Tensor[dtype],
-    t1: Tensor[dtype],
-    t2: Tensor[dtype],
-    t3: Tensor[dtype],
-    mut grad: Tensor[dtype],
+    ug: Tensor[f32],
+    t1: Tensor[f32],
+    t2: Tensor[f32],
+    t3: Tensor[f32],
+    mut grad: Tensor[f32],
 ):
     """
     Backward pass for ternary operators.
     """
-    var res_grad: Tensor[dtype]
+    var res_grad: Tensor[f32]
 
     comptime if op == OP.CONV2D:
         res_grad = CONV2D.backward[
@@ -481,7 +481,7 @@ def backward_op[
         ](ug, t1, t2, t3)
     else:
         print("[ERROR] Operator not found.")
-        res_grad = Tensor[dtype](-1, -1)
+        res_grad = Tensor[f32](-1, -1)
 
     accumulate_grad(grad, res_grad)
 
@@ -493,13 +493,13 @@ def backward_op[
 ](
     inputs: List[Symbol],
     outputs: List[Symbol],
-    mut grad: Tensor[dtype],
+    mut grad: Tensor[f32],
     mut parameters: Parameters,
 ):
     """
     Backward pass for dynamic operators.
     """
-    var res_grad: Tensor[dtype]
+    var res_grad: Tensor[f32]
 
     if op == OP.CONCAT:
         res_grad = CONCAT.backward[input_id, attributes](
@@ -511,6 +511,6 @@ def backward_op[
         )
     else:
         print("[ERROR] Operator not found.")
-        res_grad = Tensor[dtype](-1, -1)
+        res_grad = Tensor[f32](-1, -1)
 
     accumulate_grad(grad, res_grad)

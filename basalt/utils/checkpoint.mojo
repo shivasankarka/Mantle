@@ -6,7 +6,7 @@ state, keyed by graph `Symbol` id.
 from std.memory import UnsafePointer
 from std.sys.info import size_of
 
-from basalt import Symbol, Tensor, TensorShape, dtype
+from basalt import Symbol, Tensor, TensorShape, f32
 from basalt.nn.model import Parameters
 from basalt.utils.collection import Collection
 
@@ -70,7 +70,7 @@ def _read_u32(data: List[UInt8], mut offset: Int) -> UInt32:
 
 
 def _write_tensor(
-    mut f: FileHandle, symbol_id: UInt32, kind: UInt8, tensor: Tensor[dtype]
+    mut f: FileHandle, symbol_id: UInt32, kind: UInt8, tensor: Tensor[f32]
 ) raises:
     """
     Writes one checkpoint entry: symbol id, kind tag, shape, then the
@@ -94,7 +94,7 @@ def _write_tensor(
     for i in range(tensor.rank()):
         _write_u32(f, UInt32(tensor.dim(i)))
 
-    var n_bytes = tensor.num_elements() * size_of[dtype]()
+    var n_bytes = tensor.num_elements() * size_of[f32]()
     var data_bytes = Span[UInt8](ptr=tensor.ptr().bitcast[UInt8](), length=n_bytes)
     f.write_bytes(data_bytes)
 
@@ -143,7 +143,7 @@ def _read_tensor_into(data: List[UInt8], mut offset: Int, mut collection: Collec
     var header = _read_entry_header(data, offset)
     var symbol_id = header[0]
     var shape = header[2]
-    var n_bytes = shape.num_elements() * size_of[dtype]()
+    var n_bytes = shape.num_elements() * size_of[f32]()
 
     var index = collection.get_index(symbol_id)
     if index == -1:
@@ -330,7 +330,7 @@ def load_checkpoint(path: String, mut parameters: Parameters) raises -> Checkpoi
     # Skip any optimizer-state entries present in the file.
     for _ in range(num_optim):
         var header = _read_entry_header(data, offset)
-        offset += header[2].num_elements() * size_of[dtype]()
+        offset += header[2].num_elements() * size_of[f32]()
 
     return CheckpointInfo(iter, num_optim > 0)
 
@@ -384,7 +384,7 @@ def load_checkpoint_with_optim(
         var symbol_id = header[0]
         var kind = header[1]
         var shape = header[2]
-        var n_bytes = shape.num_elements() * size_of[dtype]()
+        var n_bytes = shape.num_elements() * size_of[f32]()
 
         if kind == OPTIM_KIND_MOMENTUM:
             var index = momentum_grads.get_index(symbol_id)

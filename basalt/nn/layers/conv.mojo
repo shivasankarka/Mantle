@@ -28,7 +28,7 @@ def Conv2d(
     """
 
     var in_channels: Int = inputs.shape[1]
-    var fan_in: Scalar[dtype] = Scalar[dtype](
+    var fan_in: Scalar[f32] = Scalar[f32](
         in_channels * kernel_size[0] * kernel_size[1]
     )
     var bound = q_sqrt(fan_in)

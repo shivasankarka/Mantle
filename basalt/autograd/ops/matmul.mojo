@@ -20,14 +20,14 @@ def calculate_block[
     BLOCK_N: Int,
     nelts: Int,
 ](
-    res: UnsafePointer[Scalar[dtype], origin_res],
-    t1: UnsafePointer[Scalar[dtype], origin_t1],
-    t2: UnsafePointer[Scalar[dtype], origin_t2],
+    res: UnsafePointer[Scalar[f32], origin_res],
+    t1: UnsafePointer[Scalar[f32], origin_t1],
+    t2: UnsafePointer[Scalar[f32], origin_t2],
     bm: Int,
     bn: Int,
 ):
     # Compute tile
-    var acc = stack_allocation[BLOCK_M * BLOCK_N, dtype]()
+    var acc = stack_allocation[BLOCK_M * BLOCK_N, f32]()
     memset_zero(acc, BLOCK_M * BLOCK_N)
 
     for k in range(K):
@@ -38,7 +38,7 @@ def calculate_block[
             ](n: Int) {mut acc, read t1, read t2, read bm, read bn, read k}:
                 acc.store(
                     m * BLOCK_N + n,
-                    SIMD[dtype, nelts](t1[(bm + m) * K + k]).fma(
+                    SIMD[f32, nelts](t1[(bm + m) * K + k]).fma(
                         t2.load[width=nelts](k * N + (bn + n)),
                         acc.load[width=nelts](m * BLOCK_N + n),
                     ),
@@ -62,7 +62,7 @@ def calculate_block[
 @always_inline
 def dot[
     t1_shape: TensorShape, t2_shape: TensorShape
-](mut res: Tensor[dtype], t1: Tensor[dtype], t2: Tensor[dtype]):
+](mut res: Tensor[f32], t1: Tensor[f32], t2: Tensor[f32]):
     dot[t1_shape, t2_shape](res.mut_ptr(), t1.ptr(), t2.ptr())
 
 
@@ -77,16 +77,16 @@ def dot[
     t1_shape: TensorShape,
     t2_shape: TensorShape,
 ](
-    res: UnsafePointer[Scalar[dtype], origin_res],
-    t1: UnsafePointer[Scalar[dtype], origin_t1],
-    t2: UnsafePointer[Scalar[dtype], origin_t2],
+    res: UnsafePointer[Scalar[f32], origin_res],
+    t1: UnsafePointer[Scalar[f32], origin_t1],
+    t2: UnsafePointer[Scalar[f32], origin_t2],
 ):
     comptime M = t1_shape[0]  # t1[0]
     comptime K = t1_shape[1]  # t1[1], t2[0]
     comptime N = t2_shape[1]  # t2[1]
 
-    # simd_width_of[dtype]() = 8 for float32
-    comptime nelts = simd_width_of[dtype]()
+    # simd_width_of[f32]() = 8 for float32
+    comptime nelts = simd_width_of[f32]()
     comptime BLOCK_N = 8 * 2
     comptime BLOCK_M = 6
     comptime THREADS = 6  # num_logical_cores()
@@ -146,9 +146,9 @@ def dot_transpose_t2[
     A_shape: TensorShape,
     B_shape: TensorShape,
 ](
-    mut C: UnsafePointer[Scalar[dtype], origin_res],
-    A: UnsafePointer[Scalar[dtype], origin_t1],
-    B: UnsafePointer[Scalar[dtype], origin_t2],
+    mut C: UnsafePointer[Scalar[f32], origin_res],
+    A: UnsafePointer[Scalar[f32], origin_t1],
+    B: UnsafePointer[Scalar[f32], origin_t2],
 ):
     dot[A_shape, TensorShape(B_shape[1], B_shape[0])](
         C, A, transpose_2D[B_shape](B)
@@ -157,7 +157,7 @@ def dot_transpose_t2[
 
 def dot_transpose_t2[
     A_shape: TensorShape, B_shape: TensorShape
-](mut C: Tensor[dtype], A: Tensor[dtype], B: Tensor[dtype]):
+](mut C: Tensor[f32], A: Tensor[f32], B: Tensor[f32]):
     memset_zero(C.mut_ptr(), C.num_elements())
 
     dot[A_shape, TensorShape(B_shape[1], B_shape[0])](
@@ -185,7 +185,7 @@ def dot_transpose_t2[
 
 def dot_transpose_t1[
     A_shape: TensorShape, B_shape: TensorShape
-](mut C: Tensor[dtype], A: Tensor[dtype], B: Tensor[dtype]):
+](mut C: Tensor[f32], A: Tensor[f32], B: Tensor[f32]):
     memset_zero(C.mut_ptr(), C.num_elements())
 
     dot[TensorShape(A_shape[1], A_shape[0]), B_shape](

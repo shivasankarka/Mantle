@@ -8,7 +8,7 @@ from .ops import OP, static_result_shape, dynamic_result_shape
 from .ops.dynamics import SPLIT
 from .params import ParamDict, Param
 
-from basalt import seed, dtype
+from basalt import seed, f32
 from basalt import Tensor, TensorShape
 
 
@@ -51,7 +51,7 @@ struct Graph(Copyable, ImplicitlyCopyable, Movable):
         trainable: Bool = False,
         is_input: Bool = False,
     ) -> Symbol:
-        var symbol = Symbol(self.symbol_count, dtype, shape, trainable)
+        var symbol = Symbol(self.symbol_count, f32, shape, trainable)
         self.symbol_count += 1
 
         if is_input:
@@ -75,11 +75,11 @@ struct Graph(Copyable, ImplicitlyCopyable, Movable):
     def param(mut self, shape: TensorShape, trainable: Bool = True) -> Symbol:
         return self.create_symbol(shape, trainable=trainable)
 
-    def scalar(mut self, value: Scalar[dtype]) -> Symbol:
+    def scalar(mut self, value: Scalar[f32]) -> Symbol:
         return self.create_symbol(TensorShape(1), Param(value), trainable=False)
 
     def constant(
-        mut self, shape: TensorShape, data: List[Scalar[dtype]]
+        mut self, shape: TensorShape, data: List[Scalar[f32]]
     ) -> Symbol:
         return self.create_symbol(shape, Param(data), trainable=False)
 
@@ -97,7 +97,7 @@ struct Graph(Copyable, ImplicitlyCopyable, Movable):
     ) -> Symbol:
         var res_shape = static_result_shape(op, operands, attributes)
         var res = Symbol(
-            self.symbol_count, dtype, res_shape, self.result_trainable(operands)
+            self.symbol_count, f32, res_shape, self.result_trainable(operands)
         )
         self.symbol_count += 1
 
@@ -120,7 +120,7 @@ struct Graph(Copyable, ImplicitlyCopyable, Movable):
         return self.op(
             op,
             operand_1,
-            self.scalar(operand_2.cast[dtype]()),
+            self.scalar(operand_2.cast[f32]()),
             attributes=attributes,
         )
 
@@ -133,7 +133,7 @@ struct Graph(Copyable, ImplicitlyCopyable, Movable):
     ) -> Symbol:
         return self.op(
             op,
-            self.scalar(operand_1.cast[dtype]()),
+            self.scalar(operand_1.cast[f32]()),
             operand_2,
             attributes=attributes,
         )
@@ -145,7 +145,7 @@ struct Graph(Copyable, ImplicitlyCopyable, Movable):
         symbols.reserve(len(shapes))
 
         for shape in shapes:
-            symbols.append(Symbol(self.symbol_count, dtype, shape, trainable))
+            symbols.append(Symbol(self.symbol_count, f32, shape, trainable))
             self.symbol_count += 1
 
         return symbols^

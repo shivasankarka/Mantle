@@ -1,23 +1,23 @@
 from std.math import sqrt
 
-from basalt import dtype
+from basalt import f32
 from basalt import Tensor, TensorShape
 from basalt.utils.rand_utils import rand_normal, rand_uniform
 
 
 def initialize_tensor(
-    shape: TensorShape, type: String, data: List[Scalar[dtype]]
-) -> Tensor[dtype]:
+    shape: TensorShape, type: String, data: List[Scalar[f32]]
+) -> Tensor[f32]:
     if type == "random_uniform":
         var low = data[0]
         var high = data[1]
-        var t = Tensor[dtype](shape)
+        var t = Tensor[f32](shape)
         rand_uniform(t, low=low, high=high)
         return t^
     elif type == "random_normal":
         var mean = data[0].cast[DType.float64]()
         var std = data[1].cast[DType.float64]()
-        var t = Tensor[dtype](shape)
+        var t = Tensor[f32](shape)
         rand_normal(t, mean=mean, std=std)
         return t^
     # elif type == "kaiming_uniform":
@@ -32,10 +32,10 @@ def initialize_tensor(
     #     return kaiming_normal(shape, mode = mode)
     else:
         print("[ERROR] Unsupported initialization type: " + type)
-        return Tensor[dtype]()
+        return Tensor[f32]()
 
 
-def calculate_fan(shape: TensorShape, mode: String) -> Scalar[dtype]:
+def calculate_fan(shape: TensorShape, mode: String) -> Scalar[f32]:
     """
     Calculate the fan-in and fan-out of any tensor.
     """
@@ -64,7 +64,7 @@ def calculate_fan(shape: TensorShape, mode: String) -> Scalar[dtype]:
 
 
 # # TODO: https://pytorch.org/docs/stable/_modules/torch/nn/init.html
-# def kaiming_uniform(shape: TensorShape, mode: String = "fan_in", nonlinearity: String = "leaky_relu") -> Tensor[dtype]:
+# def kaiming_uniform(shape: TensorShape, mode: String = "fan_in", nonlinearity: String = "leaky_relu") -> Tensor[f32]:
 #     var fan = calculate_fan(shape, mode)
 
 #     # TODO: add support for other gains: https://github.com/pytorch/pytorch/blob/main/torch/nn/init.py#L68
@@ -72,18 +72,18 @@ def calculate_fan(shape: TensorShape, mode: String) -> Scalar[dtype]:
 #     var gain = 1
 #     var std = gain / sqrt(fan)
 
-#     # var bound = sqrt(3) * std.cast[dtype]()
-#     var bound = std.cast[dtype]()
+#     # var bound = sqrt(3) * std.cast[f32]()
+#     var bound = std.cast[f32]()
 
 #     # print("Shape", shape, "Fan", fan, "Bound", bound)
 
-#     var t = Tensor[dtype](shape)
+#     var t = Tensor[f32](shape)
 #     rand_uniform(t, low = -bound, high = bound)
 #     return t^
 
 
 # # TODO: https://pytorch.org/docs/stable/_modules/torch/nn/init.html
-# def kaiming_normal(shape: TensorShape, mode: String = "fan_in", nonlinearity: String = "leaky_relu") -> Tensor[dtype]:
+# def kaiming_normal(shape: TensorShape, mode: String = "fan_in", nonlinearity: String = "leaky_relu") -> Tensor[f32]:
 #     var fan = calculate_fan(shape, mode)
 
 #     # TODO: add support for other gains: https://github.com/pytorch/pytorch/blob/main/torch/nn/init.py#L68
@@ -91,6 +91,6 @@ def calculate_fan(shape: TensorShape, mode: String) -> Scalar[dtype]:
 #     var gain = 1
 #     var std = gain / sqrt(fan)
 
-#     var t = Tensor[dtype](shape)
+#     var t = Tensor[f32](shape)
 #     rand_normal(t, mean = 0, std = std.cast[DType.float64]())
 #     return t^

@@ -67,7 +67,7 @@ struct Model[
 
     # TODO: remove when ability to concatenate graphs (modules)
     # Removes the need for splitting in forward and inference mode
-    def forward(mut self, *t_inputs: Tensor[dtype]) -> Tensor[dtype]:
+    def forward(mut self, *t_inputs: Tensor[f32]) -> Tensor[f32]:
         # NOTE: Important detail here is that the order of the inputs must be the same as the order the inputs were defined in the graph.
         # Example: If you were te define the y_true before the x when creating the graph
         #
@@ -86,13 +86,13 @@ struct Model[
         # TODO: known copy (reference?)
         return self.parameters.tensors[Self.g.loss_out.value()]
 
-    def inference(mut self, *t_inputs: Tensor[dtype]) -> List[Tensor[dtype]]:
+    def inference(mut self, *t_inputs: Tensor[f32]) -> List[Tensor[f32]]:
         # 1. Execute forward pass up to model out
         self.execute[Self.n_inference_nodes.value()](t_inputs)
 
         # 2. Return outputs from allocated output memory
         # TODO: known copies (reference?)
-        var outputs = List[Tensor[dtype]]()
+        var outputs = List[Tensor[f32]]()
         comptime for i in range(len(Self.g.outputs)):
             comptime sym = Self.g.outputs[i]
             outputs.append(self.parameters.tensors[sym].copy())
@@ -100,7 +100,7 @@ struct Model[
 
     def execute[
         num_nodes: Int
-    ](mut self, t_input: VariadicList[Tensor[dtype], _]):
+    ](mut self, t_input: VariadicList[Tensor[f32], _]):
         # 1. Write inputs to allocated input memory
         comptime for i in range(len(Self.g.inputs)):
             comptime sym = Self.g.inputs[i]
@@ -158,7 +158,7 @@ struct Model[
                         self.parameters.tensors[t3],
                     )
 
-    def backward(mut self, *upper_grads: Tensor[dtype]):
+    def backward(mut self, *upper_grads: Tensor[f32]):
         """
         Main entrypoint of backward pass.
         """
@@ -320,13 +320,13 @@ struct Model[
     def allocate_tensor_memory(mut self):
         comptime for i in range(len(Self.g.inputs)):
             comptime sym = Self.g.inputs[i]
-            self.parameters.tensors.append(Tensor[dtype](sym.shape), sym)
+            self.parameters.tensors.append(Tensor[f32](sym.shape), sym)
 
         comptime for i in range(len(Self.g.params)):
             comptime p = Self.g.params.symbols[i]
             comptime p_init = Self.g.params.values[i]
 
-            var par: Tensor[dtype]
+            var par: Tensor[f32]
             comptime if p_init.initializer:
                 # 1. Specific parameter initialization defined
                 comptime initializer_attr = p_init.initializer.value()
@@ -334,7 +334,7 @@ struct Model[
                 comptime init_data = p_init.data.value()
                 comptime init_arg0 = init_data[0]
                 comptime init_arg1 = init_data[1]
-                var init_args = List[Scalar[dtype]]()
+                var init_args = List[Scalar[f32]]()
                 init_args.append(materialize[init_arg0]())
                 init_args.append(materialize[init_arg1]())
                 par = initialize_tensor(
@@ -344,14 +344,14 @@ struct Model[
                 )
             elif p_init.data:
                 # 2. Parameter initialized with data only
-                par = Tensor[dtype](p.shape)
+                par = Tensor[f32](p.shape)
                 comptime init_data = p_init.data.value()
                 comptime for j in range(len(init_data)):
                     comptime value = init_data[j]
                     par[j] = materialize[value]()
             else:
                 # Default parameter initialization to zero
-                par = Tensor[dtype](p.shape)
+                par = Tensor[f32](p.shape)
 
             self.parameters.tensors.append(par, p)
 
@@ -360,7 +360,7 @@ struct Model[
             comptime for j in range(len(Self.g.nodes[i].outputs)):
                 comptime sym = Self.g.nodes[i].outputs[j]
                 self.parameters.tensors.append(
-                    Tensor[dtype](sym.shape),
+                    Tensor[f32](sym.shape),
                     sym,
                 )
 
@@ -369,18 +369,18 @@ struct Model[
         comptime for i in range(len(Self.g.inputs)):
             comptime sym = Self.g.inputs[i]
             comptime if sym.trainable:
-                self.parameters.grads.append(Tensor[dtype](sym.shape), sym)
+                self.parameters.grads.append(Tensor[f32](sym.shape), sym)
 
         comptime for i in range(len(Self.g.params)):
             comptime grad = Self.g.params.symbols[i]
             comptime if grad.trainable:
-                self.parameters.grads.append(Tensor[dtype](grad.shape), grad)
+                self.parameters.grads.append(Tensor[f32](grad.shape), grad)
 
         comptime for i in range(len(Self.g.nodes)):
             comptime for j in range(len(Self.g.nodes[i].outputs)):
                 comptime out = Self.g.nodes[i].outputs[j]
                 comptime if out.trainable:
-                    self.parameters.grads.append(Tensor[dtype](out.shape), out)
+                    self.parameters.grads.append(Tensor[f32](out.shape), out)
 
     def print_perf_metrics(
         self, time_format: String = "ns", print_shape: Bool = False

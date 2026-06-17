@@ -21,7 +21,7 @@ struct ReLULayer(Layer, Copyable, Movable):
 
 
 def LeakyReLU(
-    mut g: Graph, input: Symbol, negative_slope: Scalar[dtype]
+    mut g: Graph, input: Symbol, negative_slope: Scalar[f32]
 ) -> Symbol:
     return g.op(
         OP.LEAKYRELU,

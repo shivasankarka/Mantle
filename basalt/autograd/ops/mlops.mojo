@@ -36,7 +36,7 @@ struct SIGMOID(Copyable, Movable):
     @staticmethod
     def forward[
         t1_shape: TensorShape,
-    ](mut res: Tensor[dtype], t1: Tensor[dtype]):
+    ](mut res: Tensor[f32], t1: Tensor[f32]):
         """Forward operation of sigmoid."""
         elwise_transform[Self.sigmoid](res, t1)
 
@@ -44,10 +44,10 @@ struct SIGMOID(Copyable, Movable):
     def backward[
         ug_shape: TensorShape,
         t1_shape: TensorShape,
-    ](ug: Tensor[dtype], t1: Tensor[dtype]) -> Tensor[dtype]:
+    ](ug: Tensor[f32], t1: Tensor[f32]) -> Tensor[f32]:
         """Backward operation of sigmoid."""
         # d(sigmod(x))/dx = sigmoid(x) * (1 - sigmoid(x))
-        var res_grad = Tensor[dtype](ug_shape)
+        var res_grad = Tensor[f32](ug_shape)
 
         def vec_sigmoid_bw[
             nelts: Int
@@ -88,7 +88,7 @@ struct RELU:
     @staticmethod
     def forward[
         t1_shape: TensorShape,
-    ](mut res: Tensor[dtype], t1: Tensor[dtype]):
+    ](mut res: Tensor[f32], t1: Tensor[f32]):
         """Forward operation of relu."""
         elwise_transform[Self.relu](res, t1)
 
@@ -96,10 +96,10 @@ struct RELU:
     def backward[
         ug_shape: TensorShape,
         t1_shape: TensorShape,
-    ](ug: Tensor[dtype], t1: Tensor[dtype]) -> Tensor[dtype]:
+    ](ug: Tensor[f32], t1: Tensor[f32]) -> Tensor[f32]:
         """Backward operation of relu."""
         # d(relu(x))/dx = 1 if x > 0 else 0. We also give 0 to x = 0 instead of undefined.
-        var res_grad = Tensor[dtype](ug_shape)
+        var res_grad = Tensor[f32](ug_shape)
 
         def vec_relu_bw[nelts: Int](idx: Int) {mut res_grad, read t1, read ug}:
             res_grad.store[nelts](
@@ -120,7 +120,7 @@ struct LEAKYRELU:
     def forward[
         t1_shape: TensorShape,
         attributes: AttributeVector,
-    ](mut res: Tensor[dtype], t1: Tensor[dtype]):
+    ](mut res: Tensor[f32], t1: Tensor[f32]):
         """Forward operation of leaky_relu."""
 
         def leaky_relu[
@@ -141,7 +141,7 @@ struct LEAKYRELU:
         ug_shape: TensorShape,
         t1_shape: TensorShape,
         attributes: AttributeVector,
-    ](ug: Tensor[dtype], t1: Tensor[dtype]) -> Tensor[dtype]:
+    ](ug: Tensor[f32], t1: Tensor[f32]) -> Tensor[f32]:
         """Backward operation of leaky_relu."""
 
         @always_inline
@@ -157,7 +157,7 @@ struct LEAKYRELU:
                 SIMD[type, simd_width](negative_slope),
             )
 
-        var res_grad = Tensor[dtype](ug_shape)
+        var res_grad = Tensor[f32](ug_shape)
 
         def vec_leaky_relu_bw[
             nelts: Int
@@ -198,7 +198,7 @@ struct TANH:
     @staticmethod
     def forward[
         t1_shape: TensorShape,
-    ](mut res: Tensor[dtype], t1: Tensor[dtype]):
+    ](mut res: Tensor[f32], t1: Tensor[f32]):
         """Forward operation of tanh."""
         elwise_transform[Self.tanh](res, t1)
 
@@ -206,10 +206,10 @@ struct TANH:
     def backward[
         ug_shape: TensorShape,
         t1_shape: TensorShape,
-    ](ug: Tensor[dtype], t1: Tensor[dtype]) -> Tensor[dtype]:
+    ](ug: Tensor[f32], t1: Tensor[f32]) -> Tensor[f32]:
         """Backward operation of tanh."""
         # d(tanh(x))/dx = 1 - tanh(x) ** 2
-        var res_grad = Tensor[dtype](ug_shape)
+        var res_grad = Tensor[f32](ug_shape)
 
         def vec_tanh_bw[nelts: Int](idx: Int) {mut res_grad, read t1, read ug}:
             res_grad.store[nelts](
@@ -229,7 +229,7 @@ struct CLIP:
     @staticmethod
     def forward[
         t_shape: TensorShape, attributes: AttributeVector
-    ](mut res: Tensor[dtype], t: Tensor[dtype]):
+    ](mut res: Tensor[f32], t: Tensor[f32]):
         """
         Forward pass of the clip operation.
         """
@@ -237,11 +237,11 @@ struct CLIP:
         comptime max_attr = attributes["max"]
 
         var min_val = min_attr.value().to_scalar[
-            dtype
-        ]() if min_attr else min_finite[dtype]()
+            f32
+        ]() if min_attr else min_finite[f32]()
         var max_val = max_attr.value().to_scalar[
-            dtype
-        ]() if max_attr else max_finite[dtype]()
+            f32
+        ]() if max_attr else max_finite[f32]()
 
         def vec_clip[
             nelts: Int
@@ -255,19 +255,19 @@ struct CLIP:
         ug_shape: TensorShape,
         t_shape: TensorShape,
         attributes: AttributeVector = AttributeVector(),
-    ](ug: Tensor[dtype], t: Tensor[dtype]) -> Tensor[dtype]:
+    ](ug: Tensor[f32], t: Tensor[f32]) -> Tensor[f32]:
         """Backward operation of clip."""
         comptime min_attr = attributes["min"]
         comptime max_attr = attributes["max"]
 
         var min_val = min_attr.value().to_scalar[
-            dtype
-        ]() if min_attr else min_finite[dtype]()
+            f32
+        ]() if min_attr else min_finite[f32]()
         var max_val = max_attr.value().to_scalar[
-            dtype
-        ]() if max_attr else max_finite[dtype]()
+            f32
+        ]() if max_attr else max_finite[f32]()
 
-        var res_grad = Tensor[dtype](t_shape)
+        var res_grad = Tensor[f32](t_shape)
 
         def vec_clip_bw[
             nelts: Int
@@ -275,8 +275,8 @@ struct CLIP:
             var val = t.load[nelts](i)
             res_grad.store[nelts](
                 i,
-                (val.ge(min_val) & val.le(max_val)).select[dtype](
-                    ug.load[nelts](i), SIMD[dtype, nelts](0)
+                (val.ge(min_val) & val.le(max_val)).select[f32](
+                    ug.load[nelts](i), SIMD[f32, nelts](0)
                 ),
             )
 
@@ -307,15 +307,15 @@ struct SQUEEZE:
     def forward[
         t1_shape: TensorShape,
         attributes: AttributeVector,
-    ](mut res: Tensor[dtype], t1: Tensor[dtype]):
+    ](mut res: Tensor[f32], t1: Tensor[f32]):
         memcpy(dest=res.mut_ptr(), src=t1.ptr(), count=t1.num_elements())
 
     @staticmethod
     def backward[
         ug_shape: TensorShape,
         t1_shape: TensorShape,
-    ](ug: Tensor[dtype], t1: Tensor[dtype]) -> Tensor[dtype]:
-        var res_grad = Tensor[dtype](t1_shape)
+    ](ug: Tensor[f32], t1: Tensor[f32]) -> Tensor[f32]:
+        var res_grad = Tensor[f32](t1_shape)
         memcpy(dest=res_grad.mut_ptr(), src=ug.ptr(), count=ug.num_elements())
         return res_grad^
 
@@ -346,15 +346,15 @@ struct UNSQUEEZE:
     def forward[
         t1_shape: TensorShape,
         attributes: AttributeVector,
-    ](mut res: Tensor[dtype], t1: Tensor[dtype]):
+    ](mut res: Tensor[f32], t1: Tensor[f32]):
         memcpy(dest=res.mut_ptr(), src=t1.ptr(), count=t1.num_elements())
 
     @staticmethod
     def backward[
         ug_shape: TensorShape,
         t1_shape: TensorShape,
-    ](ug: Tensor[dtype], t1: Tensor[dtype]) -> Tensor[dtype]:
-        var res_grad = Tensor[dtype](t1_shape)
+    ](ug: Tensor[f32], t1: Tensor[f32]) -> Tensor[f32]:
+        var res_grad = Tensor[f32](t1_shape)
         memcpy(dest=res_grad.mut_ptr(), src=ug.ptr(), count=ug.num_elements())
         return res_grad^
 
@@ -469,8 +469,8 @@ struct SLICE:
         ends: IndexList[MAX_RANK],
         backward_op: Bool = False,
     ](
-        mut res: Tensor[dtype],
-        t1: Tensor[dtype],
+        mut res: Tensor[f32],
+        t1: Tensor[f32],
         last_dims: Int,
         position: Int,
         last_position: Int,
@@ -545,7 +545,7 @@ struct SLICE:
         starts: IndexList[MAX_RANK],
         ends: IndexList[MAX_RANK],
         backward_op: Bool = False,
-    ](mut res: Tensor[dtype], t1: Tensor[dtype]):
+    ](mut res: Tensor[f32], t1: Tensor[f32]):
         comptime strides = original_shape.strides()
 
         # Get the dimensions for vectorization
@@ -590,7 +590,7 @@ struct SLICE:
     def forward[
         t1_shape: TensorShape,
         attributes: AttributeVector,
-    ](mut res: Tensor[dtype], t1: Tensor[dtype]):
+    ](mut res: Tensor[f32], t1: Tensor[f32]):
         comptime axes = attributes["axes"].value().to_list() if attributes[
             "axes"
         ] else Self.default_axes(t1_shape)
@@ -617,7 +617,7 @@ struct SLICE:
         ug_shape: TensorShape,
         t1_shape: TensorShape,
         attributes: AttributeVector = AttributeVector(),
-    ](ug: Tensor[dtype], t1: Tensor[dtype]) -> Tensor[dtype]:
+    ](ug: Tensor[f32], t1: Tensor[f32]) -> Tensor[f32]:
         comptime axes = attributes["axes"].value().to_list() if attributes[
             "axes"
         ] else Self.default_axes(t1_shape)
@@ -633,7 +633,7 @@ struct SLICE:
             Self.default_steps(t1_shape.to_list())
         )
 
-        var res_grad = Tensor[dtype](t1_shape)
+        var res_grad = Tensor[f32](t1_shape)
 
         Self.slice_kernel[ug_shape, t1_shape, steps, starts, ends, True](
             res_grad, ug

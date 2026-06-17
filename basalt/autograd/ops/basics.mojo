@@ -26,7 +26,7 @@ struct ADD:
     def forward[
         t1_shape: TensorShape,
         t2_shape: TensorShape,
-    ](mut res: Tensor[dtype], t1: Tensor[dtype], t2: Tensor[dtype]):
+    ](mut res: Tensor[f32], t1: Tensor[f32], t2: Tensor[f32]):
         """
         Forward pass of the add operation.
         """
@@ -38,7 +38,7 @@ struct ADD:
         ug_shape: TensorShape,
         t1_shape: TensorShape,
         t2_shape: TensorShape,
-    ](ug: Tensor[dtype], t1: Tensor[dtype], t2: Tensor[dtype]) -> Tensor[dtype]:
+    ](ug: Tensor[f32], t1: Tensor[f32], t2: Tensor[f32]) -> Tensor[f32]:
         """Backward operation of element wise addition."""
         # d(x + y) / dx = d(x + y) / dy = 1
         # TODO: Figure out how to remove copies.
@@ -56,7 +56,7 @@ struct SUB:
     def forward[
         t1_shape: TensorShape,
         t2_shape: TensorShape,
-    ](mut res: Tensor[dtype], t1: Tensor[dtype], t2: Tensor[dtype]):
+    ](mut res: Tensor[f32], t1: Tensor[f32], t2: Tensor[f32]):
         """
         Forward pass of the subtraction operation.
         """
@@ -68,7 +68,7 @@ struct SUB:
         ug_shape: TensorShape,
         t1_shape: TensorShape,
         t2_shape: TensorShape,
-    ](ug: Tensor[dtype], t1: Tensor[dtype], t2: Tensor[dtype]) -> Tensor[dtype]:
+    ](ug: Tensor[f32], t1: Tensor[f32], t2: Tensor[f32]) -> Tensor[f32]:
         """Backward operation of element wise subtraction."""
 
         # d(x - y) / dx = 1
@@ -76,7 +76,7 @@ struct SUB:
         comptime if tensor_id == 0:
             return ug.copy()
         else:
-            var res_grad = Tensor[dtype](ug_shape)
+            var res_grad = Tensor[f32](ug_shape)
             elwise_op[mul](res_grad, ug, -1.0)
             return res_grad^
 
@@ -92,7 +92,7 @@ struct MUL:
     def forward[
         t1_shape: TensorShape,
         t2_shape: TensorShape,
-    ](mut res: Tensor[dtype], t1: Tensor[dtype], t2: Tensor[dtype]):
+    ](mut res: Tensor[f32], t1: Tensor[f32], t2: Tensor[f32]):
         """
         Forward pass of the multiplication operation.
         """
@@ -104,17 +104,17 @@ struct MUL:
         ug_shape: TensorShape,
         t1_shape: TensorShape,
         t2_shape: TensorShape,
-    ](ug: Tensor[dtype], t1: Tensor[dtype], t2: Tensor[dtype]) -> Tensor[dtype]:
+    ](ug: Tensor[f32], t1: Tensor[f32], t2: Tensor[f32]) -> Tensor[f32]:
         """Backward operation of element wise multiplication."""
 
         # d(x * y) / dx = y
         # d(x * y) / dy = x
         comptime if tensor_id == 0:
-            var res_grad = Tensor[dtype](ug_shape)
+            var res_grad = Tensor[f32](ug_shape)
             elwise_op[ug_shape, t2_shape, mul](res_grad, ug, t2)
             return res_grad^
         else:
-            var res_grad = Tensor[dtype](ug_shape)
+            var res_grad = Tensor[f32](ug_shape)
             elwise_op[ug_shape, t1_shape, mul](res_grad, ug, t1)
             return res_grad^
 
@@ -129,7 +129,7 @@ struct DIV:
     @staticmethod
     def forward[
         t1_shape: TensorShape, t2_shape: TensorShape
-    ](mut res: Tensor[dtype], t1: Tensor[dtype], t2: Tensor[dtype]):
+    ](mut res: Tensor[f32], t1: Tensor[f32], t2: Tensor[f32]):
         """
         Forward operation of element wise division.
         """
@@ -141,22 +141,22 @@ struct DIV:
         ug_shape: TensorShape,
         t1_shape: TensorShape,
         t2_shape: TensorShape,
-    ](ug: Tensor[dtype], t1: Tensor[dtype], t2: Tensor[dtype]) -> Tensor[dtype]:
+    ](ug: Tensor[f32], t1: Tensor[f32], t2: Tensor[f32]) -> Tensor[f32]:
         """Backward operation of element wise division."""
         # d(x/y) / dx = 1/y
         # d(x/y) / dy = -x/y^2
 
         comptime if tensor_id == 0:
-            var res_grad = Tensor[dtype](ug_shape)
+            var res_grad = Tensor[f32](ug_shape)
             elwise_op[ug_shape, t2_shape, div](res_grad, ug, t2)
             return res_grad^
         else:
             comptime broadcast = (t1_shape != t2_shape)
             comptime is_scalar = (t2_shape == TensorShape(1))
-            var res_grad = Tensor[dtype](ug_shape)
+            var res_grad = Tensor[f32](ug_shape)
 
             comptime if is_scalar:
-                var factor: Scalar[dtype] = -1.0 / (t2[0] ** 2)
+                var factor: Scalar[f32] = -1.0 / (t2[0] ** 2)
 
                 def vec_div_bw_scalar[
                     nelts: Int
@@ -220,7 +220,7 @@ struct DOT:
     def forward[
         t1_shape: TensorShape,
         t2_shape: TensorShape,
-    ](mut res: Tensor[dtype], t1: Tensor[dtype], t2: Tensor[dtype]):
+    ](mut res: Tensor[f32], t1: Tensor[f32], t2: Tensor[f32]):
         """
         Forward pass of the dot operation.
         """
@@ -232,17 +232,17 @@ struct DOT:
         ug_shape: TensorShape,
         t1_shape: TensorShape,
         t2_shape: TensorShape,
-    ](ug: Tensor[dtype], t1: Tensor[dtype], t2: Tensor[dtype]) -> Tensor[dtype]:
+    ](ug: Tensor[f32], t1: Tensor[f32], t2: Tensor[f32]) -> Tensor[f32]:
         """Backward operation of dot product."""
 
         comptime if tensor_id == 0:
             # dot(ug, t2.T)
-            var res_grad = Tensor[dtype](t1_shape)
+            var res_grad = Tensor[f32](t1_shape)
             dot_transpose_t2[ug_shape, t2_shape](res_grad, ug, t2)
             return res_grad^
         else:
             # dot(t1.T, ug)
-            var res_grad = Tensor[dtype](t2_shape)
+            var res_grad = Tensor[f32](t2_shape)
             dot_transpose_t1[t1_shape, ug_shape](res_grad, t1, ug)
             return res_grad^
 
@@ -255,7 +255,7 @@ struct EXP:
     @staticmethod
     def forward[
         t1_shape: TensorShape,
-    ](mut res: Tensor[dtype], t1: Tensor[dtype]):
+    ](mut res: Tensor[f32], t1: Tensor[f32]):
         """Forward operation of exp."""
         elwise_transform[exp](res, t1)
 
@@ -263,10 +263,10 @@ struct EXP:
     def backward[
         ug_shape: TensorShape,
         t1_shape: TensorShape,
-    ](ug: Tensor[dtype], t1: Tensor[dtype]) -> Tensor[dtype]:
+    ](ug: Tensor[f32], t1: Tensor[f32]) -> Tensor[f32]:
         """Backward operation of exp."""
         # d(exp(x)) / dx = exp(x)
-        var res_grad = Tensor[dtype](ug_shape)
+        var res_grad = Tensor[f32](ug_shape)
 
         def vec_exp_bw[nelts: Int](i: Int) {mut res_grad, read t1, read ug}:
             res_grad.store[nelts](i, exp(t1.load[nelts](i)) * ug.load[nelts](i))
@@ -283,7 +283,7 @@ struct LOG:
     @staticmethod
     def forward[
         t1_shape: TensorShape,
-    ](mut res: Tensor[dtype], t1: Tensor[dtype]):
+    ](mut res: Tensor[f32], t1: Tensor[f32]):
         """Forward operation of exp."""
         elwise_transform[log](res, t1)
 
@@ -291,10 +291,10 @@ struct LOG:
     def backward[
         ug_shape: TensorShape,
         t1_shape: TensorShape,
-    ](ug: Tensor[dtype], t1: Tensor[dtype]) -> Tensor[dtype]:
+    ](ug: Tensor[f32], t1: Tensor[f32]) -> Tensor[f32]:
         """Backward operation of log."""
         # d(log(x)) / dx = 1 / x
-        var res_grad = Tensor[dtype](ug_shape)
+        var res_grad = Tensor[f32](ug_shape)
         elwise_op[ug_shape, t1_shape, div](res_grad, ug, t1)
         return res_grad^
 
@@ -311,7 +311,7 @@ struct POW:
     def forward[
         t1_shape: TensorShape,
         t2_shape: TensorShape,
-    ](mut res: Tensor[dtype], t1: Tensor[dtype], t2: Tensor[dtype]):
+    ](mut res: Tensor[f32], t1: Tensor[f32], t2: Tensor[f32]):
         """Forward operation of element wise pow."""
         # t2_shape is a graph scalar
         elwise_pow(res, t1, Int(t2[0]))
@@ -322,17 +322,17 @@ struct POW:
         ug_shape: TensorShape,
         t1_shape: TensorShape,
         t2_shape: TensorShape,
-    ](ug: Tensor[dtype], t1: Tensor[dtype], t2: Tensor[dtype]) -> Tensor[dtype]:
+    ](ug: Tensor[f32], t1: Tensor[f32], t2: Tensor[f32]) -> Tensor[f32]:
         """Backward operation of element wise pow."""
         # d(x^y) / dx = y * x^(y-1)
         # d(x^y) / dy = sum( x^y * log(x) )
-        var res_grad: Tensor[dtype]
+        var res_grad: Tensor[f32]
         var a = t2[0]
 
         comptime epsilon = 1e-12
 
         comptime if tensor_id == 0:
-            res_grad = Tensor[dtype](t1_shape)
+            res_grad = Tensor[f32](t1_shape)
 
             def vec_pow_bw_x[
                 nelts: Int
@@ -348,7 +348,7 @@ struct POW:
 
         else:
             # Gradient of the exponent
-            res_grad = Tensor[dtype](t2_shape)  # t2_shape == TensorShape(1)
+            res_grad = Tensor[f32](t2_shape)  # t2_shape == TensorShape(1)
 
             def vec_pow_bw_y[
                 nelts: Int
@@ -357,7 +357,7 @@ struct POW:
                 var temp_log = log(t1.load[nelts](i))
                 var temp_log_is_inf = isinf(temp_log)
                 temp_log = temp_log_is_inf.select(
-                    SIMD[dtype, nelts](0), temp_log
+                    SIMD[f32, nelts](0), temp_log
                 )
                 res_grad[0] += (
                     (t1.load[nelts](i) ** a) * temp_log * ug.load[nelts](i)
@@ -383,7 +383,7 @@ struct SUM:
     @staticmethod
     def forward[
         t_shape: TensorShape, attributes: AttributeVector
-    ](mut res: Tensor[dtype], t: Tensor[dtype]):
+    ](mut res: Tensor[f32], t: Tensor[f32]):
         """
         Forward pass of the sum operation.
         """
@@ -398,16 +398,16 @@ struct SUM:
     @staticmethod
     def backward[
         ug_shape: TensorShape, t_shape: TensorShape, attributes: AttributeVector
-    ](ug: Tensor[dtype], t: Tensor[dtype]) -> Tensor[dtype]:
+    ](ug: Tensor[f32], t: Tensor[f32]) -> Tensor[f32]:
         """Backward operation of sum."""
         return Self.backward[ug_shape, t_shape](ug, t)
 
     @staticmethod
     def backward[
         ug_shape: TensorShape, t_shape: TensorShape
-    ](ug: Tensor[dtype], t: Tensor[dtype]) -> Tensor[dtype]:
+    ](ug: Tensor[f32], t: Tensor[f32]) -> Tensor[f32]:
         """Backward operation of sum."""
-        var res_grad = Tensor[dtype](t_shape)
+        var res_grad = Tensor[f32](t_shape)
         fill(res_grad, 1.0)
 
         accumulate_op[t_shape, ug_shape, mul](res_grad, ug)
@@ -430,7 +430,7 @@ struct MEAN:
     @staticmethod
     def forward[
         t_shape: TensorShape, attributes: AttributeVector
-    ](mut res: Tensor[dtype], t: Tensor[dtype]):
+    ](mut res: Tensor[f32], t: Tensor[f32]):
         """
         Forward pass of the mean operation.
         """
@@ -444,7 +444,7 @@ struct MEAN:
     @staticmethod
     def backward[
         ug_shape: TensorShape, t_shape: TensorShape, attributes: AttributeVector
-    ](ug: Tensor[dtype], t: Tensor[dtype]) -> Tensor[dtype]:
+    ](ug: Tensor[f32], t: Tensor[f32]) -> Tensor[f32]:
         """Backward operation of mean."""
 
         comptime axis = attributes["axis"]
@@ -459,13 +459,13 @@ struct MEAN:
     @staticmethod
     def backward[
         ug_shape: TensorShape, t_shape: TensorShape
-    ](ug: Tensor[dtype], t: Tensor[dtype]) -> Tensor[dtype]:
+    ](ug: Tensor[f32], t: Tensor[f32]) -> Tensor[f32]:
         """Backward operation of mean."""
         # d(mean(t)) / dt = 1 / t.num_elements()
-        var res_grad = Tensor[dtype](t_shape)
+        var res_grad = Tensor[f32](t_shape)
 
-        var grad: Scalar[dtype] = (1.0 / Float64(t_shape.num_elements())).cast[
-            dtype
+        var grad: Scalar[f32] = (1.0 / Float64(t_shape.num_elements())).cast[
+            f32
         ]()
 
         grad = (
@@ -482,12 +482,12 @@ struct MEAN:
     @staticmethod
     def backward[
         ug_shape: TensorShape, t_shape: TensorShape
-    ](ug: Tensor[dtype], t: Tensor[dtype], axis: Int) -> Tensor[dtype]:
+    ](ug: Tensor[f32], t: Tensor[f32], axis: Int) -> Tensor[f32]:
         """Backward operation of mean."""
         # d(mean(t)) / dt = 1 / t.dim(axis)
-        var res_grad = Tensor[dtype](t_shape)
+        var res_grad = Tensor[f32](t_shape)
 
-        var grad: Scalar[dtype] = (1.0 / Float64(t_shape[axis])).cast[dtype]()
+        var grad: Scalar[f32] = (1.0 / Float64(t_shape[axis])).cast[f32]()
 
         fill(res_grad, grad)
 
@@ -511,7 +511,7 @@ struct MAX:
     @staticmethod
     def forward[
         t_shape: TensorShape, attributes: AttributeVector
-    ](mut res: Tensor[dtype], t: Tensor[dtype]):
+    ](mut res: Tensor[f32], t: Tensor[f32]):
         """
         Forward pass of the max operation.
         """
@@ -526,7 +526,7 @@ struct MAX:
     @staticmethod
     def backward[
         ug_shape: TensorShape, t_shape: TensorShape, attributes: AttributeVector
-    ](ug: Tensor[dtype], t: Tensor[dtype]) -> Tensor[dtype]:
+    ](ug: Tensor[f32], t: Tensor[f32]) -> Tensor[f32]:
         """Backward operation of max."""
         comptime axis = attributes["axis"]
 
@@ -540,7 +540,7 @@ struct MAX:
     @staticmethod
     def backward[
         ug_shape: TensorShape, t_shape: TensorShape
-    ](ug: Tensor[dtype], t: Tensor[dtype]) -> Tensor[dtype]:
+    ](ug: Tensor[f32], t: Tensor[f32]) -> Tensor[f32]:
         """Backward operation of max."""
         # This could be changed to something like in tinygrad:
         # max_1s = CMPEQ(original_tensor, expanded(max_tensor), axis=axis)
@@ -551,11 +551,11 @@ struct MAX:
         # multiple max values, the gradient is divided by the number of max
         # values (1/n) for each max value.
 
-        var res_grad = Tensor[dtype](t_shape)
+        var res_grad = Tensor[f32](t_shape)
 
         # ug_shape size is 1
         var max_res = tmax(t)
-        var sum_eq: Scalar[dtype] = 0
+        var sum_eq: Scalar[f32] = 0
         for i in range(t.num_elements()):
             if t[i] == max_res:
                 sum_eq += 1
@@ -570,14 +570,14 @@ struct MAX:
     @staticmethod
     def backward[
         ug_shape: TensorShape, t_shape: TensorShape
-    ](ug: Tensor[dtype], t: Tensor[dtype], axis: Int) -> Tensor[dtype]:
+    ](ug: Tensor[f32], t: Tensor[f32], axis: Int) -> Tensor[f32]:
         """Backward operation of max."""
         # The selected element gradient is 1.0, the others are 0.0. And if there are
         # multiple max values, the gradient is divided by the number of max
         # values (1/n) for each max value.
 
-        var res_grad = Tensor[dtype](t_shape)
-        var max_res = Tensor[dtype](ug_shape)
+        var res_grad = Tensor[f32](t_shape)
+        var max_res = Tensor[f32](ug_shape)
         comptime strides = t_shape.strides()
 
         tmax(
@@ -589,7 +589,7 @@ struct MAX:
                 strides[axis] * t.dim(axis)
             )
 
-            var count_1s: Scalar[dtype] = 0
+            var count_1s: Scalar[f32] = 0
             # Count the number of values equal to max_res
             for j in range(t.dim(axis)):
                 var index = index_base + j * strides[axis]
@@ -629,7 +629,7 @@ struct TRANSPOSE:
     @staticmethod
     def forward[
         t_shape: TensorShape, attributes: AttributeVector
-    ](mut res: Tensor[dtype], t: Tensor[dtype]):
+    ](mut res: Tensor[f32], t: Tensor[f32]):
         """
         Forward pass of the transpose operation.
         """
@@ -654,12 +654,12 @@ struct TRANSPOSE:
     @staticmethod
     def backward[
         ug_shape: TensorShape, t_shape: TensorShape, attributes: AttributeVector
-    ](ug: Tensor[dtype], t: Tensor[dtype]) -> Tensor[dtype]:
+    ](ug: Tensor[f32], t: Tensor[f32]) -> Tensor[f32]:
         """Backward operation of transpose."""
         # No local gradient. Transpose is its own inverse.
         comptime axes = attributes["axes"]
 
-        var res_grad = Tensor[dtype](t_shape)
+        var res_grad = Tensor[f32](t_shape)
 
         comptime if axes:
 
@@ -699,7 +699,7 @@ struct FLATTEN:
         return TensorShape(t_shape.num_elements())
 
     @staticmethod
-    def forward[t_shape: TensorShape](mut res: Tensor[dtype], t: Tensor[dtype]):
+    def forward[t_shape: TensorShape](mut res: Tensor[f32], t: Tensor[f32]):
         """
         Forward pass of the flatten operation.
         """
@@ -708,9 +708,9 @@ struct FLATTEN:
     @staticmethod
     def backward[
         ug_shape: TensorShape, t_shape: TensorShape
-    ](ug: Tensor[dtype], t: Tensor[dtype]) -> Tensor[dtype]:
+    ](ug: Tensor[f32], t: Tensor[f32]) -> Tensor[f32]:
         """Backward operation of flatten."""
-        var res_grad = Tensor[dtype](t_shape)
+        var res_grad = Tensor[f32](t_shape)
         memcpy(
             dest=res_grad.mut_ptr(), src=ug.ptr(), count=ug_shape.num_elements()
         )
@@ -727,7 +727,7 @@ struct RESHAPE:
         return new_shape.value().to_shape()
 
     @staticmethod
-    def forward[t_shape: TensorShape](mut res: Tensor[dtype], t: Tensor[dtype]):
+    def forward[t_shape: TensorShape](mut res: Tensor[f32], t: Tensor[f32]):
         """
         Forward pass of the reshape operation.
         """
@@ -736,9 +736,9 @@ struct RESHAPE:
     @staticmethod
     def backward[
         ug_shape: TensorShape, t_shape: TensorShape
-    ](ug: Tensor[dtype], t: Tensor[dtype]) -> Tensor[dtype]:
+    ](ug: Tensor[f32], t: Tensor[f32]) -> Tensor[f32]:
         """Backward operation of reshape."""
-        var res_grad = Tensor[dtype](t_shape)
+        var res_grad = Tensor[f32](t_shape)
         memcpy(
             dest=res_grad.mut_ptr(), src=ug.ptr(), count=ug_shape.num_elements()
         )
@@ -761,10 +761,10 @@ struct FMA:
         t2_shape: TensorShape,
         t3_shape: TensorShape,
     ](
-        mut res: Tensor[dtype],
-        t1: Tensor[dtype],
-        t2: Tensor[dtype],
-        t3: Tensor[dtype],
+        mut res: Tensor[f32],
+        t1: Tensor[f32],
+        t2: Tensor[f32],
+        t3: Tensor[f32],
     ):
         """
         Forward pass of the fma operation.
@@ -785,22 +785,22 @@ struct FMA:
         t2_shape: TensorShape,
         t3_shape: TensorShape,
     ](
-        ug: Tensor[dtype],
-        t1: Tensor[dtype],
-        t2: Tensor[dtype],
-        t3: Tensor[dtype],
-    ) -> Tensor[dtype]:
+        ug: Tensor[f32],
+        t1: Tensor[f32],
+        t2: Tensor[f32],
+        t3: Tensor[f32],
+    ) -> Tensor[f32]:
         """Backward operation of fma."""
         # d(x * y + z) / dx = y
         # d(x * y + z) / dy = x
         # d(x * y + z) / dz = 1
 
         comptime if tensor_id == 0:
-            var res_grad = Tensor[dtype](ug_shape)
+            var res_grad = Tensor[f32](ug_shape)
             elwise_op[ug_shape, t2_shape, mul](res_grad, ug, t2)
             return res_grad^
         elif tensor_id == 1:
-            var res_grad = Tensor[dtype](ug_shape)
+            var res_grad = Tensor[f32](ug_shape)
             elwise_op[ug_shape, t1_shape, mul](res_grad, ug, t1)
             return res_grad^
         else:
