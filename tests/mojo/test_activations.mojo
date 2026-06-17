@@ -18,11 +18,11 @@ from basalt.utils.tensorutils import fill
 from tests import assert_tensors_equal
 
 
-comptime Activation = def(mut g: Graph, input: Symbol) -> Symbol
-comptime AxisActivation = def(mut g: Graph, input: Symbol, axis: Int) -> Symbol
-comptime LeakyReLUActivation = def(
+comptime Activation = def (mut g: Graph, input: Symbol) thin -> Symbol
+comptime AxisActivation = def (mut g: Graph, input: Symbol, axis: Int) thin -> Symbol
+comptime LeakyReLUActivation = def (
     mut g: Graph, input: Symbol, negative_slope: Scalar[dtype]
-) -> Symbol
+) thin -> Symbol
 
 
 def create_graph[
@@ -62,14 +62,14 @@ def test_graph[
     func: AxisActivation,
     nodes: Int,
     axis: Int,
-](input: Tensor[dtype], expected: Tensor[dtype]) raises:
+](var input: Tensor[dtype], expected: Tensor[dtype]) raises:
     comptime graph = create_graph[shape, func, axis]()
 
     var model = Model[graph](inference_only=True)
-    var res = model.inference(input)[0]
+    var res = model.inference(input^)[0].copy()
 
     assert_tensors_equal["almost"](res, expected)
-    assert_equal(len(graph.nodes), nodes)
+    assert_equal(comptime(len(graph.nodes)), nodes)
 
 
 def test_graph[
@@ -77,14 +77,14 @@ def test_graph[
     func: LeakyReLUActivation,
     nodes: Int,
     negative_slope: Scalar[dtype],
-](input: Tensor[dtype], expected: Tensor[dtype]) raises:
+](var input: Tensor[dtype], expected: Tensor[dtype]) raises:
     comptime graph = create_graph[shape, func, negative_slope]()
 
     var model = Model[graph](inference_only=True)
-    var res = model.inference(input)[0]
+    var res = model.inference(input^)[0].copy()
 
     assert_tensors_equal["almost"](res, expected)
-    assert_equal(len(graph.nodes), nodes)
+    assert_equal(comptime(len(graph.nodes)), nodes)
 
 
 # TODO: All these overloads feel redundant. Find a way to condense them
@@ -92,14 +92,14 @@ def test_graph[
     shape: TensorShape,
     func: Activation,
     nodes: Int,
-](input: Tensor[dtype], expected: Tensor[dtype]) raises:
+](var input: Tensor[dtype], expected: Tensor[dtype]) raises:
     comptime graph = create_graph[shape, func]()
 
     var model = Model[graph](inference_only=True)
-    var res = model.inference(input)[0]
+    var res = model.inference(input^)[0].copy()
 
     assert_tensors_equal["almost", "Tensor equality failed"](res, expected)
-    assert_equal(len(graph.nodes), nodes, "Node count failed")
+    assert_equal(comptime(len(graph.nodes)), nodes, "Node count failed")
 
 
 def test_SOFTMAX() raises:
@@ -112,13 +112,13 @@ def test_SOFTMAX() raises:
     var expected = Tensor[dtype](shape)
 
     fill(expected, 0.5)
-    test_graph[shape, Softmax, nodes, 0](input, expected)
+    test_graph[shape, Softmax, nodes, 0](input.copy(), expected)
 
     fill(expected, 1.0 / 3.0)
-    test_graph[shape, Softmax, nodes, 1](input, expected)
+    test_graph[shape, Softmax, nodes, 1](input.copy(), expected)
 
     fill(expected, 0.5)
-    test_graph[shape, Softmax, nodes, 2](input, expected)
+    test_graph[shape, Softmax, nodes, 2](input.copy(), expected)
 
 
 def test_LOGSOFTMAX() raises:
@@ -131,13 +131,13 @@ def test_LOGSOFTMAX() raises:
     var expected = Tensor[dtype](shape)
 
     fill(expected, -0.69314718)
-    test_graph[shape, LogSoftmax, nodes, 0](input, expected)
+    test_graph[shape, LogSoftmax, nodes, 0](input.copy(), expected)
 
     fill(expected, -1.09861231)
-    test_graph[shape, LogSoftmax, nodes, 1](input, expected)
+    test_graph[shape, LogSoftmax, nodes, 1](input.copy(), expected)
 
     fill(expected, -0.69314718)
-    test_graph[shape, LogSoftmax, nodes, 2](input, expected)
+    test_graph[shape, LogSoftmax, nodes, 2](input.copy(), expected)
 
 
 def test_RELU() raises:
@@ -154,7 +154,7 @@ def test_RELU() raises:
     for i in range(6):
         expected[i] = 3 if i < 3 else 0
 
-    test_graph[shape, ReLU, nodes](input, expected)
+    test_graph[shape, ReLU, nodes](input.copy(), expected)
 
 
 def test_LEAKYRELU() raises:
@@ -166,14 +166,14 @@ def test_LEAKYRELU() raises:
     var input = Tensor[dtype](shape)
 
     for i in range(6):
-        input[i] = i - 3
+        input[i] = Float32(i - 3)
 
     var expected = Tensor[dtype](shape)
 
     for i in range(6):
-        expected[i] = i - 3 if i - 3 > 0 else negative_slope * (i - 3)
+        expected[i] = Float32(i - 3) if i - 3 > 0 else negative_slope * Float32(i - 3)
 
-    test_graph[shape, LeakyReLU, nodes, negative_slope](input, expected)
+    test_graph[shape, LeakyReLU, nodes, negative_slope](input.copy(), expected)
 
 
 def test_SIGMOID() raises:
@@ -186,7 +186,7 @@ def test_SIGMOID() raises:
     var expected = Tensor[dtype](shape)
 
     fill(expected, 0.5)
-    test_graph[shape, Sigmoid, nodes](input, expected)
+    test_graph[shape, Sigmoid, nodes](input.copy(), expected)
 
 
 def test_TANH() raises:
@@ -199,7 +199,7 @@ def test_TANH() raises:
     var expected = Tensor[dtype](shape)
 
     fill(expected, 0.0)
-    test_graph[shape, Tanh, nodes](input, expected)
+    test_graph[shape, Tanh, nodes](input.copy(), expected)
 
 
 def main():
