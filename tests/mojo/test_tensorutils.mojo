@@ -1,6 +1,6 @@
 from std.random import rand
 from std.testing import assert_equal, assert_almost_equal
-from std.math import sqrt, exp
+from std.math import sqrt
 
 from std.utils.index import IndexList
 
@@ -22,7 +22,7 @@ from basalt.utils.tensorutils import (
     transpose,
 )
 from basalt.nn import Tensor, TensorShape
-from basalt.utils.math_util import add, sub, mul, div, round_simd
+from basalt.utils.math_util import add, sub, mul, div, round_simd, exp, sqrt_simd
 
 from tests import assert_tensors_equal
 
@@ -72,11 +72,11 @@ def test_elwise_transform() raises:
     var D = Tensor[dtype](2, 10)
     fill(A, 4)
     fill(B, 2)
-    fill(C, exp(SIMD[dtype, 1](2.0)))
+    fill(C, exp[dtype, 1](SIMD[dtype, 1](2.0)))
     fill(D, 7)
 
     var A_res = Tensor[dtype](2, 10)
-    elwise_transform[sqrt](A_res, A)
+    elwise_transform[sqrt_simd](A_res, A)
     assert_tensors_equal(A_res, B)
 
     var B_res = Tensor[dtype](2, 10)
@@ -92,8 +92,8 @@ def test_elwise_pow() raises:
     var A = Tensor[dtype](1, 10)
     var B = Tensor[dtype](1, 10)
     for i in range(10):
-        A[i] = i
-        B[i] = i**2
+        A[i] = Float32(i)
+        B[i] = Float32(i**2)
 
     var A_res = Tensor[dtype](1, 10)
     elwise_pow(A_res, A, 2)
@@ -171,7 +171,7 @@ def test_elwise_broadcast_tensor() raises:
 
     fill(t1, 3.0)
     for i in range(40):
-        t2[i] = i + 1
+        t2[i] = Float32(i + 1)
 
     var result1 = Tensor[dtype](res_shape)
     elwise_op[t1_shape, t2_shape, add](result1, t1, t2)
@@ -180,7 +180,7 @@ def test_elwise_broadcast_tensor() raises:
     for i in range(40):
         for j in range(3):
             var index = (i % 4) + ((i // 4) * 12) + j * 4
-            result1_expected[index] = Float32(3.0) + (i + 1)
+            result1_expected[index] = Float32(3.0) + Float32(i + 1)
     assert_tensors_equal(result1, result1_expected)
 
 
@@ -189,10 +189,10 @@ from test_tensorutils_data import SumMeanStdData
 
 def test_sum_mean_std() raises:
     var t = Tensor[dtype](2, 10)
-    var s = 0
+    var s: Scalar[dtype] = 0
     for i in range(20):
-        t[i] = i + 1
-        s += i + 1
+        t[i] = Float32(i + 1)
+        s += Float32(i + 1)
 
     # Not specifying the axis takes all elements regardless of the shape
     var tensor_sum = tsum(t)
@@ -204,7 +204,7 @@ def test_sum_mean_std() raises:
     var tensor_std = tstd(t)
     var expected_std: Scalar[dtype] = 0
     for i in range(20):
-        expected_std += (i + 1 - tensor_mean) ** 2
+        expected_std += (Float32(i + 1) - tensor_mean) ** 2
     expected_std = sqrt(expected_std / 20)
     assert_equal(tensor_std, expected_std)
 
@@ -214,7 +214,7 @@ def test_sum_mean_std() raises:
     tsum(batch_sum_0, t, axis=0)
     var expected_batch_sum_0 = Tensor[dtype](1, 10)
     for i in range(10):
-        expected_batch_sum_0[i] = (i + 1) + (i + 1 + 10)
+        expected_batch_sum_0[i] = Float32((i + 1) + (i + 1 + 10))
     assert_tensors_equal(batch_sum_0, expected_batch_sum_0)
 
     var batch_mean_0 = Tensor[dtype](get_reduce_shape(t.shape(), axis=0))
@@ -234,8 +234,8 @@ def test_sum_mean_std() raises:
     var batch_sum_1 = Tensor[dtype](get_reduce_shape(t.shape(), axis=1))
     tsum(batch_sum_1, t, axis=1)
     var expected_batch_sum_1 = Tensor[dtype](2, 1)
-    expected_batch_sum_1[0] = 1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10
-    expected_batch_sum_1[1] = 11 + 12 + 13 + 14 + 15 + 16 + 17 + 18 + 19 + 20
+    expected_batch_sum_1[0] = Float32(1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10)
+    expected_batch_sum_1[1] = Float32(11 + 12 + 13 + 14 + 15 + 16 + 17 + 18 + 19 + 20)
     assert_tensors_equal(batch_sum_1, expected_batch_sum_1)
 
     var batch_mean_1 = Tensor[dtype](get_reduce_shape(t.shape(), axis=1))
@@ -254,10 +254,10 @@ def test_sum_mean_std() raises:
 
 def test_sum_mean_std_n() raises:
     var t = Tensor[dtype](3, 4, 5)
-    var s = 0
+    var s: Scalar[dtype] = 0
     for i in range(60):
-        t[i] = i + 1
-        s += i + 1
+        t[i] = Float32(i + 1)
+        s += Float32(i + 1)
 
     # Not specifying the axis takes all elements regardless of the shape
     var tensor_sum = tsum(t)
@@ -269,7 +269,7 @@ def test_sum_mean_std_n() raises:
     var tensor_std = tstd(t)
     var expected_std: Scalar[dtype] = 0
     for i in range(60):
-        expected_std += (i + 1 - tensor_mean) ** 2
+        expected_std += (Float32(i + 1) - tensor_mean) ** 2
     expected_std = sqrt(expected_std / 60)
     assert_equal(tensor_std, expected_std)
 
@@ -322,16 +322,16 @@ def test_sum_mean_std_n() raises:
 def test_max() raises:
     var t = Tensor[dtype](2, 3, 2)
     for i in range(12):
-        t[i] = i + 1
+        t[i] = Float32(i + 1)
 
     var tensor_max = tmax(t)
-    assert_equal(tensor_max, 12)
+    assert_equal(tensor_max, Float32(12))
 
     def fill_tensor[
         size: Int
     ](mut tensor: Tensor[dtype], values: IndexList[size]):
         for i in range(tensor.num_elements()):
-            tensor[i] = values[i]
+            tensor[i] = Float32(values[i])
 
     var tensor_max_axis_0 = Tensor[dtype](get_reduce_shape(t.shape(), axis=0))
     tmax(tensor_max_axis_0, t, axis=0)
