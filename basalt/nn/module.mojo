@@ -32,6 +32,7 @@ def build_graph[T: AnyType](mut layers: T, mut g: Graph, input: Symbol) -> Symbo
     """
     Reflects over `layers`' fields in declaration order, chaining every
     `Layer`-conforming field's `forward(g, x) -> x` to build up a Graph.
+
     Non-Layer fields (e.g. plain config values) are skipped.
     """
     comptime r = reflect[T]
@@ -44,3 +45,21 @@ def build_graph[T: AnyType](mut layers: T, mut g: Graph, input: Symbol) -> Symbo
             ref field_val = r.field_ref[idx](layers)
             x = trait_downcast[Layer](field_val).forward(g, x)
     return x
+
+
+struct Sequential[*Ts: Layer & Movable](Layer, Movable):
+    """
+    A plain ordered list of heterogeneous `Layer`s, chained in the order
+    given to the constructor: `Sequential(LinearLayer(32), ReLULayer())`.
+    """
+
+    var layers: Tuple[*Self.Ts]
+
+    def __init__(out self, var *layers: *Self.Ts):
+        self.layers = Tuple(*layers^)
+
+    def forward(self, mut g: Graph, input: Symbol) -> Symbol:
+        var x = input
+        comptime for i in range(Self.Ts.__len__()):
+            x = self.layers[i].forward(g, x)
+        return x
