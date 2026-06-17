@@ -193,7 +193,7 @@ def test_SUM_0() raises:
     comptime attributes = AttributeVector(Attribute("axis", 0))
     var expected_grad1 = Tensor[dtype](t1_shape)
     for i in range(expected_grad1.num_elements()):
-        expected_grad1[i] = i % 3
+        expected_grad1[i] = Float32(i % 3)
 
     test_unary_op_backward[OP.SUM, t1_shape, ug_shape, attributes](
         t1, ug, expected_grad1
@@ -241,7 +241,7 @@ def test_MAX_0() raises:
     var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
     var ug: Tensor[dtype] = Tensor[dtype](ug_shape)
     for i in range(t1.num_elements()):
-        t1[i] = i + 1
+        t1[i] = Float32(i + 1)
     t1[0] = 7.0
 
     fill(ug, 2.0)
@@ -267,7 +267,7 @@ def test_MAX_1() raises:
     var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
     var ug: Tensor[dtype] = Tensor[dtype](ug_shape)
     for i in range(t1.num_elements()):
-        t1[i] = i + 1
+        t1[i] = Float32(i + 1)
     t1[0] = 5.0
     fill(ug, 2.0)
 
@@ -290,7 +290,7 @@ def test_MAX_2() raises:
     var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
     var ug: Tensor[dtype] = Tensor[dtype](ug_shape)
     for i in range(t1.num_elements()):
-        t1[i] = i + 1
+        t1[i] = Float32(i + 1)
     t1[0] = 2.0
     fill(ug, 2.0)
 
@@ -333,7 +333,7 @@ def test_MEAN_0() raises:
     comptime attributes = AttributeVector(Attribute("axis", 0))
     var expected_grad = Tensor[dtype](t1_shape)
     for i in range(expected_grad.num_elements()):
-        expected_grad[i] = SIMD.cast[dtype](1.0 / t1_shape[0] * 3.0)
+        expected_grad[i] = 1.0 / Float32(t1_shape[0]) * 3.0
 
     test_unary_op_backward[OP.MEAN, t1_shape, ug_shape, attributes](
         t1, ug, expected_grad
@@ -351,7 +351,7 @@ def test_MEAN_1() raises:
     comptime attributes = AttributeVector(Attribute("axis", 1))
     var expected_grad = Tensor[dtype](t1_shape)
     for i in range(expected_grad.num_elements()):
-        expected_grad[i] = SIMD.cast[dtype](1.0 / t1_shape[1] * 3.0)
+        expected_grad[i] = 1.0 / Float32(t1_shape[1]) * 3.0
 
     test_unary_op_backward[OP.MEAN, t1_shape, ug_shape, attributes](
         t1, ug, expected_grad
@@ -367,7 +367,7 @@ def test_TRANSPOSE() raises:
     def arange(mut t: Tensor[dtype]):
         var n = t.num_elements()
         for i in range(n):
-            t[i] = i + 1
+            t[i] = Float32(i + 1)
 
     arange(t1)
     arange(ug)
@@ -424,8 +424,8 @@ def test_RESHAPE() raises:
     var ug: Tensor[dtype] = Tensor[dtype](ug_shape)
     var expected_grad = Tensor[dtype](t1_shape)
     for i in range(20):
-        ug[i] = i + 1
-        expected_grad[i] = i + 1
+        ug[i] = Float32(i + 1)
+        expected_grad[i] = Float32(i + 1)
 
     test_unary_op_backward[OP.RESHAPE, t1_shape, ug_shape](t1, ug, expected_grad)
 

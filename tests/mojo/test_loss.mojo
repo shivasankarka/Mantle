@@ -23,17 +23,18 @@ def test_MSE_perfect() raises:
         return g ^
 
     comptime graph = create_graph()
-    assert_equal(len(graph.nodes), 3)
+    assert_equal(comptime(len(graph.nodes)), 3)
 
     var y_pred = Tensor[dtype](y_pred_shape)
     var y_true = Tensor[dtype](y_true_shape)
 
-    fill(y_pred, 1)
-    fill(y_true, 1)
+    fill(y_pred, 1.0)
+    fill(y_true, 1.0)
 
     var model = Model[graph](inference_only=True)
 
-    var loss = model.inference(y_pred, y_true)[0]
+    var outputs = model.inference(y_pred.share(), y_true.share())
+    var loss = outputs[0].copy()
 
     assert_equal(loss.dim(0), 1)  # MSE summed over all elements
     assert_equal(loss[0], 0)  # loss is 0
@@ -56,26 +57,27 @@ def test_MSE_imperfect() raises:
         return g ^
 
     comptime graph = create_graph()
-    assert_equal(len(graph.nodes), 3)
+    assert_equal(comptime(len(graph.nodes)), 3)
 
     var y_pred = Tensor[dtype](y_pred_shape)
     var y_true = Tensor[dtype](y_true_shape)
 
-    fill(y_pred, 1)
+    fill(y_pred, 1.0)
 
     for i in range(10):
-        y_true[i] = i
+        y_true[i] = Float32(i)
 
     var model = Model[graph](inference_only=True)
 
-    var loss = model.inference(y_pred, y_true)[0]
+    var outputs = model.inference(y_pred.share(), y_true.share())
+    var loss = outputs[0].copy()
 
     var expected_loss: Scalar[dtype] = 0.0
 
     for i in range(10):
         expected_loss += (y_pred[i] - y_true[i]) ** 2
 
-    expected_loss = expected_loss / y_true_shape[1]
+    expected_loss = expected_loss / Float32(y_true_shape[1])
 
     assert_almost_equal(loss[0], expected_loss)
 
@@ -97,7 +99,7 @@ def test_CrossEntropy_perfect() raises:
         return g ^
 
     comptime graph = create_graph()
-    assert_equal(len(graph.nodes), 9)
+    assert_equal(comptime(len(graph.nodes)), 9)
 
     var y_pred = Tensor[dtype](y_pred_shape)
     var y_true = Tensor[dtype](y_true_shape)
@@ -105,20 +107,21 @@ def test_CrossEntropy_perfect() raises:
     y_pred[0 * y_pred.dim(1) + 0] = 0.1
     y_pred[0 * y_pred.dim(1) + 1] = 0.2
     y_pred[0 * y_pred.dim(1) + 2] = 0.7
-    y_true[0 * y_true.dim(1) + 0] = 0
-    y_true[0 * y_true.dim(1) + 1] = 0
-    y_true[0 * y_true.dim(1) + 2] = 1
+    y_true[0 * y_true.dim(1) + 0] = 0.0
+    y_true[0 * y_true.dim(1) + 1] = 0.0
+    y_true[0 * y_true.dim(1) + 2] = 1.0
 
     y_pred[1 * y_pred.dim(1) + 0] = 0.7
     y_pred[1 * y_pred.dim(1) + 1] = 0.2
     y_pred[1 * y_pred.dim(1) + 2] = 0.1
-    y_true[1 * y_true.dim(1) + 0] = 1
-    y_true[1 * y_true.dim(1) + 1] = 0
-    y_true[1 * y_true.dim(1) + 2] = 0
+    y_true[1 * y_true.dim(1) + 0] = 1.0
+    y_true[1 * y_true.dim(1) + 1] = 0.0
+    y_true[1 * y_true.dim(1) + 2] = 0.0
 
     var model = Model[graph](inference_only=True)
 
-    var loss = model.inference(y_pred, y_true)[0]
+    var outputs = model.inference(y_pred.copy(), y_true.copy())
+    var loss = outputs[0].copy()
 
     assert_equal(loss.shape(), TensorShape(1))
     assert_almost_equal(loss[0], 0.76794958)
@@ -148,26 +151,27 @@ def test_CrossEntropy_imperfect() raises:
     y_pred[0 * y_pred.dim(1) + 0] = 0.1
     y_pred[0 * y_pred.dim(1) + 1] = 0.2
     y_pred[0 * y_pred.dim(1) + 2] = 0.7
-    y_true[0 * y_true.dim(1) + 0] = 0
-    y_true[0 * y_true.dim(1) + 1] = 1
-    y_true[0 * y_true.dim(1) + 2] = 0
+    y_true[0 * y_true.dim(1) + 0] = 0.0
+    y_true[0 * y_true.dim(1) + 1] = 1.0
+    y_true[0 * y_true.dim(1) + 2] = 0.0
 
     y_pred[1 * y_pred.dim(1) + 0] = 0.7
     y_pred[1 * y_pred.dim(1) + 1] = 0.2
     y_pred[1 * y_pred.dim(1) + 2] = 0.1
-    y_true[1 * y_true.dim(1) + 0] = 0
-    y_true[1 * y_true.dim(1) + 1] = 0
-    y_true[1 * y_true.dim(1) + 2] = 1
+    y_true[1 * y_true.dim(1) + 0] = 0.0
+    y_true[1 * y_true.dim(1) + 1] = 0.0
+    y_true[1 * y_true.dim(1) + 2] = 1.0
 
     var model = Model[graph](inference_only=True)
 
-    var loss = model.inference(y_pred, y_true)[0]
+    var outputs = model.inference(y_pred.copy(), y_true.copy())
+    var loss = outputs[0].copy()
 
     assert_equal(loss.shape(), TensorShape(1))
     assert_almost_equal(loss[0], 1.31794953)
 
 
-def main():
+def main() raises:
     try:
         test_MSE_perfect()
         test_MSE_imperfect()
@@ -176,3 +180,4 @@ def main():
     except e:
         print("[ERROR] Error in loss")
         print(e)
+        raise e^

@@ -81,9 +81,9 @@ def test_backward_RELU() raises:
 
     var expected_grad = Tensor[dtype](2, 3)
     for i in range(3):
-        expected_grad[i] = 1 * 5.0  # 1 = d(relu(3))/dx
+        expected_grad[i] = Float32(1) * 5.0  # 1 = d(relu(3))/dx
     for i in range(3, 6):
-        expected_grad[i] = 0 * 5.0  # 0 = d(relu(-3))/dx
+        expected_grad[i] = Float32(0) * 5.0  # 0 = d(relu(-3))/dx
 
     test_unary_op_backward[OP.RELU, t1_shape, ug_shape](t1, ug, expected_grad)
 
@@ -123,7 +123,7 @@ def test_backward_LEAKYRELU() raises:
 
     var expected_grad = Tensor[dtype](2, 3)
     for i in range(3):
-        expected_grad[i] = 1 * 5.0
+        expected_grad[i] = Float32(1) * 5.0
     for i in range(3, 6):
         expected_grad[i] = 0.1 * 5.0
 
@@ -162,10 +162,10 @@ def test_CLIP() raises:
     comptime t1_shape = TensorShape(2, 3)
     var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
     for i in range(6):
-        t1[i] = i - 3
+        t1[i] = Float32(i - 3)
 
     # Clip without min and max
-    var expected_no = t1
+    var expected_no = t1.copy()
     test_unary_op[OP.CLIP, t1_shape](t1, expected_no)
 
     # Clip with min
@@ -208,12 +208,12 @@ def test_backward_CLIP() raises:
     comptime ug_shape = TensorShape(2, 3)
     var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
     for i in range(6):
-        t1[i] = i - 3
+        t1[i] = Float32(i - 3)
     var ug: Tensor[dtype] = Tensor[dtype](ug_shape)
     fill(ug, 5.0)
 
     # Clip without min and max
-    var expected_no = ug
+    var expected_no = ug.copy()
     test_unary_op_backward[OP.CLIP, t1_shape, ug_shape](t1, ug, expected_no)
 
     # Clip with min
@@ -357,7 +357,7 @@ def test_SLICE() raises:
     comptime t1_shape = TensorShape(3, 4, 5)
     var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
     for i in range(t1.num_elements()):
-        t1[i] = i
+        t1[i] = Float32(i)
 
     comptime slice = Slice(1, 3, 1)
 
@@ -366,7 +366,9 @@ def test_SLICE() raises:
     for i in range(2):
         for j in range(4):
             for k in range(5):
-                expected_0[i * 4 * 5 + j * 5 + k] = (i + 1) * 4 * 5 + j * 5 + k
+                expected_0[i * 4 * 5 + j * 5 + k] = Float32(
+                    (i + 1) * 4 * 5 + j * 5 + k
+                )
 
     test_unary_op[
         OP.SLICE,
@@ -384,7 +386,9 @@ def test_SLICE() raises:
     for i in range(3):
         for j in range(2):
             for k in range(5):
-                expected_1[i * 2 * 5 + j * 5 + k] = i * 4 * 5 + (j + 1) * 5 + k
+                expected_1[i * 2 * 5 + j * 5 + k] = Float32(
+                    i * 4 * 5 + (j + 1) * 5 + k
+                )
 
     test_unary_op[
         OP.SLICE,
@@ -402,7 +406,9 @@ def test_SLICE() raises:
     for i in range(3):
         for j in range(4):
             for k in range(2):
-                expected_2[i * 4 * 2 + j * 2 + k] = i * 4 * 5 + j * 5 + (k + 1)
+                expected_2[i * 4 * 2 + j * 2 + k] = Float32(
+                    i * 4 * 5 + j * 5 + (k + 1)
+                )
 
     test_unary_op[
         OP.SLICE,
@@ -423,13 +429,13 @@ def test_SLICE_step() raises:
     comptime t0_shape = TensorShape(10, 2, 2)
     var t0: Tensor[dtype] = Tensor[dtype](t0_shape)
     for i in range(t0.num_elements()):
-        t0[i] = i
+        t0[i] = Float32(i)
 
     var expected_0 = Tensor[dtype](3, 2, 2)
     for i in range(3):
         for j in range(2):
             for k in range(2):
-                expected_0[i * 2 * 2 + j * 2 + k] = (
+                expected_0[i * 2 * 2 + j * 2 + k] = Float32(
                     (i * 2 + 1) * 2 * 2 + j * 2 + k
                 )
 
@@ -448,13 +454,13 @@ def test_SLICE_step() raises:
     comptime t1_shape = TensorShape(2, 10, 2)
     var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
     for i in range(t1.num_elements()):
-        t1[i] = i
+        t1[i] = Float32(i)
 
     var expected_1 = Tensor[dtype](2, 3, 2)
     for i in range(2):
         for j in range(3):
             for k in range(2):
-                expected_1[i * 3 * 2 + j * 2 + k] = (
+                expected_1[i * 3 * 2 + j * 2 + k] = Float32(
                     i * 10 * 2 + (j * 2 + 1) * 2 + k
                 )
 
@@ -473,13 +479,13 @@ def test_SLICE_step() raises:
     comptime t2_shape = TensorShape(2, 2, 10)
     var t2: Tensor[dtype] = Tensor[dtype](t2_shape)
     for i in range(t2.num_elements()):
-        t2[i] = i
+        t2[i] = Float32(i)
 
     var expected_2 = Tensor[dtype](2, 2, 3)
     for i in range(2):
         for j in range(2):
             for k in range(3):
-                expected_2[i * 2 * 3 + j * 3 + k] = (
+                expected_2[i * 2 * 3 + j * 3 + k] = Float32(
                     i * 2 * 10 + j * 10 + (k * 2 + 1)
                 )
 
@@ -502,13 +508,13 @@ def test_SLICE_neg() raises:
     comptime t0_shape = TensorShape(10, 2, 2)
     var t0: Tensor[dtype] = Tensor[dtype](t0_shape)
     for i in range(t0.num_elements()):
-        t0[i] = i
+        t0[i] = Float32(i)
 
     var expected_0 = Tensor[dtype](3, 2, 2)
     for i in range(3):
         for j in range(2):
             for k in range(2):
-                expected_0[i * 2 * 2 + j * 2 + k] = (
+                expected_0[i * 2 * 2 + j * 2 + k] = Float32(
                     IndexList[3](6, 4, 2)[i] * 2 * 2 + j * 2 + k
                 )
 
@@ -527,13 +533,13 @@ def test_SLICE_neg() raises:
     comptime t1_shape = TensorShape(2, 10, 2)
     var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
     for i in range(t1.num_elements()):
-        t1[i] = i
+        t1[i] = Float32(i)
 
     var expected_1 = Tensor[dtype](2, 3, 2)
     for i in range(2):
         for j in range(3):
             for k in range(2):
-                expected_1[i * 3 * 2 + j * 2 + k] = (
+                expected_1[i * 3 * 2 + j * 2 + k] = Float32(
                     i * 10 * 2 + IndexList[3](6, 4, 2)[j] * 2 + k
                 )
 
@@ -552,13 +558,13 @@ def test_SLICE_neg() raises:
     comptime t2_shape = TensorShape(2, 2, 10)
     var t2: Tensor[dtype] = Tensor[dtype](t2_shape)
     for i in range(t2.num_elements()):
-        t2[i] = i
+        t2[i] = Float32(i)
 
     var expected_2 = Tensor[dtype](2, 2, 3)
     for i in range(2):
         for j in range(2):
             for k in range(3):
-                expected_2[i * 2 * 3 + j * 3 + k] = (
+                expected_2[i * 2 * 3 + j * 3 + k] = Float32(
                     i * 2 * 10 + j * 10 + IndexList[3](6, 4, 2)[k]
                 )
 
@@ -578,7 +584,7 @@ def test_SLICE_multiple_axes() raises:
     comptime t1_shape = TensorShape(20, 32, 40)
     var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
     for i in range(t1.num_elements()):
-        t1[i] = i
+        t1[i] = Float32(i)
 
     comptime slice_0 = Slice(1, 6, 2)
     comptime slice_1 = Slice(3, 10, 3)
@@ -588,7 +594,7 @@ def test_SLICE_multiple_axes() raises:
     for i in range(3):
         for j in range(3):
             for k in range(5):
-                expected[i * 3 * 5 + j * 5 + k] = (
+                expected[i * 3 * 5 + j * 5 + k] = Float32(
                     IndexList[5](1, 3, 5, 7, 9)[i] * 32 * 40
                     + IndexList[3](3, 6, 9)[j] * 40
                     + IndexList[5](5, 7, 9, 11, 13)[k]
@@ -615,7 +621,7 @@ def test_SLICE_multiple_axes() raises:
     comptime t2_shape = TensorShape(20, 32, 40, 50)
     var t2: Tensor[dtype] = Tensor[dtype](t2_shape)
     for i in range(t2.num_elements()):
-        t2[i] = i
+        t2[i] = Float32(i)
 
     comptime slice_2_1 = Slice(1, 6, 2)
     comptime slice_2_2 = Slice(3, 10, 3)
@@ -628,7 +634,7 @@ def test_SLICE_multiple_axes() raises:
         for j in range(3):
             for k in range(5):
                 for l in range(4):
-                    expected_2[i * 3 * 5 * 4 + j * 5 * 4 + k * 4 + l] = (
+                    expected_2[i * 3 * 5 * 4 + j * 5 * 4 + k * 4 + l] = Float32(
                         IndexList[5](1, 3, 5, 7, 9)[i] * 32 * 40 * 50
                         + IndexList[3](3, 6, 9)[j] * 40 * 50
                         + IndexList[5](5, 7, 9, 11, 13)[k] * 50
@@ -759,7 +765,7 @@ def test_backward_SLICE_multiple_axes() raises:
     comptime t1_shape = TensorShape(20, 32, 40)
     var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
     for i in range(t1.num_elements()):
-        t1[i] = i
+        t1[i] = Float32(i)
 
     comptime slice_0 = Slice(1, 6, 2)
     comptime slice_1 = Slice(3, 10, 3)
@@ -769,7 +775,7 @@ def test_backward_SLICE_multiple_axes() raises:
     for i in range(3):
         for j in range(3):
             for k in range(5):
-                expected[i * 3 * 5 + j * 5 + k] = (
+                expected[i * 3 * 5 + j * 5 + k] = Float32(
                     IndexList[5](1, 3, 5, 7, 9)[i] * 32 * 40
                     + IndexList[3](3, 6, 9)[j] * 40
                     + IndexList[5](5, 7, 9, 11, 13)[k]

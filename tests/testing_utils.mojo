@@ -21,8 +21,6 @@ def assert_tensors_equal[
     assert_equal(t1.shape(), t2.shape(), "Tensor shape mismatch")
 
     for i in range(t1.num_elements()):
-        if i == 0:
-            print("helper first", t1[i], t2[i])
         if mode == "almost":
             assert_almost_equal(t1[i], t2[i], rtol=1e-5, atol=1e-5, msg=msg)
         else:
@@ -46,10 +44,11 @@ def test_unary_op[
             return g ^
 
     comptime graph = create_graph()
-    assert_equal(len(graph.nodes), 1)
+    assert_equal(comptime(len(graph.nodes)), 1)
 
     var model = Model[graph](inference_only=True)
-    var res = model.inference(t1)[0]
+    var outputs = model.inference(t1)
+    var res = outputs[0].copy()
 
     assert_tensors_equal["almost"](res, expected)
 
@@ -75,10 +74,11 @@ def test_binary_op[
             return g ^
 
     comptime graph = create_graph()
-    assert_equal(len(graph.nodes), 1)
+    assert_equal(comptime(len(graph.nodes)), 1)
 
     var model = Model[graph](inference_only=True)
-    var res = model.inference(t1, t2)[0]
+    var outputs = model.inference(t1, t2)
+    var res = outputs[0].copy()
 
     assert_tensors_equal["almost"](res, expected)
 
@@ -100,10 +100,11 @@ def test_ternary_op[
         return g ^
 
     comptime graph = create_graph()
-    assert_equal(len(graph.nodes), 1)
+    assert_equal(comptime(len(graph.nodes)), 1)
 
     var model = Model[graph](inference_only=True)
-    var res = model.inference(t1, t2, t3)[0]
+    var outputs = model.inference(t1, t2, t3)
+    var res = outputs[0].copy()
 
     assert_tensors_equal["almost"](res, expected)
 

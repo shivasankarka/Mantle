@@ -138,18 +138,18 @@ def test_MAX() raises:
     comptime t1_shape = TensorShape(2, 3, 2)
     var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
     for i in range(t1_shape.num_elements()):
-        t1[i] = i + 1
+        t1[i] = Float32(i + 1)
 
     # No axis specified
     var expected = Tensor[dtype](1)
-    fill(expected, t1_shape.num_elements())
+    fill(expected, Float32(t1_shape.num_elements()))
     test_unary_op[OP.MAX, t1_shape](t1, expected)
 
     def fill_tensor[
         size: Int
     ](mut tensor: Tensor[dtype], values: IndexList[size]):
         for i in range(tensor.num_elements()):
-            tensor[i] = values[i]
+            tensor[i] = Float32(values[i])
 
     # Test axis 0
     comptime attrs = AttributeVector(Attribute("axis", 0))
@@ -200,7 +200,7 @@ def test_TRANSPOSE() raises:
     comptime t1_shape = TensorShape(2, 3, 4)
     var t1: Tensor[dtype] = Tensor[dtype](t1_shape)
     for i in range(t1_shape.num_elements()):
-        t1[i] = i + 1
+        t1[i] = Float32(i + 1)
 
     # Test tranpose (no attributes = reversing the axis by default)
     var expected = Tensor[dtype](4, 3, 2)
@@ -246,8 +246,8 @@ def test_RESHAPE() raises:
     var t = Tensor[dtype](t_shape)
     var expected = Tensor[dtype](new_shape)
     for i in range(20):
-        t[i] = i + 1
-        expected[i] = i + 1
+        t[i] = Float32(i + 1)
+        expected[i] = Float32(i + 1)
 
     comptime attrs = AttributeVector(Attribute("shape", new_shape))
     test_unary_op[OP.RESHAPE, t_shape, attrs](t, expected)
