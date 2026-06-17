@@ -71,10 +71,10 @@ if __name__ == "__main__":
     train_data = MNIST("./examples/data/mnist_test_small.csv")
 
     # Visualize data
-    num = 0
-    plt.imshow(np.array(train_data[num][0]).squeeze())
-    plt.title("%i" % train_data[num][1])
-    plt.show()
+    # num = 0
+    # plt.imshow(np.array(train_data[num][0]).squeeze())
+    # plt.title("%i" % train_data[num][1])
+    # plt.show()
 
     # Batchwise data loader
     loaders = {
