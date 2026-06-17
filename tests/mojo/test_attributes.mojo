@@ -1,8 +1,8 @@
 from std.testing import assert_equal, assert_true
 from std.utils.index import IndexList
 
-from basalt.nn import TensorShape
-from basalt.autograd.attributes import Attribute
+from mantle.nn import TensorShape
+from mantle.autograd.attributes import Attribute
 
 
 def test_attribute_key() raises:

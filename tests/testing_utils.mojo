@@ -2,12 +2,12 @@ from std.python import Python
 from std.collections import OptionalReg
 from std.testing import assert_equal, assert_almost_equal
 
-from basalt import f32
-from basalt.autograd import Graph, OP
-from basalt.autograd.ops.ops import backward_op
-from basalt.autograd.attributes import AttributeVector
-from basalt.nn import Tensor, TensorShape, Model
-from basalt.utils.tensor_creation_utils import to_numpy, to_tensor
+from mantle import f32
+from mantle.autograd import Graph, OP
+from mantle.autograd.ops.ops import backward_op
+from mantle.autograd.attributes import AttributeVector
+from mantle.nn import Tensor, TensorShape, Model
+from mantle.utils.tensor_creation_utils import to_numpy, to_tensor
 
 
 # The below regex should be used to convert deprecated calls

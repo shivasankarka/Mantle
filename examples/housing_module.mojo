@@ -1,10 +1,10 @@
 from std.time import perf_counter_ns as now
 
-import basalt.nn as nn
-from basalt import Tensor, TensorShape, f32
-from basalt import Graph, Symbol, OP
-from basalt.utils.datasets import BostonHousing
-from basalt.utils.dataloader import DataLoader, slice_rows, cycle_pad_rows
+import mantle.nn as nn
+from mantle import Tensor, TensorShape, f32
+from mantle import Graph, Symbol, OP
+from mantle.utils.datasets import BostonHousing
+from mantle.utils.dataloader import DataLoader, slice_rows, cycle_pad_rows
 
 
 @fieldwise_init

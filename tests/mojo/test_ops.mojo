@@ -1,11 +1,11 @@
 from std.math import exp, log
 from std.utils.index import IndexList
 
-from basalt import f32, nelts
-from basalt.autograd import OP
-from basalt.autograd.attributes import Attribute, AttributeVector
-from basalt.utils.tensorutils import fill
-from basalt.nn import Tensor, TensorShape
+from mantle import f32, nelts
+from mantle.autograd import OP
+from mantle.autograd.attributes import Attribute, AttributeVector
+from mantle.utils.tensorutils import fill
+from mantle.nn import Tensor, TensorShape
 
 from tests import test_unary_op, test_binary_op, test_ternary_op
 

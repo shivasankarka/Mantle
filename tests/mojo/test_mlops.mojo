@@ -1,9 +1,9 @@
 from std.utils.index import IndexList
 
-from basalt import f32, nelts
-from basalt.autograd import OP
-from basalt.autograd.attributes import AttributeVector, Attribute
-from basalt.autograd.ops.mlops import (
+from mantle import f32, nelts
+from mantle.autograd import OP
+from mantle.autograd.attributes import AttributeVector, Attribute
+from mantle.autograd.ops.mlops import (
     SIGMOID,
     RELU,
     LEAKYRELU,
@@ -12,8 +12,8 @@ from basalt.autograd.ops.mlops import (
     SQUEEZE,
     UNSQUEEZE,
 )
-from basalt.nn import Tensor, TensorShape
-from basalt.utils.tensorutils import fill
+from mantle.nn import Tensor, TensorShape
+from mantle.utils.tensorutils import fill
 
 from tests import (
     assert_tensors_equal,

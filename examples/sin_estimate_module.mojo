@@ -2,11 +2,11 @@ from std.random import rand
 from std.time import perf_counter_ns as now
 import std.math as math
 
-import basalt.nn as nn
-from basalt import Tensor, TensorShape
-from basalt import f32
-from basalt import Graph, Symbol, OP
-from basalt.utils.tensorutils import fill
+import mantle.nn as nn
+from mantle import Tensor, TensorShape
+from mantle import f32
+from mantle import Graph, Symbol, OP
+from mantle.utils.tensorutils import fill
 
 
 @fieldwise_init

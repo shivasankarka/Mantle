@@ -1,12 +1,12 @@
 from std.time import perf_counter_ns as now
 from std.utils.index import IndexList
 
-import basalt.nn as nn
-from basalt import Tensor, TensorShape
-from basalt import Graph, Symbol, OP, f32
-from basalt.utils.datasets import MNIST
-from basalt.utils.dataloader import DataLoader
-from basalt.autograd.attributes import AttributeVector, Attribute
+import mantle.nn as nn
+from mantle import Tensor, TensorShape
+from mantle import Graph, Symbol, OP, f32
+from mantle.utils.datasets import MNIST
+from mantle.utils.dataloader import DataLoader
+from mantle.autograd.attributes import AttributeVector, Attribute
 
 
 @fieldwise_init

@@ -1,7 +1,7 @@
 from std.testing import assert_equal
 
-from basalt import f32
-from basalt.nn import (
+from mantle import f32
+from mantle.nn import (
     Tensor,
     TensorShape,
     Model,
@@ -12,8 +12,8 @@ from basalt.nn import (
     Sigmoid,
     Tanh,
 )
-from basalt.autograd import Graph, Symbol
-from basalt.utils.tensorutils import fill
+from mantle.autograd import Graph, Symbol
+from mantle.utils.tensorutils import fill
 
 from tests import assert_tensors_equal
 

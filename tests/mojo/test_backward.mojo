@@ -1,11 +1,11 @@
 from std.math import log, exp
 from std.testing import assert_equal
 
-from basalt import f32, nelts
-from basalt.autograd.attributes import AttributeVector, Attribute
-from basalt.autograd import OP
-from basalt.nn import Tensor, TensorShape
-from basalt.utils.tensorutils import fill, tsum
+from mantle import f32, nelts
+from mantle.autograd.attributes import AttributeVector, Attribute
+from mantle.autograd import OP
+from mantle.nn import Tensor, TensorShape
+from mantle.utils.tensorutils import fill, tsum
 
 
 from tests import (

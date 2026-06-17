@@ -1,10 +1,10 @@
 from std.testing import assert_equal
 
-from basalt import f32
-from basalt.nn import Tensor, TensorShape
-from basalt.autograd import Symbol
-from basalt.utils.collection import Collection
-from basalt.utils.tensorutils import fill
+from mantle import f32
+from mantle.nn import Tensor, TensorShape
+from mantle.autograd import Symbol
+from mantle.utils.collection import Collection
+from mantle.utils.tensorutils import fill
 
 from tests import assert_tensors_equal
 

@@ -1,9 +1,9 @@
 from std.testing import assert_equal, assert_almost_equal
 
-from basalt import f32, nelts
-from basalt.autograd import Graph, Symbol, OP
-from basalt.nn import Model, Tensor, TensorShape, MSELoss, CrossEntropyLoss
-from basalt.utils.tensorutils import fill
+from mantle import f32, nelts
+from mantle.autograd import Graph, Symbol, OP
+from mantle.nn import Model, Tensor, TensorShape, MSELoss, CrossEntropyLoss
+from mantle.utils.tensorutils import fill
 
 
 def test_MSE_perfect() raises:

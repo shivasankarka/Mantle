@@ -4,9 +4,9 @@ from std.math import sqrt
 
 from std.utils.index import IndexList
 
-from basalt import f32, nelts
-from basalt.autograd.ops.matmul import dot
-from basalt.utils.tensorutils import (
+from mantle import f32, nelts
+from mantle.autograd.ops.matmul import dot
+from mantle.utils.tensorutils import (
     fill,
     elwise_transform,
     elwise_pow,
@@ -21,8 +21,8 @@ from basalt.utils.tensorutils import (
     tmax,
     transpose,
 )
-from basalt.nn import Tensor, TensorShape
-from basalt.utils.math_util import add, sub, mul, div, round_simd, exp, sqrt_simd
+from mantle.nn import Tensor, TensorShape
+from mantle.utils.math_util import add, sub, mul, div, round_simd, exp, sqrt_simd
 
 from tests import assert_tensors_equal
 
