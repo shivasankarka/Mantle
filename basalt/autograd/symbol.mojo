@@ -27,13 +27,19 @@ struct Symbol(
         return self.json()
 
     def json(self) -> String:
+        var shape_str: String = ""
+        for i in range(self.shape.rank()):
+            shape_str += String(self.shape[i])
+            if i < self.shape.rank() - 1:
+                shape_str += "x"
+
         return (
             '{"name": "'
             + String(self.name)
             + '", "dtype": "'
             + String(self.dtype)
             + '", "shape": "'
-            + String(self.shape)
+            + shape_str
             + '", "trainable": "'
             + String(self.trainable)
             + '"}'

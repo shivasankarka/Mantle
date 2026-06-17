@@ -1,3 +1,5 @@
+import time
+
 import onnx
 from onnx import helper
 from onnx import TensorProto
@@ -124,3 +126,13 @@ def netron_render(graph, type="node"):
     assert type in ["node", "operator"]
     create_onnx_graph_from_json(graph, type=type)
     netron.start("output_model.onnx")
+
+    # netron.start() spins up its server on a daemon thread and returns
+    # immediately. Without something keeping the process alive, the Mojo
+    # program exits right after this call and the server dies with it.
+    # Block here until the user interrupts (Ctrl+C), like netron's own CLI.
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        pass
