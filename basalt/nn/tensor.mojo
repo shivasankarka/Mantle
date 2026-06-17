@@ -211,8 +211,26 @@ struct Tensor[dtype: DType](Copyable, Movable, Writable):
         self._data[index] = value
 
     @always_inline("nodebug")
-    def data(self) -> UnsafePointer[Scalar[Self.dtype], MutUntrackedOrigin]:
-        return self._data
+    def ptr(self) -> UnsafePointer[Scalar[Self.dtype], origin_of(self)]:
+        """
+        Returns a read-only pointer to the tensor's underlying buffer,
+        with its origin tied to `self`.
+
+        Returns:
+            A pointer to the tensor's data, valid for the lifetime of `self`.
+        """
+        return self._data.mut_cast[False]().unsafe_origin_cast[origin_of(self)]()
+
+    @always_inline("nodebug")
+    def mut_ptr(mut self) -> UnsafePointer[Scalar[Self.dtype], origin_of(self)]:
+        """
+        Returns a mutable pointer to the tensor's underlying buffer, with
+        its origin tied to `self`.
+
+        Returns:
+            A pointer to the tensor's data, valid for the lifetime of `self`.
+        """
+        return self._data.unsafe_origin_cast[origin_of(self)]()
 
     @always_inline("nodebug")
     def shape(self) -> TensorShape:
