@@ -4,6 +4,7 @@ from std.utils.index import IndexList
 
 from basalt import Graph, Symbol, OP
 from basalt.autograd.attributes import AttributeVector, Attribute
+from basalt.nn.module import Layer
 
 
 def set_static_stride(
@@ -63,6 +64,35 @@ def MaxPool2d(
             Attribute("dilation", dilation),
         ),
     )
+
+
+struct MaxPool2dLayer(Layer, Copyable, Movable):
+    """
+    `Layer`-conforming wrapper around `MaxPool2d`, for use in a
+    reflection-based Module struct.
+    """
+
+    var kernel_size: IndexList[2]
+    var stride: IndexList[2]
+    var padding: IndexList[2]
+    var dilation: IndexList[2]
+
+    def __init__(
+        out self,
+        kernel_size: IndexList[2],
+        stride: Optional[Int] = None,
+        padding: IndexList[2] = IndexList[2](0, 0),
+        dilation: IndexList[2] = IndexList[2](1, 1),
+    ):
+        self.kernel_size = kernel_size
+        self.stride = set_static_stride(kernel_size, stride)
+        self.padding = padding
+        self.dilation = dilation
+
+    def forward(self, mut g: Graph, input: Symbol) -> Symbol:
+        return MaxPool2d(
+            g, input, self.kernel_size, self.stride, self.padding, self.dilation
+        )
 
 
 # # TODO
