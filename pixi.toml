@@ -1,8 +1,8 @@
 [workspace]
 authors = ["stijn", "benny", "andres"]
 channels = ["https://conda.modular.com/max-nightly", "conda-forge", "https://conda.modular.com/max"]
-description = "Basalt is a stand-alone machine learning framework that leverages the power of Mojo."
-name = "Basalt"
+description = "Mantle is a stand-alone machine learning framework that leverages the power of Mojo."
+name = "Mantle"
 platforms = ["osx-arm64", "linux-64"]
 version = "0.1.0"
 
@@ -10,8 +10,8 @@ version = "0.1.0"
 test = { cmd = "mojo test -I . tests" }
 test_mojo = { cmd = "mojo test -I . tests/mojo" }
 test_python = { cmd = "mojo test -I . tests/python" }
-format = { cmd = "mojo format src/" }
-precompile = { cmd = "mojo precompile mantle"}
+format = { cmd = "mojo format mantle/" }
+precompile = { cmd = "mojo precompile mantle -o mantle.mojoc" }
 
 [dependencies]
 pytorch = ">=2.11.0,<3"
