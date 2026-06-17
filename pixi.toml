@@ -10,8 +10,8 @@ version = "0.1.0"
 test = { cmd = "mojo test -I . tests" }
 test_mojo = { cmd = "mojo test -I . tests/mojo" }
 test_python = { cmd = "mojo test -I . tests/python" }
-format = { cmd = "mojo format basalt/" }
-precompile = { cmd = "mojo precompile basalt"}
+format = { cmd = "mojo format src/" }
+precompile = { cmd = "mojo precompile src -o basalt.mojoc"}
 
 [dependencies]
 pytorch = ">=2.11.0,<3"
