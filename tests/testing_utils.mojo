@@ -21,6 +21,8 @@ def assert_tensors_equal[
     assert_equal(t1.shape(), t2.shape(), "Tensor shape mismatch")
 
     for i in range(t1.num_elements()):
+        if i == 0:
+            print("helper first", t1[i], t2[i])
         if mode == "almost":
             assert_almost_equal(t1[i], t2[i], rtol=1e-5, atol=1e-5, msg=msg)
         else:

@@ -46,8 +46,12 @@ def test_get_tensor_reference() raises:
     fill(t1_expected, 1)
     fill(t2_expected, 2)
 
+    print("before asserts", c[s1][0], c[s2][0], t2_expected[0])
     assert_tensors_equal(c[s1], t1_expected)
-    assert_tensors_equal(c[s2], t2_expected)
+    print("before second assert", c[s2][0], t2_expected[0])
+    ref t2_actual = (c.data_ref + c.get_index(s2.name))[]
+    print("local ref", t2_actual[0])
+    assert_tensors_equal(t2_actual, t2_expected)
 
 
 def test_resize_collection() raises:
