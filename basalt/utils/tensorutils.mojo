@@ -8,7 +8,7 @@ from std.utils.index import IndexList
 
 from basalt import Tensor, TensorShape
 from basalt.nn.tensor import MAX_RANK
-from basalt.utils.math_util import add, sub, mul, div
+from basalt.utils.math_util import add, sub, mul, div, sqrt_simd, max_simd
 
 
 # ---- Start -----
@@ -341,7 +341,7 @@ def transpose_2D[t_shape: TensorShape](t: Tensor[dtype]) -> Tensor[dtype]:
 @always_inline
 def transpose_2D[
     t_shape: TensorShape
-](t: UnsafePointer[Scalar[dtype], _]) -> UnsafePointer[Scalar[dtype], MutExternalOrigin]:
+](t: UnsafePointer[Scalar[dtype], _]) -> UnsafePointer[Scalar[dtype], MutUntrackedOrigin]:
     var t_new = alloc[Scalar[dtype]](t_shape[1] * t_shape[0])
 
     comptime stride = t_shape[0]
@@ -374,7 +374,9 @@ def reduce[
 
     def vecreduce[_nelts: Int](idx: Int) {mut m, read t}:
         comptime if _nelts == 1:
-            m[0] = op(m[0], t.load[_nelts](idx)[0])
+            m[0] = op[dtype, 1](
+                SIMD[dtype, 1](m[0]), SIMD[dtype, 1](t.load[_nelts](idx)[0])
+            )[0]
         else:
             m = op(m, t.load[nelts](idx))
 
@@ -421,11 +423,15 @@ def reduce[
             _nelts: Int
         ](j: Int) {mut m, read t, read index_base, read strides, read axis}:
             var index = index_base + j * strides[axis]
-            if _nelts == 1:
-                m[0] = op(
-                    m[0],
-                    (t.data() + index).strided_load[width=_nelts](strides[axis])[0],
-                )
+            comptime if _nelts == 1:
+                m[0] = op[dtype, 1](
+                    SIMD[dtype, 1](m[0]),
+                    SIMD[dtype, 1](
+                        (t.data() + index).strided_load[width=_nelts](
+                            strides[axis]
+                        )[0]
+                    ),
+                )[0]
             else:
                 m = op(
                     m,
@@ -542,7 +548,8 @@ def tstd(mut res: Tensor[dtype], t: Tensor[dtype], axis: Int):
         res[i] /= num_elements_axis
 
     _ = (strides, strides_mu)
-    elwise_transform[sqrt](res)
+
+    elwise_transform[sqrt_simd](res)
 
 
 @always_inline
@@ -555,13 +562,13 @@ def _reduce_max[
 @always_inline
 def tmax(t: Tensor[dtype]) -> Scalar[dtype]:
     var starting_value: SIMD[dtype, nelts] = min_finite[dtype]()
-    return reduce[max, _reduce_max](t, starting_value)
+    return reduce[max_simd, _reduce_max](t, starting_value)
 
 
 @always_inline
 def tmax(mut res: Tensor[dtype], t: Tensor[dtype], axis: Int):
     var starting_value: SIMD[dtype, nelts] = min_finite[dtype]()
-    reduce[max, _reduce_max](res, t, axis, starting_value)
+    reduce[max_simd, _reduce_max](res, t, axis, starting_value)
 
 
 # @always_inline
