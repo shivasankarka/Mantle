@@ -30,15 +30,13 @@ struct Batch[dtype: DType](Copyable, Movable):
         self.data = Tensor[Self.dtype](batch_data_shape)
         self.labels = Tensor[Self.dtype](batch_labels_shape)
         memcpy(
-            dest=self.data.data(),
-            # df_data.data().offset(start * batch_data_shape.strides()[0]),
-            src=df_data.data() + (start * batch_data_shape.strides()[0]),
+            dest=self.data.mut_ptr(),
+            src=df_data.ptr() + (start * batch_data_shape.strides()[0]),
             count=batch_data_shape.num_elements(),
         )
         memcpy(
-            dest=self.labels.data(),
-            # df_labels.data().offset(start * batch_labels_shape.strides()[0]),
-            src=df_labels.data() + (start * batch_labels_shape.strides()[0]),
+            dest=self.labels.mut_ptr(),
+            src=df_labels.ptr() + (start * batch_labels_shape.strides()[0]),
             count=batch_labels_shape.num_elements(),
         )
 

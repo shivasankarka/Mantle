@@ -63,7 +63,7 @@ def calculate_block[
 def dot[
     t1_shape: TensorShape, t2_shape: TensorShape
 ](mut res: Tensor[dtype], t1: Tensor[dtype], t2: Tensor[dtype]):
-    dot[t1_shape, t2_shape](res.data(), t1.data(), t2.data())
+    dot[t1_shape, t2_shape](res.mut_ptr(), t1.ptr(), t2.ptr())
 
 
 @always_inline
@@ -158,7 +158,7 @@ def dot_transpose_t2[
 def dot_transpose_t2[
     A_shape: TensorShape, B_shape: TensorShape
 ](mut C: Tensor[dtype], A: Tensor[dtype], B: Tensor[dtype]):
-    memset_zero(C.data(), C.num_elements())
+    memset_zero(C.mut_ptr(), C.num_elements())
 
     dot[A_shape, TensorShape(B_shape[1], B_shape[0])](
         C, A, transpose_2D[B_shape](B)
@@ -186,7 +186,7 @@ def dot_transpose_t2[
 def dot_transpose_t1[
     A_shape: TensorShape, B_shape: TensorShape
 ](mut C: Tensor[dtype], A: Tensor[dtype], B: Tensor[dtype]):
-    memset_zero(C.data(), C.num_elements())
+    memset_zero(C.mut_ptr(), C.num_elements())
 
     dot[TensorShape(A_shape[1], A_shape[0]), B_shape](
         C, transpose_2D[A_shape](A), B

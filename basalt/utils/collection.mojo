@@ -187,8 +187,8 @@ struct Collection(Copyable, Movable, Sized):
         var index = self.get_index(symbol.name)
         ref tensor = self.data_ref[index]
         memcpy(
-            dest=tensor.data(),
-            src=value.data(),
+            dest=tensor.mut_ptr(),
+            src=value.ptr(),
             count=tensor.num_elements(),
         )
 

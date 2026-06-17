@@ -11,7 +11,7 @@ def rand_uniform[
 ](mut res: Tensor[dtype], low: Scalar[dtype], high: Scalar[dtype]):
     var scale = high - low
 
-    rand[dtype](res.data(), res.num_elements())
+    rand[dtype](res.mut_ptr(), res.num_elements())
 
     def vecscale[nelts: Int](idx: Int) {mut res, read scale, read low}:
         res.store[nelts](idx, res.load[nelts](idx).fma(scale, low))
@@ -23,7 +23,7 @@ def rand_uniform[
 def rand_normal[
     dtype: DType
 ](mut res: Tensor[dtype], mean: Float64, std: Float64):
-    randn[dtype](res.data(), res.num_elements(), mean, std**2)
+    randn[dtype](res.mut_ptr(), res.num_elements(), mean, std**2)
 
 
 struct MersenneTwister(TrivialRegisterPassable):
