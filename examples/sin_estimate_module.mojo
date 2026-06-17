@@ -65,7 +65,7 @@ def main():
     print("Training started")
     var start = now()
     for i in range(epochs):
-        rand[dtype](x_data.data(), x_data.num_elements())
+        rand[dtype](x_data.mut_ptr(), x_data.num_elements())
 
         for j in range(batch_size):
             x_data[j] = x_data[j] * 2 - 1
