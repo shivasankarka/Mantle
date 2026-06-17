@@ -19,14 +19,18 @@ struct SIGMOID(Copyable, Movable):
     @always_inline
     def sigmoid[
         type: DType, simd_width: Int
-    ](x: SIMD[type, simd_width]) -> SIMD[type, simd_width] where type.is_floating_point():
+    ](x: SIMD[type, simd_width]) -> SIMD[
+        type, simd_width
+    ] where type.is_floating_point():
         return 1 / (1 + exp(-x))
 
     @staticmethod
     @always_inline
     def sidmoid_bw[
         type: DType, simd_width: Int
-    ](x: SIMD[type, simd_width]) -> SIMD[type, simd_width] where type.is_floating_point():
+    ](x: SIMD[type, simd_width]) -> SIMD[
+        type, simd_width
+    ] where type.is_floating_point():
         return Self.sigmoid(x) * (1 - Self.sigmoid(x))
 
     @staticmethod
@@ -77,7 +81,9 @@ struct RELU:
         type: DType, simd_width: Int
     ](x: SIMD[type, simd_width]) -> SIMD[type, simd_width]:
         # 1 if x > 0 else 0
-        return x.gt(0).select[type](SIMD[type, simd_width](1), SIMD[type, simd_width](0))
+        return x.gt(0).select[type](
+            SIMD[type, simd_width](1), SIMD[type, simd_width](0)
+        )
 
     @staticmethod
     def forward[
@@ -124,7 +130,9 @@ struct LEAKYRELU:
             var negative_slope = (
                 attributes["negative_slope"].value().to_scalar[type]()
             )
-            return x.gt(0).select[type](x, SIMD[type, simd_width](x * negative_slope))
+            return x.gt(0).select[type](
+                x, SIMD[type, simd_width](x * negative_slope)
+            )
 
         elwise_transform[leaky_relu](res, t1)
 
@@ -144,7 +152,10 @@ struct LEAKYRELU:
                 attributes["negative_slope"].value().to_scalar[type]()
             )
 
-            return x.gt(0).select[type](SIMD[type, simd_width](1), SIMD[type, simd_width](negative_slope))
+            return x.gt(0).select[type](
+                SIMD[type, simd_width](1),
+                SIMD[type, simd_width](negative_slope),
+            )
 
         var res_grad = Tensor[dtype](ug_shape)
 
@@ -170,14 +181,18 @@ struct TANH:
     @always_inline
     def tanh[
         type: DType, simd_width: Int
-    ](x: SIMD[type, simd_width]) -> SIMD[type, simd_width] where type.is_floating_point():
+    ](x: SIMD[type, simd_width]) -> SIMD[
+        type, simd_width
+    ] where type.is_floating_point():
         return (exp(x) - exp(-x)) / (exp(x) + exp(-x))
 
     @staticmethod
     @always_inline
     def tanh_bw[
         type: DType, simd_width: Int
-    ](x: SIMD[type, simd_width]) -> SIMD[type, simd_width] where type.is_floating_point():
+    ](x: SIMD[type, simd_width]) -> SIMD[
+        type, simd_width
+    ] where type.is_floating_point():
         return 1 - pow(Self.tanh(x), 2)
 
     @staticmethod
@@ -422,7 +437,9 @@ struct SLICE:
     @staticmethod
     def reorder_positions[
         id: Int
-    ](original: List[Int], axes: List[Int], t1_shape: List[Int]) -> IndexList[MAX_RANK]:
+    ](original: List[Int], axes: List[Int], t1_shape: List[Int]) -> IndexList[
+        MAX_RANK
+    ]:
         # Reorder the starts (id=0), ends (id=1) or steps (id=2) to match the order of the axes
         var updated: IndexList[MAX_RANK]
 
@@ -484,7 +501,9 @@ struct SLICE:
                     else:
                         res.store[nelts](
                             idx_temp + k,
-                            (t1.data() + idx_original_temp).strided_load[width=nelts](stride),
+                            (t1.data() + idx_original_temp).strided_load[
+                                width=nelts
+                            ](stride),
                         )
                 else:
                     comptime if steps[position] == 1:
@@ -492,7 +511,9 @@ struct SLICE:
                             idx_original_temp, t1.load[nelts](idx_temp + k)
                         )
                     else:
-                        (res.data() + idx_original_temp).strided_store[width=nelts](t1.load[nelts](idx_temp + k), stride)
+                        (res.data() + idx_original_temp).strided_store[
+                            width=nelts
+                        ](t1.load[nelts](idx_temp + k), stride)
 
                 idx_original_temp += stride * nelts
 
@@ -581,7 +602,9 @@ struct SLICE:
         )
         comptime steps = Self.reorder_positions[2](
             attributes["steps"].value().to_list(), axes, t1_shape.to_list()
-        ) if attributes["steps"] else Self.to_index_list(Self.default_steps(t1_shape.to_list()))
+        ) if attributes["steps"] else Self.to_index_list(
+            Self.default_steps(t1_shape.to_list())
+        )
 
         comptime res_shape = Self.result_shape(t1_shape, attributes)
 
@@ -606,7 +629,9 @@ struct SLICE:
         )
         comptime steps = Self.reorder_positions[2](
             attributes["steps"].value().to_list(), axes, t1_shape.to_list()
-        ) if attributes["steps"] else Self.to_index_list(Self.default_steps(t1_shape.to_list()))
+        ) if attributes["steps"] else Self.to_index_list(
+            Self.default_steps(t1_shape.to_list())
+        )
 
         var res_grad = Tensor[dtype](t1_shape)
 

@@ -74,17 +74,20 @@ def make_onnx_operator_type(op_type: OP) raises -> String:
     elif op_type == OP.SUM:
         # Special case, axis isn't an attribute, instead it is an input, because it can be dynamic
         raise Error(
-            String(op_type) + " is not supported right now for conversion to onnx"
+            String(op_type)
+            + " is not supported right now for conversion to onnx"
         )
         # return "ReduceSum"
     elif op_type == OP.MEAN:
         raise Error(
-            String(op_type) + " is not supported right now for conversion to onnx"
+            String(op_type)
+            + " is not supported right now for conversion to onnx"
         )
         # return "ReduceMean"
     elif op_type == OP.MAX:
         raise Error(
-            String(op_type) + " is not supported right now for conversion to onnx"
+            String(op_type)
+            + " is not supported right now for conversion to onnx"
         )
         # return "ReduceMax"
     elif op_type == OP.CONV2D:

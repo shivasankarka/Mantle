@@ -74,20 +74,26 @@ struct PerfMetrics:
         self.start = now()
 
     def end_forward_pass(mut self, pos: Int):
-        self.forward_perf_metrics[pos].ns += Float64(Int(now()) - Int(self.start))
+        self.forward_perf_metrics[pos].ns += Float64(
+            Int(now()) - Int(self.start)
+        )
         self.epochs_forward += 1
 
     def start_backward_pass(mut self):
         self.start = now()
 
     def end_backward_pass(mut self, pos: Int):
-        self.backward_perf_metrics[pos].ns += Float64(Int(now()) - Int(self.start))
+        self.backward_perf_metrics[pos].ns += Float64(
+            Int(now()) - Int(self.start)
+        )
         self.epochs_backward += 1
 
     def print_perf_metrics[
         type_part: String
     ](self, time_format: String = "ns", print_shape: Bool = False):
-        comptime assert type_part == "Forward" or type_part == "Backward", "Only 'Forward' or 'Backward' are accepted types."
+        comptime assert (
+            type_part == "Forward" or type_part == "Backward"
+        ), "Only 'Forward' or 'Backward' are accepted types."
 
         comptime is_forward = type_part == "Forward"
 

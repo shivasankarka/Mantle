@@ -23,7 +23,7 @@ struct BostonHousing:
         # Skip the first and last lines
         # This does assume your last line in the file has a newline at the end
         var all_lines = s.split("\n")
-        var list_of_lines = all_lines[1:len(all_lines)-1]
+        var list_of_lines = all_lines[1 : len(all_lines) - 1]
 
         # Length is number of lines
         var N = len(list_of_lines)
@@ -67,7 +67,7 @@ struct MNIST:
         # Skip the first and last lines
         # This does assume your last line in the file has a newline at the end
         var all_lines = s.split("\n")
-        var list_of_lines = all_lines[1:len(all_lines)-1]
+        var list_of_lines = all_lines[1 : len(all_lines) - 1]
 
         # Length is number of lines
         var N = len(list_of_lines)
@@ -80,9 +80,9 @@ struct MNIST:
             self.labels[item] = Scalar[dtype](atol(String(line[0])))
             for i in range(self.data.shape()[2]):
                 for j in range(self.data.shape()[3]):
-                    self.data[item * 28 * 28 + i * 28 + j] = Scalar[dtype](atol(
-                        String(line[i * 28 + j + 1])
-                    ))
+                    self.data[item * 28 * 28 + i * 28 + j] = Scalar[dtype](
+                        atol(String(line[i * 28 + j + 1]))
+                    )
 
         # Normalize data
         comptime nelts = simd_width_of[dtype]()
@@ -119,5 +119,7 @@ def cast_string[dtype: DType](s: String) raises -> Scalar[dtype]:
         return Scalar[dtype](atol(s))
     else:
         var c_int = Scalar[dtype](atol(s[byte=:idx]))
-        var c_frac = Scalar[dtype](atol(s[byte=idx + 1 :]))
-        return c_int + c_frac / Scalar[dtype](10 ** s[byte=idx + 1 :].byte_length())
+        var c_frac = Scalar[dtype](atol(s[byte = idx + 1 :]))
+        return c_int + c_frac / Scalar[dtype](
+            10 ** s[byte = idx + 1 :].byte_length()
+        )

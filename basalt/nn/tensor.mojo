@@ -197,7 +197,9 @@ struct Tensor[dtype: DType](Copyable, Movable, Writable):
 
     def share(self) -> Self:
         _ = self._refcount[].fetch_add[ordering=Ordering.RELAXED](1)
-        var result = Self(data=self._data, refcount=self._refcount, shape=self._shape)
+        var result = Self(
+            data=self._data, refcount=self._refcount, shape=self._shape
+        )
         return result^
 
     @always_inline("nodebug")

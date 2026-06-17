@@ -109,4 +109,3 @@ if __name__ == "__main__":
         test_predictions = model(test_data.data)
         mse_loss = loss_func(test_predictions, test_data.target).item()
         print(f"Mean Squared Error on Test Data: {mse_loss:.4f}")
-

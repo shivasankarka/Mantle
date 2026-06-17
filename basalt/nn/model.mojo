@@ -67,9 +67,7 @@ struct Model[
 
     # TODO: remove when ability to concatenate graphs (modules)
     # Removes the need for splitting in forward and inference mode
-    def forward(
-        mut self, *t_inputs: Tensor[dtype]
-    ) -> Tensor[dtype]:
+    def forward(mut self, *t_inputs: Tensor[dtype]) -> Tensor[dtype]:
         # NOTE: Important detail here is that the order of the inputs must be the same as the order the inputs were defined in the graph.
         # Example: If you were te define the y_true before the x when creating the graph
         #
@@ -190,8 +188,12 @@ struct Model[
             comptime if op.dynamic:
                 comptime for j in range(num_operands):
                     comptime if Self.g.nodes[reverse_i].inputs[j].trainable:
-                        comptime num_inputs = len(Self.g.nodes[reverse_i].inputs)
-                        comptime num_outputs = len(Self.g.nodes[reverse_i].outputs)
+                        comptime num_inputs = len(
+                            Self.g.nodes[reverse_i].inputs
+                        )
+                        comptime num_outputs = len(
+                            Self.g.nodes[reverse_i].outputs
+                        )
                         var dyn_inputs = List[Symbol]()
                         var dyn_outputs = List[Symbol]()
                         comptime for k in range(num_inputs):
@@ -318,9 +320,7 @@ struct Model[
     def allocate_tensor_memory(mut self):
         comptime for i in range(len(Self.g.inputs)):
             comptime sym = Self.g.inputs[i]
-            self.parameters.tensors.append(
-                Tensor[dtype](sym.shape), sym
-            )
+            self.parameters.tensors.append(Tensor[dtype](sym.shape), sym)
 
         comptime for i in range(len(Self.g.params)):
             comptime p = Self.g.params.symbols[i]
@@ -369,9 +369,7 @@ struct Model[
         comptime for i in range(len(Self.g.inputs)):
             comptime sym = Self.g.inputs[i]
             comptime if sym.trainable:
-                self.parameters.grads.append(
-                    Tensor[dtype](sym.shape), sym
-                )
+                self.parameters.grads.append(Tensor[dtype](sym.shape), sym)
 
         comptime for i in range(len(Self.g.params)):
             comptime grad = Self.g.params.symbols[i]
@@ -395,7 +393,9 @@ struct Model[
 
         try:
             if path.suffix() == ".onnx":
-                load_onnx_model(model_path, self.parameters, materialize[Self.g]())
+                load_onnx_model(
+                    model_path, self.parameters, materialize[Self.g]()
+                )
             else:
                 print("Model file format not supported:", path.suffix())
         except e:
@@ -407,7 +407,9 @@ struct Model[
 
         try:
             if path.suffix() == ".onnx":
-                export_onnx_model(model_path, self.parameters, materialize[Self.g]())
+                export_onnx_model(
+                    model_path, self.parameters, materialize[Self.g]()
+                )
             else:
                 print("Model file format not supported:", path.suffix())
         except e:

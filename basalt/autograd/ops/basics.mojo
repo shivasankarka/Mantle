@@ -180,12 +180,7 @@ struct DIV:
 
                 def vec_div_bw_broadcast[
                     netls: Int
-                ](i: Int) {
-                    mut res_grad,
-                    read ug,
-                    read t1,
-                    read t2,
-                }:
+                ](i: Int) {mut res_grad, read ug, read t1, read t2,}:
                     var index1 = get_real_index[size, strides1, ug_shape](i)
                     var index2 = get_real_index[size, strides2, ug_shape](i)
                     res_grad.store[nelts](
@@ -339,7 +334,9 @@ struct POW:
         comptime if tensor_id == 0:
             res_grad = Tensor[dtype](t1_shape)
 
-            def vec_pow_bw_x[nelts: Int](i: Int) {mut res_grad, read t1, read ug, read a}:
+            def vec_pow_bw_x[
+                nelts: Int
+            ](i: Int) {mut res_grad, read t1, read ug, read a}:
                 res_grad.store[nelts](
                     i,
                     a
@@ -359,7 +356,9 @@ struct POW:
                 # the case when the value passed to log is 0.0
                 var temp_log = log(t1.load[nelts](i))
                 var temp_log_is_inf = isinf(temp_log)
-                temp_log = temp_log_is_inf.select(SIMD[dtype, nelts](0), temp_log)
+                temp_log = temp_log_is_inf.select(
+                    SIMD[dtype, nelts](0), temp_log
+                )
                 res_grad[0] += (
                     (t1.load[nelts](i) ** a) * temp_log * ug.load[nelts](i)
                 ).reduce_add()
@@ -465,7 +464,9 @@ struct MEAN:
         # d(mean(t)) / dt = 1 / t.num_elements()
         var res_grad = Tensor[dtype](t_shape)
 
-        var grad: Scalar[dtype] = (1.0 / Float64(t_shape.num_elements())).cast[dtype]()
+        var grad: Scalar[dtype] = (1.0 / Float64(t_shape.num_elements())).cast[
+            dtype
+        ]()
 
         grad = (
             grad * ug[0]
@@ -710,7 +711,9 @@ struct FLATTEN:
     ](ug: Tensor[dtype], t: Tensor[dtype]) -> Tensor[dtype]:
         """Backward operation of flatten."""
         var res_grad = Tensor[dtype](t_shape)
-        memcpy(dest=res_grad.data(), src=ug.data(), count=ug_shape.num_elements())
+        memcpy(
+            dest=res_grad.data(), src=ug.data(), count=ug_shape.num_elements()
+        )
 
         return res_grad^
 
@@ -736,7 +739,9 @@ struct RESHAPE:
     ](ug: Tensor[dtype], t: Tensor[dtype]) -> Tensor[dtype]:
         """Backward operation of reshape."""
         var res_grad = Tensor[dtype](t_shape)
-        memcpy(dest=res_grad.data(), src=ug.data(), count=ug_shape.num_elements())
+        memcpy(
+            dest=res_grad.data(), src=ug.data(), count=ug_shape.num_elements()
+        )
 
         return res_grad^
 

@@ -6,9 +6,19 @@ from basalt.utils.tensorutils import transpose_2D
 
 
 @always_inline
-def calculate_block[mut1: Bool, mut2: Bool, origin_res: MutOrigin, origin_t1: Origin[mut=mut1], origin_t2: Origin[mut=mut2],
+def calculate_block[
+    mut1: Bool,
+    mut2: Bool,
+    origin_res: MutOrigin,
+    origin_t1: Origin[mut=mut1],
+    origin_t2: Origin[mut=mut2],
     //,
-    M: Int, N: Int, K: Int, BLOCK_M: Int, BLOCK_N: Int, nelts: Int
+    M: Int,
+    N: Int,
+    K: Int,
+    BLOCK_M: Int,
+    BLOCK_N: Int,
+    nelts: Int,
 ](
     res: UnsafePointer[Scalar[dtype], origin_res],
     t1: UnsafePointer[Scalar[dtype], origin_t1],
@@ -58,8 +68,14 @@ def dot[
 
 @always_inline
 def dot[
-    mut1: Bool, mut2: Bool, origin_res: MutOrigin, origin_t1: Origin[mut=mut1], origin_t2: Origin[mut=mut2], //,
-    t1_shape: TensorShape, t2_shape: TensorShape
+    mut1: Bool,
+    mut2: Bool,
+    origin_res: MutOrigin,
+    origin_t1: Origin[mut=mut1],
+    origin_t2: Origin[mut=mut2],
+    //,
+    t1_shape: TensorShape,
+    t2_shape: TensorShape,
 ](
     res: UnsafePointer[Scalar[dtype], origin_res],
     t1: UnsafePointer[Scalar[dtype], origin_t1],
@@ -121,8 +137,14 @@ def dot[
 
 
 def dot_transpose_t2[
-    mut1: Bool, mut2: Bool, origin_res: MutOrigin, origin_t1: Origin[mut=mut1], origin_t2: Origin[mut=mut2], //,
-    A_shape: TensorShape, B_shape: TensorShape
+    mut1: Bool,
+    mut2: Bool,
+    origin_res: MutOrigin,
+    origin_t1: Origin[mut=mut1],
+    origin_t2: Origin[mut=mut2],
+    //,
+    A_shape: TensorShape,
+    B_shape: TensorShape,
 ](
     mut C: UnsafePointer[Scalar[dtype], origin_res],
     A: UnsafePointer[Scalar[dtype], origin_t1],

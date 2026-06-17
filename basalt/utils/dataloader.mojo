@@ -10,7 +10,9 @@ struct Batch[dtype: DType](Copyable, Movable):
     var labels: Tensor[Self.dtype]
 
     def __init__(
-        out self, batch_data: Tensor[Self.dtype], batch_labels: Tensor[Self.dtype]
+        out self,
+        batch_data: Tensor[Self.dtype],
+        batch_labels: Tensor[Self.dtype],
     ):
         self.data = batch_data.copy()
         self.labels = batch_labels.copy()

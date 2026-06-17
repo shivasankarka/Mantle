@@ -162,7 +162,17 @@ struct CONV2D:
                     for uy in range(out_y):
                         var result: SIMD[dtype, nelts] = 0.0
 
-                        def v_im2col[_nelts: Int](in_ch_kx_ky: Int) {mut result, read col_ptr, read kernel, read batch, read out_ch, read ux, read uy}:
+                        def v_im2col[
+                            _nelts: Int
+                        ](in_ch_kx_ky: Int) {
+                            mut result,
+                            read col_ptr,
+                            read kernel,
+                            read batch,
+                            read out_ch,
+                            read ux,
+                            read uy,
+                        }:
                             var col_index = (
                                 batch * col_strides[0]
                                 + (ux * col_y + uy) * col_strides[1]

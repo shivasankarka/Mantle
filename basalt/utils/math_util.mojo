@@ -47,21 +47,27 @@ def round_simd[
 @always_inline
 def exp[
     dtype: DType, simd_width: Int
-](x: SIMD[dtype, simd_width]) -> SIMD[dtype, simd_width] where dtype.is_floating_point():
+](x: SIMD[dtype, simd_width]) -> SIMD[
+    dtype, simd_width
+] where dtype.is_floating_point():
     return _std_exp(x.cast[DType.float32]()).cast[dtype]()
 
 
 @always_inline
 def log[
     dtype: DType, simd_width: Int
-](x: SIMD[dtype, simd_width]) -> SIMD[dtype, simd_width] where dtype.is_floating_point():
+](x: SIMD[dtype, simd_width]) -> SIMD[
+    dtype, simd_width
+] where dtype.is_floating_point():
     return _std_log(x.cast[DType.float32]()).cast[dtype]()
 
 
 @always_inline
 def sqrt_simd[
     dtype: DType, simd_width: Int
-](x: SIMD[dtype, simd_width]) -> SIMD[dtype, simd_width] where dtype.is_floating_point():
+](x: SIMD[dtype, simd_width]) -> SIMD[
+    dtype, simd_width
+] where dtype.is_floating_point():
     return _std_sqrt(x.cast[DType.float32]()).cast[dtype]()
 
 

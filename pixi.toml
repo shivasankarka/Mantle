@@ -20,6 +20,7 @@ torchaudio = ">=2.11.0,<3"
 onnx = ">=1.21.0,<2"
 pandas = ">=3.0.3,<4"
 mojo = ">=1.0.0b3.dev2026061606,<2"
+matplotlib = ">=3.11.0,<4"
 
 [pypi-dependencies]
 # torch = ">=2.5.1, <3"

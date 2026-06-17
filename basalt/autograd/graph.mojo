@@ -183,9 +183,7 @@ struct Graph(Copyable, ImplicitlyCopyable, Movable):
         var res_shapes = SPLIT.result_shape([operand.shape], attributes)
         var trainable = operand.trainable
         var result_symbols = self.create_symbols(res_shapes, trainable)
-        self.add_node(
-            OP.SPLIT, [operand], result_symbols, attributes
-        )
+        self.add_node(OP.SPLIT, [operand], result_symbols, attributes)
         return result_symbols^
 
     @staticmethod

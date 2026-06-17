@@ -1,4 +1,5 @@
 from std.time import perf_counter_ns as now
+from std.utils.index import IndexList
 
 import basalt.nn as nn
 from basalt import Tensor, TensorShape
@@ -27,12 +28,12 @@ def create_CNN(batch_size: Int) -> Graph:
     var g = Graph()
     var x = g.input(TensorShape(batch_size, 1, 28, 28))
 
-    var x1 = nn.Conv2d(g, x, out_channels=16, kernel_size=5, padding=2)
+    var x1 = nn.Conv2d(g, x, out_channels=16, kernel_size=IndexList[2](5, 5), padding=IndexList[2](2, 2))
     var x2 = nn.ReLU(g, x1)
-    var x3 = nn.MaxPool2d(g, x2, kernel_size=2)
-    var x4 = nn.Conv2d(g, x3, out_channels=32, kernel_size=5, padding=2)
+    var x3 = nn.MaxPool2d(g, x2, kernel_size=IndexList[2](2, 2))
+    var x4 = nn.Conv2d(g, x3, out_channels=32, kernel_size=IndexList[2](5, 5), padding=IndexList[2](2, 2))
     var x5 = nn.ReLU(g, x4)
-    var x6 = nn.MaxPool2d(g, x5, kernel_size=2)
+    var x6 = nn.MaxPool2d(g, x5, kernel_size=IndexList[2](2, 2))
     var x7 = g.op(
         OP.RESHAPE,
         x6,
@@ -92,7 +93,7 @@ def main():
             # [ONE HOT ENCODING!]
             var labels_one_hot = Tensor[dtype](batch.labels.dim(0), 10)
             for bb in range(batch.labels.dim(0)):
-                labels_one_hot[int((bb * 10 + batch.labels[bb]))] = 1.0
+                labels_one_hot[bb * 10 + Int(batch.labels[bb])] = 1.0
 
             # Forward pass
             var loss = model.forward(batch.data, labels_one_hot)

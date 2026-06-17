@@ -1,14 +1,14 @@
+import os
 import time
+
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-import os
-
 import torch
 import torch.nn as nn
 from torch import optim
 from torch.autograd import Variable
-from torch.utils.data import Dataset, DataLoader, TensorDataset
+from torch.utils.data import DataLoader, Dataset, TensorDataset
 
 
 class MNIST(Dataset):
@@ -118,4 +118,6 @@ if __name__ == "__main__":
         dummy_input = torch.randn(1, 1, 28, 28)
 
         # cnn.out.weight = nn.Parameter(cnn.out.weight.T) # transpose because torch saves the weight of linear layer as (output_dim, input_dim) (so they transposed and there is not a real reason for this)
-        torch.onnx.export(cnn, dummy_input, "./examples/data/mnist_torch.onnx", verbose=True)
+        torch.onnx.export(
+            cnn, dummy_input, "./examples/data/mnist_torch.onnx", verbose=True
+        )
