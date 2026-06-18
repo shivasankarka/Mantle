@@ -14,6 +14,7 @@ from std.math import nan
 from std.sys.info import size_of
 from std.utils.numerics import inf
 from std.utils.static_tuple import StaticTuple
+from std.memory.unsafe import bitcast
 
 comptime ScalarBytes = size_of[DType.uint64]()
 """Number of bytes required to represent a scalar value (64 bits)."""

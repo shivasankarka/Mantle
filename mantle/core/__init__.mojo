@@ -7,7 +7,7 @@ from .tensorutils import (
     elwise_transform,
     elwise_op,
     broadcast_shapes,
-    broadcast_arrays,
+    # broadcast_arrays,
     tsum,
     tmean,
     tmax,

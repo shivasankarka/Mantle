@@ -7,6 +7,7 @@
 #  ===----------------------------------------------------------------------=== #
 """Mantle
 ----------
+A high performance machine learning framework written in pure mojo.
 """
 
 from std.sys.info import simd_width_of
