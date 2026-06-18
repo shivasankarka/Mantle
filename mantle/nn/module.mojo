@@ -25,8 +25,6 @@ from mantle.autograd.attributes import Attribute, AttributeVector
 trait Layer:
     def forward(self, mut g: Graph, input: Symbol) -> Symbol:
         ...
-    def name(self) -> String:
-        ...
 
 
 # ===----------------------------------------------------------------------===#
@@ -50,9 +48,6 @@ struct FlattenLayer(Layer, Copyable, Movable):
                 Attribute("shape", TensorShape(batch, rest))
             ),
         )
-
-    def name(self) -> String:
-        return "Flatten"
 
 
 # ===----------------------------------------------------------------------===#
@@ -78,8 +73,9 @@ def build_graph[T: AnyType](mut layers: T, mut g: Graph, input: Symbol) -> Symbo
         comptime if conforms_to(field_type, Layer):
             ref field_val = r.field_ref[idx](layers)
             var before = len(g.nodes)
+            comptime type_name = reflect[field_type].base_name()
             x = trait_downcast[Layer](field_val).forward(g, x)
-            g.set_scope_from(before, trait_downcast[Layer](field_val).name())
+            g.set_scope_from(before, type_name)
     return x
 
 
@@ -103,6 +99,3 @@ struct Sequential[*Ts: Layer & Movable](Layer, Movable):
         comptime for i in range(Self.Ts.__len__()):
             x = self.layers[i].forward(g, x)
         return x
-
-    def name(self) -> String:
-        return "Sequential"
