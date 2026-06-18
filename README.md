@@ -57,7 +57,7 @@ As Mojo continues to evolve, Mantle aims to become a comprehensive machine learn
 
 Mantle is capable of achieving performance comparable to established frameworks such as PyTorch on a number of workloads, and there is still significant room for further optimization as Mojo continues to evolve.
 
-![mantle\_benchmark](./assets/benchmark.png)
+![mantle\_benchmark](./benchmarks/benchmark.png)
 
 ## Quick Start
 
