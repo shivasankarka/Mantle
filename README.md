@@ -51,13 +51,13 @@ Current areas of focus include:
 * Expanded operator and activation support
 * Long-term maintainability and active development
 
-As Mojo continues to evolve, Mantle aims to become a comprehensive machine learning toolkit for the ecosystem—providing a familiar developer experience while exploring new opportunities enabled by a language designed specifically for AI and high-performance computing.
+As Mojo continues to evolve, Mantle aims to become a comprehensive machine learning toolkit for the ecosystem-providing a familiar developer experience while exploring new opportunities enabled by a language designed specifically for AI and high-performance computing.
 
 ### Benchmarks
 
 Mantle is capable of achieving performance comparable to established frameworks such as PyTorch on a number of workloads, and there is still significant room for further optimization as Mojo continues to evolve.
 
-![basalt\_benchmark](https://github.com/basalt-org/basalt/assets/46826967/83037770-a9e3-440d-bdca-f51af0aebee0)
+![mantle\_benchmark](./assets/benchmark.png)
 
 ## Quick Start
 
