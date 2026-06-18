@@ -60,6 +60,8 @@ struct AttributeType(TrivialRegisterPassable, Writable):
     def __str__(self) -> String:
         return String(self.name)
 
+    def write_to[W: Writer](self, mut writer: W):
+        writer.write(self.__str__())
 
 # ===----------------------------------------------------------------------===#
 # AttributeVector
@@ -99,6 +101,13 @@ struct AttributeVector(
             if i < self.size - 1:
                 s += ", "
         return s + "]"
+
+    def write_to[W: Writer](self, mut writer: W):
+        writer.write(String(self.size))
+        for i in range(self.size):
+            writer.write(String(self.attributes[i]))
+            if i < self.size - 1:
+                writer.write(String(", "))
 
 
 # ===----------------------------------------------------------------------===#
@@ -184,6 +193,9 @@ struct Attribute(Copyable, Movable, TrivialRegisterPassable, Writable):
     @always_inline("nodebug")
     def __str__(self) -> String:
         return "Attribute(" + String(self.name) + ", " + "..." + ")"
+
+    def write_to[W: Writer](self, mut writer: W):
+        writer.write(self.__str__())
 
     @always_inline("nodebug")
     def to_string(self) -> String:
