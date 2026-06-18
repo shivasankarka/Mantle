@@ -119,5 +119,8 @@ struct MaxPool2dLayer(Layer, Copyable, Movable):
             g, input, self.kernel_size, self.stride, self.padding, self.dilation
         )
 
+    def name(self) -> String:
+        return "MaxPool2d"
+
 
 # # TODO

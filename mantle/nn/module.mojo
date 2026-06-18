@@ -25,6 +25,8 @@ from mantle.autograd.attributes import Attribute, AttributeVector
 trait Layer:
     def forward(self, mut g: Graph, input: Symbol) -> Symbol:
         ...
+    def name(self) -> String:
+        ...
 
 
 # ===----------------------------------------------------------------------===#
@@ -49,6 +51,9 @@ struct FlattenLayer(Layer, Copyable, Movable):
             ),
         )
 
+    def name(self) -> String:
+        return "Flatten"
+
 
 # ===----------------------------------------------------------------------===#
 # build_graph
@@ -60,6 +65,9 @@ def build_graph[T: AnyType](mut layers: T, mut g: Graph, input: Symbol) -> Symbo
     `Layer`-conforming field's `forward(g, x) -> x` to build up a Graph.
 
     Non-Layer fields (e.g. plain config values) are skipped.
+
+    Each Layer's ops are tagged with the layer type name as the scope,
+    enabling architectural visualization of the model.
     """
     comptime r = reflect[T]
     comptime field_types = r.field_types()
@@ -69,7 +77,9 @@ def build_graph[T: AnyType](mut layers: T, mut g: Graph, input: Symbol) -> Symbo
         comptime field_type = field_types[idx]
         comptime if conforms_to(field_type, Layer):
             ref field_val = r.field_ref[idx](layers)
+            var before = len(g.nodes)
             x = trait_downcast[Layer](field_val).forward(g, x)
+            g.set_scope_from(before, trait_downcast[Layer](field_val).name())
     return x
 
 
@@ -93,3 +103,6 @@ struct Sequential[*Ts: Layer & Movable](Layer, Movable):
         comptime for i in range(Self.Ts.__len__()):
             x = self.layers[i].forward(g, x)
         return x
+
+    def name(self) -> String:
+        return "Sequential"

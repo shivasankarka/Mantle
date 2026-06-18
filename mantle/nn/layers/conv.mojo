@@ -111,3 +111,6 @@ struct Conv2dLayer(Layer, Copyable, Movable):
             self.stride,
             self.dilation,
         )
+
+    def name(self) -> String:
+        return "Conv2d"

@@ -61,3 +61,6 @@ struct LinearLayer(Layer, Copyable, Movable):
 
     def forward(self, mut g: Graph, input: Symbol) -> Symbol:
         return Linear(g, input, self.n_outputs)
+
+    def name(self) -> String:
+        return "Linear"
