@@ -28,9 +28,9 @@
 ---
 
 > [!NOTE]
-> This repository is an actively maintained continuation of the original Basalta project.
+> This repository is an actively maintained continuation of the original [Basalt](https://github.com/basalt-org/basalt/tree/main) project.
 >
-> The original Mantle repository introduced one of the earliest machine learning frameworks built entirely in Mojo. This repository preserves that work and its history while updating the codebase for modern Mojo releases, improving the framework architecture, and introducing new features and functionality.
+> The original Basalt repository introduced one of the earliest machine learning frameworks built entirely in Mojo. This repository preserves that work and its history while updating the codebase for latets Mojo releases, improving the framework architecture, and introducing new features and functionality.
 >
 > We would like to thank the original authors and contributors whose work made this project possible.
 
