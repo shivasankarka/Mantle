@@ -24,6 +24,17 @@ from mantle.core.tensor import Tensor
 def rand_uniform[
     dtype: DType
 ](mut res: Tensor[dtype], low: Scalar[dtype], high: Scalar[dtype]):
+    """
+    Fill a tensor with random values from a uniform distribution.
+
+    Parameters:
+        dtype: The data type of the tensor.
+
+    Args:
+        res: The output tensor to fill.
+        low: The lower bound of the distribution.
+        high: The upper bound of the distribution.
+    """
     var scale = high - low
 
     rand[dtype](res.mut_ptr(), res.num_elements())
@@ -38,6 +49,17 @@ def rand_uniform[
 def rand_normal[
     dtype: DType
 ](mut res: Tensor[dtype], mean: Float64, std: Float64):
+    """
+    Fill a tensor with random values from a normal distribution.
+
+    Parameters:
+        dtype: The data type of the tensor.
+
+    Args:
+        res: The output tensor to fill.
+        mean: The mean of the distribution.
+        std: The standard deviation of the distribution.
+    """
     randn[dtype](res.mut_ptr(), res.num_elements(), mean, std**2)
 
 
@@ -55,9 +77,17 @@ struct MersenneTwister(TrivialRegisterPassable):
     comptime TEMPERING_MASK_C: Int32 = 0xEFC60000
 
     var state: StaticTuple[Int32, Self.N]
+    """The internal state array."""
     var index: Int
+    """Current index into the state array."""
 
     def __init__(out self, seed: Int):
+        """
+        Initialize the Mersenne Twister with a seed.
+
+        Args:
+            seed: The seed value for the RNG.
+        """
         comptime W: Int = 32
         comptime F: Int32 = 1812433253
         comptime D: Int32 = 0xFFFFFFFF
@@ -71,6 +101,12 @@ struct MersenneTwister(TrivialRegisterPassable):
             self.state[i] = (F * (prev ^ (prev >> Int32(W - 2))) + Int32(i)) & D
 
     def next(mut self) -> Int32:
+        """
+        Generate the next 32-bit integer in the sequence.
+
+        Returns:
+            The next pseudo-random Int32 value.
+        """
         if self.index >= Self.N:
             for i in range(Self.N):
                 var x = (self.state[i] & Self.UPPER_MASK) + (
@@ -92,4 +128,10 @@ struct MersenneTwister(TrivialRegisterPassable):
         return y
 
     def next_ui8(mut self) -> UInt8:
+        """
+        Generate the next random byte.
+
+        Returns:
+            The next pseudo-random UInt8 value.
+        """
         return UInt8(self.next() & Int32(0xFF))

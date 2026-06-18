@@ -7,7 +7,7 @@
 #  ===----------------------------------------------------------------------=== #
 """Core (mantle.core)
 ------------------------------------------------
-Foundation types and utilities with zero dependencies on other mantle packages.
+Foundation types and utilities.
 """
 from .tensor import Tensor, TensorShape
 from .math_util import q_sqrt

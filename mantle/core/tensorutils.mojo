@@ -28,6 +28,16 @@ from mantle.core.math_util import add, sub, mul, div, sqrt_simd, max_simd
 
 @always_inline
 def fill[dtype: DType](mut t: Tensor[dtype], val: Scalar[dtype]):
+    """
+    Fill a tensor with a constant value.
+
+    Parameters:
+        dtype: The data type of the tensor.
+
+    Args:
+        t: The tensor to fill.
+        val: The value to fill with.
+    """
     def fill_vec[nelts: Int](idx: Int) {mut t, read val}:
         t.store[nelts](idx, val)
 
@@ -41,6 +51,20 @@ def fill[dtype: DType](mut t: Tensor[dtype], val: Scalar[dtype]):
 def get_real_index[
     size: Int, strides_shape: IndexList[size], broadcast_shape: TensorShape
 ](i: Int) -> Int:
+    """
+    Compute the real index in a compact tensor from a broadcast index.
+
+    Parameters:
+        size: The rank of the broadcast space.
+        strides_shape: Strides of the compact (pre-broadcast) tensor.
+        broadcast_shape: The broadcasted shape.
+
+    Args:
+        i: The linear index in broadcast space.
+
+    Returns:
+        The corresponding linear index in the compact tensor.
+    """
     # broadcast_shape is of same rank as strides_shape (the not broadcasted shape), because of broadcast_calculate_strides
     var index_res = 0
     var linear_index = i
@@ -63,6 +87,16 @@ def get_real_index[
 # ===----------------------------------------------------------------------===#
 @always_inline
 def broadcast_shapes(s1: TensorShape, s2: TensorShape) -> TensorShape:
+    """
+    Compute the broadcasted shape of two shapes.
+
+    Args:
+        s1: The first shape.
+        s2: The second shape.
+
+    Returns:
+        The broadcasted shape.
+    """
     var ndim = max(s1.rank(), s2.rank())
     var diff = abs(s1.rank() - s2.rank())
 
@@ -95,6 +129,15 @@ def broadcast_shapes(s1: TensorShape, s2: TensorShape) -> TensorShape:
 
 @always_inline
 def broadcast_shapes(*s: TensorShape) -> TensorShape:
+    """
+    Compute the broadcasted shape of multiple shapes.
+
+    Args:
+        s: Variadic shapes to broadcast.
+
+    Returns:
+        The broadcasted shape.
+    """
     var result_shape = s[0]
 
     for i in range(1, len(s)):
@@ -107,6 +150,17 @@ def broadcast_shapes(*s: TensorShape) -> TensorShape:
 def broadcast_calculate_strides[
     size: Int, shape: TensorShape, broadcast_shape: TensorShape
 ]() -> IndexList[size]:
+    """
+    Compute broadcast-compatible strides at compile time.
+
+    Parameters:
+        size: The rank of the broadcast space.
+        shape: The original (compact) shape.
+        broadcast_shape: The target broadcast shape.
+
+    Returns:
+        An IndexList of strides aligned to broadcast space.
+    """
     comptime shape_rank = shape.rank()
     comptime diff = size - shape_rank
 
@@ -130,6 +184,16 @@ def elwise_transform[
         dtype, nelts
     ],
 ](mut res: Tensor[f32], t: Tensor[f32]):
+    """
+    Apply a SIMD unary function element-wise.
+
+    Parameters:
+        func: The SIMD unary function to apply.
+
+    Args:
+        res: The output tensor.
+        t: The input tensor.
+    """
     def vecmath[nelts: Int](idx: Int) {mut res, read t}:
         res.store[nelts](idx, func[f32, nelts](t.load[nelts](idx)))
 
@@ -141,6 +205,15 @@ def elwise_transform[
         dtype, nelts
     ],
 ](mut t: Tensor[f32]):
+    """
+    Apply a SIMD unary function in-place.
+
+    Parameters:
+        func: The SIMD unary function to apply.
+
+    Args:
+        t: The tensor to transform in-place.
+    """
     def vecmath[nelts: Int](idx: Int) {mut t}:
         t.store[nelts](idx, func[f32, nelts](t.load[nelts](idx)))
 
@@ -152,6 +225,14 @@ def elwise_transform[
 # ===----------------------------------------------------------------------===#
 @always_inline
 def elwise_pow(mut res: Tensor[f32], t: Tensor[f32], x: Int):
+    """
+    Element-wise power operation.
+
+    Args:
+        res: The output tensor.
+        t: The input tensor.
+        x: The exponent.
+    """
     def vecpow[nelts: Int](idx: Int) {mut res, read t, read x}:
         res.store[nelts](idx, pow(t.load[nelts](idx), x))
 
@@ -166,6 +247,19 @@ def elwise_op[
         x: SIMD[dtype, nelts], y: SIMD[dtype, nelts]
     ) thin -> SIMD[dtype, nelts],
 ](mut res: Tensor[f32], t1: Tensor[f32], t2: Tensor[f32]):
+    """
+    Compile-time dispatch to the correct element-wise binary overload.
+
+    Parameters:
+        t1_shape: Shape of the first tensor.
+        t2_shape: Shape of the second tensor.
+        func: The SIMD binary function to apply.
+
+    Args:
+        res: The output tensor.
+        t1: The first input tensor.
+        t2: The second input tensor.
+    """
     comptime broadcast: Bool = (t1_shape != t2_shape)
     comptime is_scalar: Bool = (t2_shape == TensorShape(1))
 
@@ -232,6 +326,20 @@ def broadcast_elwise_op[
         x: SIMD[dtype, nelts], y: SIMD[dtype, nelts]
     ) thin -> SIMD[dtype, nelts],
 ](mut res: Tensor[f32], t1: Tensor[f32], t2: Tensor[f32]):
+    """
+    Broadcast-aware element-wise binary operation.
+
+    Parameters:
+        t1_shape: Shape of the first tensor.
+        t2_shape: Shape of the second tensor.
+        res_shape: The broadcasted output shape.
+        func: The SIMD binary function to apply.
+
+    Args:
+        res: The output tensor.
+        t1: The first input tensor.
+        t2: The second input tensor.
+    """
     comptime size = res_shape.rank()
     comptime strides1 = broadcast_calculate_strides[size, t1_shape, res_shape]()
     comptime strides2 = broadcast_calculate_strides[size, t2_shape, res_shape]()
@@ -257,6 +365,18 @@ def accumulate_op[
         x: SIMD[dtype, nelts], y: SIMD[dtype, nelts]
     ) thin -> SIMD[dtype, nelts],
 ](mut res: Tensor[f32], t1: Tensor[f32]):
+    """
+    Accumulate operation with broadcasting support.
+
+    Parameters:
+        res_shape: Shape of the accumulator tensor.
+        t1_shape: Shape of the input tensor.
+        func: The SIMD binary function (e.g. add, mul).
+
+    Args:
+        res: The accumulator tensor (read-write).
+        t1: The input tensor.
+    """
     if res_shape == t1_shape:
         accumulate_op[func](res, t1)
 
@@ -279,6 +399,16 @@ def accumulate_op[
         x: SIMD[dtype, nelts], y: SIMD[dtype, nelts]
     ) thin -> SIMD[dtype, nelts],
 ](mut res: Tensor[f32], t: Tensor[f32]):
+    """
+    Accumulate a tensor into another (same shape).
+
+    Parameters:
+        func: The SIMD binary function to apply.
+
+    Args:
+        res: The accumulator tensor (read-write).
+        t: The input tensor.
+    """
     def vecmath[nelts: Int](idx: Int) {mut res, read t}:
         res.store[nelts](
             idx, func[f32, nelts](res.load[nelts](idx), t.load[nelts](idx))
@@ -293,6 +423,16 @@ def accumulate_op[
         x: SIMD[dtype, nelts], y: SIMD[dtype, nelts]
     ) thin -> SIMD[dtype, nelts],
 ](mut res: Tensor[f32], a: Scalar[f32]):
+    """
+    Accumulate a scalar into every element of a tensor.
+
+    Parameters:
+        func: The SIMD binary function to apply.
+
+    Args:
+        res: The accumulator tensor (read-write).
+        a: The scalar value.
+    """
     def vecmath[nelts: Int](idx: Int) {mut res, read a}:
         res.store[nelts](idx, func[f32, nelts](res.load[nelts](idx), a))
 
@@ -301,7 +441,13 @@ def accumulate_op[
 
 @always_inline
 def accumulate_grad(mut grad: Tensor[f32], res_grad: Tensor[f32]):
-    # Accumulate gradient without checking for broadcasting
+    """
+    Accumulate a gradient into an existing gradient buffer (no broadcasting).
+
+    Args:
+        grad: The gradient buffer to accumulate into.
+        res_grad: The gradient to add.
+    """
     accumulate_op[add](grad, res_grad)
 
 
@@ -309,6 +455,17 @@ def accumulate_grad(mut grad: Tensor[f32], res_grad: Tensor[f32]):
 def accumulate_grad[
     grad_shape: TensorShape, res_grad_shape: TensorShape
 ](mut grad: Tensor[f32], res_grad: Tensor[f32]):
+    """
+    Accumulate a gradient with broadcasting.
+
+    Parameters:
+        grad_shape: Shape of the gradient buffer.
+        res_grad_shape: Shape of the incoming gradient.
+
+    Args:
+        grad: The gradient buffer to accumulate into.
+        res_grad: The gradient to add.
+    """
     comptime if grad_shape == res_grad_shape:
         accumulate_op[add](grad, res_grad)
     elif res_grad_shape == TensorShape(1):
@@ -335,6 +492,18 @@ def accumulate_grad[
 # ===----------------------------------------------------------------------===#
 @always_inline
 def transpose_2D[t_shape: TensorShape](t: Tensor[f32]) -> Tensor[f32]:
+    """
+    Transpose a 2D tensor.
+
+    Parameters:
+        t_shape: The shape of the input tensor.
+
+    Args:
+        t: The input tensor.
+
+    Returns:
+        A new transposed tensor.
+    """
     var t_new = Tensor[f32](t_shape[1], t_shape[0])
 
     comptime stride = t_shape[0]
@@ -359,6 +528,18 @@ def transpose_2D[
 ](t: UnsafePointer[Scalar[f32], _]) -> UnsafePointer[
     Scalar[f32], MutUntrackedOrigin
 ]:
+    """
+    Transpose a 2D matrix stored as a flat pointer.
+
+    Parameters:
+        t_shape: The shape of the input matrix.
+
+    Args:
+        t: Pointer to the input matrix data (row-major).
+
+    Returns:
+        Pointer to the transposed matrix data.
+    """
     var t_new = alloc[Scalar[f32]](t_shape[1] * t_shape[0])
 
     comptime stride = t_shape[0]
@@ -389,6 +570,20 @@ def reduce[
         x: SIMD[type, simd_width]
     ) thin -> SIMD[type, 1],
 ](t: Tensor[f32], starting_value: SIMD[f32, nelts]) -> Scalar[f32]:
+    """
+    Reduce a tensor to a scalar using binary and final reduction ops.
+
+    Parameters:
+        op: The SIMD binary reduction operator.
+        reduce_op: The SIMD horizontal reduction operator.
+
+    Args:
+        t: The input tensor.
+        starting_value: The initial value for reduction.
+
+    Returns:
+        The reduced scalar value.
+    """
     var m: SIMD[f32, nelts] = starting_value
 
     def vecreduce[_nelts: Int](idx: Int) {mut m, read t}:
@@ -404,6 +599,16 @@ def reduce[
 
 
 def get_reduce_shape(t: TensorShape, axis: Int) -> TensorShape:
+    """
+    Compute the output shape after reduction along an axis.
+
+    Args:
+        t: The input shape.
+        axis: The axis to reduce along.
+
+    Returns:
+        The resulting shape (axis dimension set to 1).
+    """
     var rank = t.rank()
     var new_shape = IndexList[MAX_RANK]()
     for i in range(rank):
@@ -428,6 +633,19 @@ def reduce[
     axis: Int,
     starting_value: SIMD[f32, nelts],
 ):
+    """
+    Reduce a tensor along a given axis.
+
+    Parameters:
+        op: The SIMD binary reduction operator.
+        reduce_op: The SIMD horizontal reduction operator.
+
+    Args:
+        res: The output tensor with reduced shape.
+        t: The input tensor.
+        axis: The axis to reduce along.
+        starting_value: The initial value for reduction.
+    """
     var strides = t.strides()
 
     @parameter
@@ -475,17 +693,44 @@ def _reduce_sum[
 
 @always_inline
 def tsum(t: Tensor[f32]) -> Scalar[f32]:
+    """
+    Compute the sum of all elements.
+
+    Args:
+        t: The input tensor.
+
+    Returns:
+        The scalar sum.
+    """
     var starting_value: SIMD[f32, nelts] = 0
     return reduce[add, _reduce_sum](t, starting_value)
 
 
 @always_inline
 def tmean(t: Tensor[f32]) -> Scalar[f32]:
+    """
+    Compute the mean of all elements.
+
+    Args:
+        t: The input tensor.
+
+    Returns:
+        The scalar mean.
+    """
     return tsum(t) / Scalar[f32](t.num_elements())
 
 
 @always_inline
 def tstd(t: Tensor[f32]) -> Scalar[f32]:
+    """
+    Compute the standard deviation of all elements.
+
+    Args:
+        t: The input tensor.
+
+    Returns:
+        The scalar standard deviation.
+    """
     var mu: Scalar[f32] = tmean(t)
     var variance: Scalar[f32] = 0.0
 
@@ -500,12 +745,28 @@ def tstd(t: Tensor[f32]) -> Scalar[f32]:
 
 @always_inline
 def tsum(mut res: Tensor[f32], t: Tensor[f32], axis: Int):
+    """
+    Sum over a single axis.
+
+    Args:
+        res: The output tensor (with axis dimension squeezed).
+        t: The input tensor.
+        axis: The axis to sum along.
+    """
     var starting_value: SIMD[f32, nelts] = 0
     reduce[add, _reduce_sum](res, t, axis, starting_value)
 
 
 @always_inline
 def tmean(mut res: Tensor[f32], t: Tensor[f32], axis: Int):
+    """
+    Mean over a single axis.
+
+    Args:
+        res: The output tensor (with axis dimension squeezed).
+        t: The input tensor.
+        axis: The axis to average along.
+    """
     var num_elements_axis: Scalar[f32] = Scalar[f32](t.dim(axis))
     tsum(res, t, axis)
     accumulate_op[div](res, num_elements_axis)
@@ -513,6 +774,14 @@ def tmean(mut res: Tensor[f32], t: Tensor[f32], axis: Int):
 
 @always_inline
 def tstd(mut res: Tensor[f32], t: Tensor[f32], axis: Int):
+    """
+    Standard deviation over a single axis.
+
+    Args:
+        res: The output tensor (with axis dimension squeezed).
+        t: The input tensor.
+        axis: The axis to compute std over.
+    """
     var mu = Tensor[f32](get_reduce_shape(t.shape(), axis))
     tmean(mu, t, axis)
 
@@ -580,12 +849,29 @@ def _reduce_max[
 
 @always_inline
 def tmax(t: Tensor[f32]) -> Scalar[f32]:
+    """
+    Compute the maximum of all elements.
+
+    Args:
+        t: The input tensor.
+
+    Returns:
+        The scalar maximum value.
+    """
     var starting_value: SIMD[f32, nelts] = min_finite[f32]()
     return reduce[max_simd, _reduce_max](t, starting_value)
 
 
 @always_inline
 def tmax(mut res: Tensor[f32], t: Tensor[f32], axis: Int):
+    """
+    Max over a single axis.
+
+    Args:
+        res: The output tensor (with axis dimension squeezed).
+        t: The input tensor.
+        axis: The axis to find the max along.
+    """
     var starting_value: SIMD[f32, nelts] = min_finite[f32]()
     reduce[max_simd, _reduce_max](res, t, axis, starting_value)
 
@@ -641,6 +927,16 @@ def tmax(mut res: Tensor[f32], t: Tensor[f32], axis: Int):
 
 @always_inline
 def get_transpose_shape(t: TensorShape, axes: TensorShape) -> TensorShape:
+    """
+    Compute the output shape after a transpose.
+
+    Args:
+        t: The input shape.
+        axes: The desired ordering of dimensions.
+
+    Returns:
+        The transposed shape.
+    """
     var rank = t.rank()
     var new_shape = IndexList[MAX_RANK]()
 
@@ -652,6 +948,16 @@ def get_transpose_shape(t: TensorShape, axes: TensorShape) -> TensorShape:
 
 @always_inline
 def transpose(t: Tensor[f32], axes: TensorShape) -> Tensor[f32]:
+    """
+    Permute the dimensions of a tensor.
+
+    Args:
+        t: The input tensor.
+        axes: The desired ordering of dimensions.
+
+    Returns:
+        A new tensor with permuted dimensions.
+    """
     var t_new_shape = get_transpose_shape(t.shape(), axes)
     var t_new = Tensor[f32](t_new_shape)
 
@@ -663,7 +969,12 @@ def transpose(t: Tensor[f32], axes: TensorShape) -> Tensor[f32]:
 @always_inline
 def transpose(mut res: Tensor[f32], t: Tensor[f32], axes: TensorShape):
     """
-    Create a new transposed tensor of the given tensor t.
+    Permute dimensions into a pre-allocated result tensor.
+
+    Args:
+        res: The output tensor.
+        t: The input tensor.
+        axes: The desired ordering of dimensions.
     """
     # NOTE: The rank of of the t tensor should be 2 or more
     # NOTE: Axes should be the same size as the rank of t

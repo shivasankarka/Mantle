@@ -35,6 +35,7 @@ struct Bytes[capacity: Int](
     """
 
     var data: StaticTuple[UInt8, Self.capacity]
+    """The underlying byte storage."""
 
     def __init__(out self):
         var data = StaticTuple[UInt8, Self.capacity](0)
@@ -45,6 +46,12 @@ struct Bytes[capacity: Int](
         self.data = data
 
     def __init__(out self, s: String):
+        """
+        Create a Bytes instance from a string.
+
+        Args:
+            s: The string to encode as bytes.
+        """
         var data = StaticTuple[UInt8, Self.capacity](0)
         var length = s.byte_length()
 
@@ -55,18 +62,47 @@ struct Bytes[capacity: Int](
 
     @always_inline("nodebug")
     def __len__(self) -> Int:
+        """
+        Returns:
+            The capacity of the byte buffer.
+        """
         return Self.capacity
 
     @always_inline("nodebug")
     def __setitem__(mut self, index: Int, value: UInt8):
+        """
+        Set the byte at the given index.
+
+        Args:
+            index: The position to set.
+            value: The byte value.
+        """
         self.data[index] = value
 
     @always_inline("nodebug")
     def __getitem__(self, index: Int) -> UInt8:
+        """
+        Get the byte at the given index.
+
+        Args:
+            index: The position to read.
+
+        Returns:
+            The byte at the given index.
+        """
         return self.data[index]
 
     @always_inline("nodebug")
     def __eq__(self, other: Self) -> Bool:
+        """
+        Check equality with another Bytes instance.
+
+        Args:
+            other: The other Bytes instance.
+
+        Returns:
+            True if all bytes are equal.
+        """
         for i in range(Self.capacity):
             if self[i] != other[i]:
                 return False
@@ -74,6 +110,15 @@ struct Bytes[capacity: Int](
 
     @always_inline("nodebug")
     def __ne__(self, other: Self) -> Bool:
+        """
+        Check inequality with another Bytes instance.
+
+        Args:
+            other: The other Bytes instance.
+
+        Returns:
+            True if any byte differs.
+        """
         for i in range(Self.capacity):
             if self[i] != other[i]:
                 return True
@@ -81,6 +126,12 @@ struct Bytes[capacity: Int](
 
     @always_inline("nodebug")
     def write_to[W: Writer](self, mut writer: W):
+        """
+        Write the non-null bytes to a writer.
+
+        Args:
+            writer: The writer to write to.
+        """
         for i in range(Self.capacity):
             var val = self[i]
             if val != 0:
@@ -122,6 +173,18 @@ def scalar_to_bytes[
 
 
 def bytes_to_scalar[dtype: DType](data: Bytes) -> Scalar[dtype]:
+    """
+    Convert a byte representation to a scalar value.
+
+    Parameters:
+        dtype: The target data type.
+
+    Args:
+        data: The Bytes instance to convert.
+
+    Returns:
+        The scalar value reconstructed from the byte representation.
+    """
     comptime assert (
         data.capacity >= ScalarBytes
     ), "Size must be at least ${ScalarBytes}"
@@ -139,6 +202,15 @@ def bytes_to_scalar[dtype: DType](data: Bytes) -> Scalar[dtype]:
 # ===----------------------------------------------------------------------===#
 
 def expand_type[dtype: DType]() -> DType:
+    """
+    Map a data type to its widest representation.
+
+    Parameters:
+        dtype: The input data type.
+
+    Returns:
+        Float64 for floating-point types, int64 for signed types, uint64 for unsigned types.
+    """
     comptime if dtype.is_floating_point():
         return DType.float64
     elif dtype.is_signed():
