@@ -7,7 +7,7 @@ from mantle.autograd import Graph, OP
 from mantle.autograd.ops.ops import backward_op
 from mantle.autograd.attributes import AttributeVector
 from mantle.nn import Tensor, TensorShape, Model
-from mantle.utils.tensor_creation_utils import to_numpy, to_tensor
+from mantle.data.tensor_creation_utils import to_numpy, to_tensor
 
 
 # The below regex should be used to convert deprecated calls

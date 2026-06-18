@@ -3,8 +3,8 @@ from std.time import perf_counter_ns as now
 import mantle.nn as nn
 from mantle import Tensor, TensorShape, f32
 from mantle import Graph, Symbol, OP
-from mantle.utils.datasets import BostonHousing
-from mantle.utils.dataloader import DataLoader, slice_rows, cycle_pad_rows
+from mantle.data.datasets import BostonHousing
+from mantle.data.dataloader import DataLoader, slice_rows, cycle_pad_rows
 
 
 @fieldwise_init

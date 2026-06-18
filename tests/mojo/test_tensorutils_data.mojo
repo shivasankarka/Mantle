@@ -1,7 +1,7 @@
 from mantle import f32, nelts
 from mantle.nn import Tensor, TensorShape
-from mantle.utils.tensorutils import fill, elwise_op, accumulate_op
-from mantle.utils.math_util import add
+from mantle.core.tensorutils import fill, elwise_op, accumulate_op
+from mantle.core.math_util import add
 
 from std.utils.index import IndexList
 

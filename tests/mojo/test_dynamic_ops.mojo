@@ -2,7 +2,7 @@ from mantle import f32, nelts
 from mantle.autograd import Graph, Symbol, OP
 from mantle.autograd.ops.dynamics import CONCAT, SPLIT
 from mantle.nn import Model, Tensor, TensorShape
-from mantle.utils.tensorutils import fill
+from mantle.core.tensorutils import fill
 
 from tests import assert_tensors_equal, create_graph_concat, create_graph_split
 

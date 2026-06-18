@@ -6,7 +6,7 @@ import mantle.nn as nn
 from mantle import Tensor, TensorShape
 from mantle import f32
 from mantle import Graph, Symbol, OP
-from mantle.utils.tensorutils import fill
+from mantle.core.tensorutils import fill
 
 
 @fieldwise_init

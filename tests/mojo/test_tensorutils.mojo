@@ -6,7 +6,7 @@ from std.utils.index import IndexList
 
 from mantle import f32, nelts
 from mantle.autograd.ops.matmul import dot
-from mantle.utils.tensorutils import (
+from mantle.core.tensorutils import (
     fill,
     elwise_transform,
     elwise_pow,
@@ -21,8 +21,8 @@ from mantle.utils.tensorutils import (
     tmax,
     transpose,
 )
-from mantle.nn import Tensor, TensorShape
-from mantle.utils.math_util import add, sub, mul, div, round_simd, exp, sqrt_simd
+from mantle.core.tensor import Tensor, TensorShape
+from mantle.core.math_util import add, sub, mul, div, round_simd, exp, sqrt_simd
 
 from tests import assert_tensors_equal
 

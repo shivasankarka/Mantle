@@ -3,8 +3,8 @@ from std.testing import assert_equal
 from mantle import f32
 from mantle.nn import Tensor, TensorShape
 from mantle.autograd import Symbol
-from mantle.utils.collection import Collection
-from mantle.utils.tensorutils import fill
+from mantle.autograd.collection import Collection
+from mantle.core.tensorutils import fill
 
 from tests import assert_tensors_equal
 

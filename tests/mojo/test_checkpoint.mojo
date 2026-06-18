@@ -3,7 +3,7 @@ from std.testing import assert_equal, assert_true
 import mantle.nn as nn
 from mantle import Graph, Symbol, OP, Tensor, TensorShape, f32
 from mantle.nn.optim import Adam
-from mantle.utils.checkpoint import (
+from mantle.serialize.checkpoint import (
     save_checkpoint,
     load_checkpoint,
     save_checkpoint_with_optim,

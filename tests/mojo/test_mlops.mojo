@@ -13,7 +13,7 @@ from mantle.autograd.ops.mlops import (
     UNSQUEEZE,
 )
 from mantle.nn import Tensor, TensorShape
-from mantle.utils.tensorutils import fill
+from mantle.core.tensorutils import fill
 
 from tests import (
     assert_tensors_equal,

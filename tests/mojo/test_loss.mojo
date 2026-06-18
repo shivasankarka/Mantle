@@ -3,7 +3,7 @@ from std.testing import assert_equal, assert_almost_equal
 from mantle import f32, nelts
 from mantle.autograd import Graph, Symbol, OP
 from mantle.nn import Model, Tensor, TensorShape, MSELoss, CrossEntropyLoss
-from mantle.utils.tensorutils import fill
+from mantle.core.tensorutils import fill
 
 
 def test_MSE_perfect() raises:

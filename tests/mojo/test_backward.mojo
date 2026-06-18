@@ -5,7 +5,7 @@ from mantle import f32, nelts
 from mantle.autograd.attributes import AttributeVector, Attribute
 from mantle.autograd import OP
 from mantle.nn import Tensor, TensorShape
-from mantle.utils.tensorutils import fill, tsum
+from mantle.core.tensorutils import fill, tsum
 
 
 from tests import (

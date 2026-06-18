@@ -13,7 +13,7 @@ from mantle.nn import (
     Tanh,
 )
 from mantle.autograd import Graph, Symbol
-from mantle.utils.tensorutils import fill
+from mantle.core.tensorutils import fill
 
 from tests import assert_tensors_equal
 

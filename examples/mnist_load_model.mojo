@@ -4,8 +4,8 @@ from std.pathlib import Path
 import mantle.nn as nn
 from mantle import Tensor, TensorShape
 from mantle import Graph, Symbol, OP, f32
-from mantle.utils.datasets import MNIST
-from mantle.utils.dataloader import DataLoader
+from mantle.data.datasets import MNIST
+from mantle.data.dataloader import DataLoader
 from mantle.autograd.attributes import AttributeVector, Attribute
 
 
