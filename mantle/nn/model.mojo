@@ -4,12 +4,12 @@ from std.pathlib import Path
 from mantle import f32
 from mantle.autograd.graph import Graph
 from mantle.autograd.symbol import Symbol
-from mantle.nn.tensor import Tensor, TensorShape
+from mantle.core.tensor import Tensor, TensorShape
 from mantle.autograd.ops import forward_op, backward_op
-from mantle.utils.parameters import Parameters
-from mantle.utils.tensorutils import fill
+from mantle.nn.parameters import Parameters
+from mantle.core.tensorutils import fill
 from .initializers import initialize_tensor
-from mantle.utils.onnx_utils import load_onnx_model, export_onnx_model
+from mantle.serialize.onnx_utils import load_onnx_model, export_onnx_model
 
 
 # TODO: remove when ability to concatenate graphs (modules)

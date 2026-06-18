@@ -2,7 +2,7 @@ from std.random import rand, randn
 from std.algorithm import vectorize
 from std.utils.static_tuple import StaticTuple
 
-from mantle.nn.tensor import Tensor
+from mantle.core.tensor import Tensor
 
 
 @always_inline

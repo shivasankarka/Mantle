@@ -1,7 +1,7 @@
 from mantle import f32
 from mantle.autograd.symbol import Symbol
-from mantle.nn.tensor import Tensor, TensorShape
-from mantle.utils.parameters import Parameters
+from mantle.core.tensor import Tensor, TensorShape
+from mantle.nn.parameters import Parameters
 from mantle.autograd.attributes import AttributeVector
 
 from std.memory import memcpy

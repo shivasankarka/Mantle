@@ -2,14 +2,14 @@ from std.python import Python, PythonObject
 from std.pathlib import Path
 from std.collections import Set
 
-from mantle.utils.parameters import Parameters
-from mantle.nn.tensor import Tensor, TensorShape
+from mantle.nn.parameters import Parameters
+from mantle.core.tensor import Tensor, TensorShape
 from mantle.autograd.attributes import Attribute, AttributeType
 from mantle.autograd.ops import OP
 from mantle.autograd.node import Node
 from mantle.autograd.graph import Graph
 
-from .tensor_creation_utils import to_numpy, copy_np_data
+from mantle.data.tensor_creation_utils import to_numpy, copy_np_data
 
 # NOTE: Maybe we could create our own model representation and from there convert to onnx or others (well we already have it in reallity)
 # NOTE: Torch doesn't import onnx, need onnx2torch and it doesn't support operators like reshape?

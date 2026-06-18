@@ -2,7 +2,7 @@ from std.testing import assert_equal
 from std.memory import memcpy
 
 from mantle import f32, nelts
-from mantle.nn.tensor import Tensor, TensorShape
+from mantle.core.tensor import Tensor, TensorShape
 
 
 def slice_rows[

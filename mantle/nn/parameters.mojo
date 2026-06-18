@@ -3,7 +3,7 @@
 by every `forward_op`/`backward_op`.
 """
 
-from mantle.utils.collection import Collection
+from mantle.autograd.collection import Collection
 
 
 struct Parameters:

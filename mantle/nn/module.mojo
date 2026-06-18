@@ -3,7 +3,7 @@ from std.reflection import reflect
 from mantle.autograd.graph import Graph
 from mantle.autograd.symbol import Symbol
 from mantle.autograd.ops import OP
-from mantle.nn.tensor import TensorShape
+from mantle.core.tensor import TensorShape
 from mantle.autograd.attributes import Attribute, AttributeVector
 
 

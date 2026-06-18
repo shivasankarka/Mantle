@@ -2,7 +2,7 @@ from std.collections.optional import Optional
 from std.memory import UnsafePointer
 
 from mantle import f32
-from mantle.nn.tensor import Tensor, TensorShape
+from mantle.core.tensor import Tensor, TensorShape
 from mantle.autograd.symbol import Symbol
 from mantle.autograd.attributes import Attribute
 

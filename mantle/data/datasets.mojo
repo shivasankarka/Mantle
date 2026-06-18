@@ -1,8 +1,8 @@
 from std.algorithm import vectorize
 
 from mantle import f32
-from mantle.nn.tensor import Tensor, TensorShape
-from mantle.utils.tensorutils import elwise_op, tmean, tstd
+from mantle.core.tensor import Tensor, TensorShape
+from mantle.core.tensorutils import elwise_op, tmean, tstd
 
 
 @always_inline

@@ -11,7 +11,7 @@
 
 from std.sys.info import simd_width_of
 
-from mantle.nn import Tensor, TensorShape
+from mantle.core.tensor import Tensor, TensorShape
 from mantle.autograd import Graph, Symbol, OP
 from mantle.autograd.collection import Collection
 

@@ -1,4 +1,13 @@
 from std.math import exp as _std_exp, log as _std_log, sqrt as _std_sqrt
+from std.memory.unsafe import bitcast
+
+
+@always_inline("nodebug")
+def q_sqrt(value: Float32) -> Float32:
+    var y = bitcast[DType.float32](
+        0x5F3759DF - (bitcast[DType.uint32](value) >> 1)
+    )
+    return -y * ((0.5 * value * y).fma(y, -1.5))
 
 
 @always_inline

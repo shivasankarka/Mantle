@@ -1,4 +1,4 @@
-from mantle.nn.tensor import Tensor, TensorShape
+from mantle.core.tensor import Tensor, TensorShape
 from mantle.autograd.attributes import AttributeVector
 
 from std.algorithm import parallelize, vectorize

@@ -1,12 +1,12 @@
 from std.math import sqrt
 from std.algorithm import vectorize, parallelize
 
-from mantle.utils.parameters import Parameters
+from mantle.nn.parameters import Parameters
 from mantle.autograd.graph import Graph
 from mantle.autograd.symbol import Symbol
-from mantle.nn.tensor import Tensor, TensorShape
-from mantle.utils.collection import Collection
-from mantle.utils.math_util import add, sub, mul, div
+from mantle.core.tensor import Tensor, TensorShape
+from mantle.autograd.collection import Collection
+from mantle.core.math_util import add, sub, mul, div
 
 
 def get_trainable_parameters(g: Graph) -> List[Symbol]:

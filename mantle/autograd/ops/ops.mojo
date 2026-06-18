@@ -30,10 +30,10 @@ from .conv import CONV2D
 from .pool import MAXPOOL2D
 
 from mantle.autograd.symbol import Symbol
-from mantle.nn.tensor import Tensor, TensorShape
-from mantle.utils.parameters import Parameters
-from mantle.utils.bytes import Bytes
-from mantle.utils.tensorutils import broadcast_shapes, accumulate_grad
+from mantle.core.tensor import Tensor, TensorShape
+from mantle.nn.parameters import Parameters
+from mantle.core.bytes import Bytes
+from mantle.core.tensorutils import broadcast_shapes, accumulate_grad
 from mantle.autograd.attributes import AttributeVector
 
 

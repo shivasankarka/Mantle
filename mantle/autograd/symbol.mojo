@@ -1,4 +1,4 @@
-from mantle.nn.tensor import Tensor, TensorShape
+from mantle.core.tensor import Tensor, TensorShape
 
 # I don't know what's the shape doing yet and why there's no initializer
 

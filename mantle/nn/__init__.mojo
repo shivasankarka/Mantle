@@ -1,4 +1,4 @@
-from .tensor import Tensor, TensorShape
+from mantle.core.tensor import Tensor, TensorShape
 from .model import Model
 from .module import Layer, build_graph, FlattenLayer, Sequential
 

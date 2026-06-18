@@ -8,9 +8,9 @@ from std.sys.info import size_of
 
 from mantle import f32
 from mantle.autograd.symbol import Symbol
-from mantle.nn.tensor import Tensor, TensorShape
-from mantle.nn.model import Parameters
-from mantle.utils.collection import Collection
+from mantle.core.tensor import Tensor, TensorShape
+from mantle.nn.parameters import Parameters
+from mantle.autograd.collection import Collection
 
 # ===----------------------------------------------------------------------=== #
 # File format constants

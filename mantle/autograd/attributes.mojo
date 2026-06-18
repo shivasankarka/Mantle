@@ -2,8 +2,8 @@ from std.collections import Optional, OptionalReg
 from std.utils.static_tuple import StaticTuple
 from std.utils.index import IndexList
 
-from mantle.nn.tensor import Tensor, TensorShape, MAX_RANK
-from mantle.utils.bytes import Bytes, scalar_to_bytes, bytes_to_scalar
+from mantle.core.tensor import Tensor, TensorShape, MAX_RANK
+from mantle.core.bytes import Bytes, scalar_to_bytes, bytes_to_scalar
 
 # Figure out what this attribute does in this code.
 # 1) AttributeType seems to be defining some container for the type being used with fixed size

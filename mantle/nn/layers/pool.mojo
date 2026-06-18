@@ -1,4 +1,4 @@
-from mantle.nn.tensor import Tensor, TensorShape
+from mantle.core.tensor import Tensor, TensorShape
 from std.collections.optional import Optional
 from std.utils.index import IndexList
 

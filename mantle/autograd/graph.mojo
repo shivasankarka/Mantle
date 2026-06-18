@@ -9,7 +9,7 @@ from mantle.autograd.ops.dynamics import SPLIT
 from mantle.autograd.params import ParamDict, Param
 
 from mantle import seed, f32
-from mantle.nn.tensor import Tensor, TensorShape
+from mantle.core.tensor import Tensor, TensorShape
 
 
 struct Graph(Copyable, ImplicitlyCopyable, Movable):

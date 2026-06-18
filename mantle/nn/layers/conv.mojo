@@ -1,8 +1,8 @@
 from mantle.autograd.graph import Graph
 from mantle.autograd.symbol import Symbol
 from mantle.autograd.ops import OP
-from mantle.nn.tensor import Tensor, TensorShape
-from mantle.utils import q_sqrt
+from mantle.core.tensor import Tensor, TensorShape
+from mantle.core.math_util import q_sqrt
 from mantle.autograd.params import Param
 from mantle.autograd.attributes import AttributeVector, Attribute
 from mantle.nn.module import Layer

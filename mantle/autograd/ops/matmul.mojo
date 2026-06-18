@@ -3,8 +3,8 @@ from std.memory import memset_zero, stack_allocation, UnsafePointer
 from std.sys.info import simd_width_of
 
 from mantle import f32
-from mantle.nn.tensor import Tensor, TensorShape
-from mantle.utils.tensorutils import transpose_2D
+from mantle.core.tensor import Tensor, TensorShape
+from mantle.core.tensorutils import transpose_2D
 
 
 @always_inline

@@ -3,7 +3,7 @@ from std.memory.unsafe_pointer import UnsafePointer
 from std.memory import memset_zero, memcpy
 
 from mantle.autograd.symbol import Symbol
-from mantle.nn.tensor import Tensor
+from mantle.core.tensor import Tensor
 
 
 struct Collection(Copyable, Movable, Sized):

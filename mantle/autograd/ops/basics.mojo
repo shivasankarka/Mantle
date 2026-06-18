@@ -14,11 +14,11 @@ from std.algorithm import vectorize
 from std.memory import memcpy
 from std.utils.numerics import isinf
 
-from mantle.nn.tensor import Tensor, TensorShape, MAX_RANK
-from mantle.utils.tensorutils import *
+from mantle.core.tensor import Tensor, TensorShape, MAX_RANK
+from mantle.core.tensorutils import *
 from mantle.autograd.attributes import Attribute, AttributeVector
 from mantle.autograd.ops.matmul import dot, dot_transpose_t1, dot_transpose_t2
-from mantle.utils.math_util import add, sub, mul, div, exp, log
+from mantle.core.math_util import add, sub, mul, div, exp, log
 
 
 # ===----------------------------------------------------------------------===#

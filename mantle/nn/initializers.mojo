@@ -1,8 +1,8 @@
 from std.math import sqrt
 
 from mantle import f32
-from mantle.nn.tensor import Tensor, TensorShape
-from mantle.utils.rand_utils import rand_normal, rand_uniform
+from mantle.core.tensor import Tensor, TensorShape
+from mantle.core.rand_utils import rand_normal, rand_uniform
 
 
 def initialize_tensor(
