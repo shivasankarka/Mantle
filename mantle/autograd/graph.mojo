@@ -19,6 +19,8 @@ from mantle.autograd.ops import OP, static_result_shape, dynamic_result_shape
 from mantle.autograd.ops.dynamics import SPLIT
 from mantle.autograd.params import ParamDict, Param
 
+from mantle.core.bytes import Bytes
+
 from mantle import seed, f32
 from mantle.core.tensor import Tensor, TensorShape
 
@@ -189,6 +191,11 @@ struct Graph(Copyable, ImplicitlyCopyable, Movable):
         self.add_node(OP.CONCAT, operand_list, res_symbols, attributes)
         return res_symbols[0]
 
+    def set_scope_from(mut self, start_idx: Int, name: String):
+        for i in range(start_idx, len(self.nodes)):
+            ref n = self.nodes[i]
+            n.scope = Bytes[32](name)
+
     def split(
         mut self, operand: Symbol, sections: List[Int], dim: Int = 0
     ) -> List[Symbol]:
@@ -240,6 +247,186 @@ struct Graph(Copyable, ImplicitlyCopyable, Movable):
         var renderer = Python.import_module("graph_render")
         var json = Python.import_module("json")
         _ = renderer.netron_render(json.loads(self.json()), render_type)
+
+    def visualize(self, mode: String = "execution"):
+        if mode == "execution":
+            self._visualize_execution()
+        elif mode == "architecture":
+            self._visualize_architecture()
+        else:
+            print("Unknown mode:", mode, "(use 'execution' or 'architecture')")
+
+    def _visualize_execution(self):
+        # Assign layers via BFS: inputs/params at layer 0, each node output = max(input layer) + 1
+        var sym_names = List[UInt32]()
+        var sym_layers = List[Int]()
+
+        for i in range(len(self.inputs)):
+            sym_names.append(self.inputs[i].name)
+            sym_layers.append(0)
+        for i in range(len(self.params)):
+            sym_names.append(self.params.symbols[i].name)
+            sym_layers.append(0)
+
+        for i in range(len(self.nodes)):
+            ref node = self.nodes[i]
+            var max_input_layer = 0
+            for j in range(len(node.inputs)):
+                var name = node.inputs[j].name
+                for k in range(len(sym_names)):
+                    if sym_names[k] == name and sym_layers[k] > max_input_layer:
+                        max_input_layer = sym_layers[k]
+            var out_layer = max_input_layer + 1
+            for j in range(len(node.outputs)):
+                sym_names.append(node.outputs[j].name)
+                sym_layers.append(out_layer)
+
+        var max_layer = 0
+        for i in range(len(sym_layers)):
+            if sym_layers[i] > max_layer:
+                max_layer = sym_layers[i]
+
+        print("Execution Graph:")
+        print("  Layer 0  [inputs/params]:")
+        for i in range(len(self.inputs)):
+            var sym = self.inputs[i]
+            print("    s" + String(sym.name), String(sym.dtype), String(sym.shape), "[input]")
+        for i in range(len(self.params)):
+            var sym = self.params.symbols[i]
+            if sym.trainable:
+                print("    s" + String(sym.name), String(sym.dtype), String(sym.shape), "[param, trainable]")
+            else:
+                print("    s" + String(sym.name), String(sym.dtype), String(sym.shape), "[param]")
+
+        for layer in range(1, max_layer + 1):
+            print("  Layer", layer, ":")
+            for n in range(len(self.nodes)):
+                ref node = self.nodes[n]
+                var at_this_layer = False
+                for j in range(len(node.outputs)):
+                    for k in range(len(sym_names)):
+                        if sym_names[k] == node.outputs[j].name and sym_layers[k] == layer:
+                            at_this_layer = True
+                            break
+                    if at_this_layer:
+                        break
+                if not at_this_layer:
+                    continue
+
+                var input_desc = String("")
+                for j in range(len(node.inputs)):
+                    if j > 0:
+                        input_desc += ", "
+                    input_desc += "s" + String(node.inputs[j].name)
+
+                var output_desc = String("")
+                for j in range(len(node.outputs)):
+                    if j > 0:
+                        output_desc += ", "
+                    output_desc += "s" + String(node.outputs[j].name)
+
+                var scope_tag = ""
+                if String(node.scope).byte_length() > 0:
+                    scope_tag = "  [" + String(node.scope) + "]"
+                print("    " + String(node.operator) + "(" + input_desc + ") -> " + output_desc + scope_tag)
+
+        var out_str = "  Outputs:"
+        for i in range(len(self.outputs)):
+            out_str += " s" + String(self.outputs[i].name)
+        print(out_str)
+        if self.loss_out:
+            print("  Loss: s" + String(self.loss_out.value().name))
+
+    def _visualize_architecture(self):
+        # Collect unique scopes in order of first appearance
+        var scope_names = List[String]()
+        var scope_first_node = List[Int]()
+        for n in range(len(self.nodes)):
+            ref node = self.nodes[n]
+            var s = String(node.scope)
+            var found = False
+            for i in range(len(scope_names)):
+                if scope_names[i] == s:
+                    found = True
+                    break
+            if not found:
+                scope_names.append(s)
+                scope_first_node.append(n)
+
+        print("Architecture:")
+        for si in range(len(scope_names)):
+            var scope = scope_names[si]
+            if scope.byte_length() == 0:
+                scope = "(unnamed)"
+            var start = scope_first_node[si]
+            var end = len(self.nodes)
+            if si < len(scope_names) - 1:
+                end = scope_first_node[si + 1]
+
+            # Collect input and output symbols for this scope group
+            var group_inputs = List[UInt32]()
+            var group_outputs = List[UInt32]()
+            for n in range(start, end):
+                ref node = self.nodes[n]
+                for j in range(len(node.inputs)):
+                    var found = False
+                    for k in range(len(group_inputs)):
+                        if group_inputs[k] == node.inputs[j].name:
+                            found = True
+                            break
+                    if not found:
+                        group_inputs.append(node.inputs[j].name)
+                for j in range(len(node.outputs)):
+                    var found = False
+                    for k in range(len(group_outputs)):
+                        if group_outputs[k] == node.outputs[j].name:
+                            found = True
+                            break
+                    if not found:
+                        group_outputs.append(node.outputs[j].name)
+
+            # Remove symbols produced within this group from inputs
+            var actual_inputs = List[UInt32]()
+            for ii in range(len(group_inputs)):
+                var is_internal = False
+                for oo in range(len(group_outputs)):
+                    if group_inputs[ii] == group_outputs[oo]:
+                        is_internal = True
+                        break
+                if not is_internal:
+                    actual_inputs.append(group_inputs[ii])
+
+            print("  " + scope + ":")
+            for n in range(start, end):
+                ref node = self.nodes[n]
+                var input_desc = String("")
+                for j in range(len(node.inputs)):
+                    if j > 0:
+                        input_desc += ", "
+                    input_desc += "s" + String(node.inputs[j].name)
+                var output_desc = String("")
+                for j in range(len(node.outputs)):
+                    if j > 0:
+                        output_desc += ", "
+                    output_desc += "s" + String(node.outputs[j].name)
+                print("    " + String(node.operator) + "(" + input_desc + ") -> " + output_desc)
+
+        # Flow summary
+        print("  ---")
+        var flow = "  Flow:"
+        for n in range(len(self.nodes)):
+            ref node = self.nodes[n]
+            var s = String(node.scope)
+            if s.byte_length() == 0:
+                s = "?"
+            flow += " " + String(node.operator) + "[" + s + "] ->"
+        print(flow)
+        var out_str = "  Outputs:"
+        for i in range(len(self.outputs)):
+            out_str += " s" + String(self.outputs[i].name)
+        print(out_str)
+        if self.loss_out:
+            print("  Loss: s" + String(self.loss_out.value().name))
 
     def compile(mut self):
         # 0. Sorting the graph

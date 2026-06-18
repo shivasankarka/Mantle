@@ -36,6 +36,9 @@ struct ReLULayer(Layer, Copyable, Movable):
     def forward(self, mut g: Graph, input: Symbol) -> Symbol:
         return ReLU(g, input)
 
+    def name(self) -> String:
+        return "ReLU"
+
 
 # ===----------------------------------------------------------------------===#
 # LeakyReLU
