@@ -340,7 +340,6 @@ struct Graph(Copyable, ImplicitlyCopyable, Movable):
     def _visualize_architecture(self):
         # Collect unique scopes in order of first appearance
         var scope_names = List[String]()
-        var scope_first_node = List[Int]()
         for n in range(len(self.nodes)):
             ref node = self.nodes[n]
             var s = String(node.scope)
@@ -351,23 +350,21 @@ struct Graph(Copyable, ImplicitlyCopyable, Movable):
                     break
             if not found:
                 scope_names.append(s)
-                scope_first_node.append(n)
 
         print("Architecture:")
         for si in range(len(scope_names)):
             var scope = scope_names[si]
             if scope.byte_length() == 0:
                 scope = "(unnamed)"
-            var start = scope_first_node[si]
-            var end = len(self.nodes)
-            if si < len(scope_names) - 1:
-                end = scope_first_node[si + 1]
 
             # Collect input and output symbols for this scope group
             var group_inputs = List[UInt32]()
             var group_outputs = List[UInt32]()
-            for n in range(start, end):
+            for n in range(len(self.nodes)):
                 ref node = self.nodes[n]
+                var s = String(node.scope)
+                if s != scope_names[si]:
+                    continue
                 for j in range(len(node.inputs)):
                     var found = False
                     for k in range(len(group_inputs)):
@@ -397,8 +394,11 @@ struct Graph(Copyable, ImplicitlyCopyable, Movable):
                     actual_inputs.append(group_inputs[ii])
 
             print("  " + scope + ":")
-            for n in range(start, end):
+            for n in range(len(self.nodes)):
                 ref node = self.nodes[n]
+                var s = String(node.scope)
+                if s != scope_names[si]:
+                    continue
                 var input_desc = String("")
                 for j in range(len(node.inputs)):
                     if j > 0:

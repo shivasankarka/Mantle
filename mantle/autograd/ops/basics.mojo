@@ -706,7 +706,7 @@ struct TRANSPOSE:
 struct FLATTEN:
     @staticmethod
     def result_shape(t_shape: TensorShape) -> TensorShape:
-        return TensorShape(t_shape.num_elements())
+        return TensorShape(t_shape[0], t_shape.num_elements() // t_shape[0])
 
     @staticmethod
     def forward[t_shape: TensorShape](mut res: Tensor[f32], t: Tensor[f32]):
