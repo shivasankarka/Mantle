@@ -1,3 +1,14 @@
+# ===----------------------------------------------------------------------=== #
+# Mantle: Tensor Utilities
+# Distributed under the Apache 2.0 License with LLVM Exceptions.
+# See LICENSE and the LLVM License for more information.
+# https://github.com/Mojo-Numerics-and-Algorithms-group/NuMojo/blob/main/LICENSE
+# https://llvm.org/LICENSE.txt
+#  ===----------------------------------------------------------------------=== #
+"""Tensor Utils (mantle.core.tensorutils)
+------------------------------------------------
+Vectorized element-wise operations, broadcasting, reductions, and gradient accumulation.
+"""
 from std.sys.info import num_physical_cores
 from std.algorithm import vectorize, parallelize
 from std.memory import memset_zero, memset, stack_allocation, UnsafePointer
@@ -10,7 +21,9 @@ from mantle.core.tensor import Tensor, TensorShape, MAX_RANK
 from mantle.core.math_util import add, sub, mul, div, sqrt_simd, max_simd
 
 
-# ---- Start -----
+# ===----------------------------------------------------------------------===#
+# Fill
+# ===----------------------------------------------------------------------===#
 
 
 @always_inline
@@ -21,7 +34,9 @@ def fill[dtype: DType](mut t: Tensor[dtype], val: Scalar[dtype]):
     vectorize[nelts](t.num_elements(), fill_vec)
 
 
-# ----- Functions to access positions in tensor data -----
+# ===----------------------------------------------------------------------===#
+# Position Helpers
+# ===----------------------------------------------------------------------===#
 @always_inline
 def get_real_index[
     size: Int, strides_shape: IndexList[size], broadcast_shape: TensorShape
@@ -43,7 +58,9 @@ def get_real_index[
     return index_res
 
 
-# ----- Broadcast functions -----
+# ===----------------------------------------------------------------------===#
+# Broadcasting
+# ===----------------------------------------------------------------------===#
 @always_inline
 def broadcast_shapes(s1: TensorShape, s2: TensorShape) -> TensorShape:
     var ndim = max(s1.rank(), s2.rank())
@@ -104,7 +121,9 @@ def broadcast_calculate_strides[
     return strides
 
 
-# ----- Element-wise unary operations -----
+# ===----------------------------------------------------------------------===#
+# Element-wise Unary Ops
+# ===----------------------------------------------------------------------===#
 @always_inline
 def elwise_transform[
     func: def[dtype: DType, nelts: Int](x: SIMD[dtype, nelts]) thin -> SIMD[
@@ -128,7 +147,9 @@ def elwise_transform[
     vectorize[nelts](t.num_elements(), vecmath)
 
 
-# ----- Element-wise binary operations -----
+# ===----------------------------------------------------------------------===#
+# Element-wise Binary Ops
+# ===----------------------------------------------------------------------===#
 @always_inline
 def elwise_pow(mut res: Tensor[f32], t: Tensor[f32], x: Int):
     def vecpow[nelts: Int](idx: Int) {mut res, read t, read x}:
@@ -309,7 +330,9 @@ def accumulate_grad[
         vectorize[1](res_grad.num_elements(), vec_op)
 
 
-# ---- Transform functions -----
+# ===----------------------------------------------------------------------===#
+# Transforms
+# ===----------------------------------------------------------------------===#
 @always_inline
 def transpose_2D[t_shape: TensorShape](t: Tensor[f32]) -> Tensor[f32]:
     var t_new = Tensor[f32](t_shape[1], t_shape[0])
@@ -354,7 +377,9 @@ def transpose_2D[
     return t_new
 
 
-# ----- Reduction functions -----
+# ===----------------------------------------------------------------------===#
+# Reductions
+# ===----------------------------------------------------------------------===#
 @always_inline
 def reduce[
     op: def[type: DType, simd_width: Int](

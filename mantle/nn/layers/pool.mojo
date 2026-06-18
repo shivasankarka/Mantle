@@ -1,3 +1,14 @@
+# ===----------------------------------------------------------------------=== #
+# Mantle: Pooling Layers
+# Distributed under the Apache 2.0 License with LLVM Exceptions.
+# See LICENSE and the LLVM License for more information.
+# https://github.com/Mojo-Numerics-and-Algorithms-group/NuMojo/blob/main/LICENSE
+# https://llvm.org/LICENSE.txt
+#  ===----------------------------------------------------------------------=== #
+"""Pool (mantle.nn.layers.pool)
+------------------------------------------------
+2D Max Pooling layer with configurable kernel, stride, padding, and dilation.
+"""
 from mantle.core.tensor import Tensor, TensorShape
 from std.collections.optional import Optional
 from std.utils.index import IndexList
@@ -9,6 +20,10 @@ from mantle.autograd.attributes import AttributeVector, Attribute
 from mantle.nn.module import Layer
 
 
+# ===----------------------------------------------------------------------===#
+# Helpers
+# ===----------------------------------------------------------------------===#
+
 def set_static_stride(
     kernel_size: IndexList[2], stride: Optional[Int] = None
 ) -> IndexList[2]:
@@ -17,6 +32,10 @@ def set_static_stride(
     else:
         return kernel_size
 
+
+# ===----------------------------------------------------------------------===#
+# MaxPool2d (functional)
+# ===----------------------------------------------------------------------===#
 
 def MaxPool2d(
     mut g: Graph,
@@ -67,6 +86,10 @@ def MaxPool2d(
         ),
     )
 
+
+# ===----------------------------------------------------------------------===#
+# MaxPool2dLayer
+# ===----------------------------------------------------------------------===#
 
 struct MaxPool2dLayer(Layer, Copyable, Movable):
     """

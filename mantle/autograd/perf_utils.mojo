@@ -47,6 +47,10 @@ def truncate_decimals[num: Int](s: String) -> String:
     return truncated
 
 
+# ===----------------------------------------------------------------------===#
+# PerfMetrics
+# ===----------------------------------------------------------------------===#
+
 @fieldwise_init
 struct PerfMetricsValues(Copyable, Movable):
     var node: Node

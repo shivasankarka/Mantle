@@ -1,3 +1,14 @@
+# ===----------------------------------------------------------------------=== #
+# Mantle: ONNX Utils
+# Distributed under the Apache 2.0 License with LLVM Exceptions.
+# See LICENSE and the LLVM License for more information.
+# https://github.com/Mojo-Numerics-and-Algorithms-group/NuMojo/blob/main/LICENSE
+# https://llvm.org/LICENSE.txt
+#  ===----------------------------------------------------------------------=== #
+"""ONNX Utils (mantle.serialize.onnx_utils)
+------------------------------------------------
+ONNX model import and export utilities for graph serialization.
+"""
 from std.python import Python, PythonObject
 from std.pathlib import Path
 from std.collections import Set
@@ -11,9 +22,10 @@ from mantle.autograd.graph import Graph
 
 from mantle.data.tensor_creation_utils import to_numpy, copy_np_data
 
-# NOTE: Maybe we could create our own model representation and from there convert to onnx or others (well we already have it in reallity)
-# NOTE: Torch doesn't import onnx, need onnx2torch and it doesn't support operators like reshape?
 
+# ===----------------------------------------------------------------------===#
+# ONNX Attribute Helpers
+# ===----------------------------------------------------------------------===#
 
 def make_onnx_attribute(op: OP, attr: Attribute) raises -> PythonObject:
     var onnx = Python.import_module("onnx")
@@ -127,7 +139,9 @@ def make_onnx_operator_type(op_type: OP) raises -> String:
 def load_onnx_model(
     model_path: Path, mut model_parameters: Parameters, g: Graph
 ) raises:
-    # Simple onnx data loader where we load the data in order (so we need to have the correct order of the weights and biases in the model. We don't use the names for the loading)
+    # Simple onnx data loader where we load the data in order
+    # (so we need to have the correct order of the weights and biases in the model.
+    #  We don't use the names for the loading)
     var onnx = Python.import_module("onnx")
     var onnx_model = onnx.load(String(model_path))
 

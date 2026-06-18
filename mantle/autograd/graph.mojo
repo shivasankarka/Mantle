@@ -1,3 +1,14 @@
+# ===----------------------------------------------------------------------=== #
+# Mantle: Graph
+# Distributed under the Apache 2.0 License with LLVM Exceptions.
+# See LICENSE and the LLVM License for more information.
+# https://github.com/Mojo-Numerics-and-Algorithms-group/NuMojo/blob/main/LICENSE
+# https://llvm.org/LICENSE.txt
+#  ===----------------------------------------------------------------------=== #
+"""Graph (mantle.autograd.graph)
+------------------------------------------------
+Compute graph builder: manages symbols, parameters, nodes, and graph compilation.
+"""
 from std.python.python import Python
 from std.collections.optional import Optional, OptionalReg
 
@@ -11,6 +22,10 @@ from mantle.autograd.params import ParamDict, Param
 from mantle import seed, f32
 from mantle.core.tensor import Tensor, TensorShape
 
+
+# ===----------------------------------------------------------------------===#
+# Graph
+# ===----------------------------------------------------------------------===#
 
 struct Graph(Copyable, ImplicitlyCopyable, Movable):
     var inputs: List[Symbol]

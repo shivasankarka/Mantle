@@ -1,3 +1,14 @@
+# ===----------------------------------------------------------------------=== #
+# Mantle: Optimizers
+# Distributed under the Apache 2.0 License with LLVM Exceptions.
+# See LICENSE and the LLVM License for more information.
+# https://github.com/Mojo-Numerics-and-Algorithms-group/NuMojo/blob/main/LICENSE
+# https://llvm.org/LICENSE.txt
+#  ===----------------------------------------------------------------------=== #
+"""Optim (mantle.nn.optim)
+------------------------------------------------
+Optimizer implementations (Adam).
+"""
 from std.math import sqrt
 from std.algorithm import vectorize, parallelize
 
@@ -8,6 +19,10 @@ from mantle.core.tensor import Tensor, TensorShape
 from mantle.autograd.collection import Collection
 from mantle.core.math_util import add, sub, mul, div
 
+
+# ===----------------------------------------------------------------------===#
+# Helpers
+# ===----------------------------------------------------------------------===#
 
 def get_trainable_parameters(g: Graph) -> List[Symbol]:
     """
@@ -28,6 +43,10 @@ def get_trainable_parameters(g: Graph) -> List[Symbol]:
 
     return trainable_parameters^
 
+
+# ===----------------------------------------------------------------------===#
+# Adam
+# ===----------------------------------------------------------------------===#
 
 struct Adam[
     g: Graph,

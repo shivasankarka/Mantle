@@ -1,3 +1,15 @@
+# ===----------------------------------------------------------------------=== #
+# Mantle: Activations
+# Distributed under the Apache 2.0 License with LLVM Exceptions.
+# See LICENSE and the LLVM License for more information.
+# https://github.com/Mojo-Numerics-and-Algorithms-group/NuMojo/blob/main/LICENSE
+# https://llvm.org/LICENSE.txt
+#  ===----------------------------------------------------------------------=== #
+"""Activations (mantle.nn.activations)
+------------------------------------------------
+Activation functions (ReLU, LeakyReLU, Sigmoid, Tanh, Softmax) with and without
+`Layer` wrappers.
+"""
 from mantle.core.tensor import Tensor, TensorShape
 from mantle.autograd.graph import Graph
 from mantle.autograd.symbol import Symbol
@@ -6,7 +18,10 @@ from mantle.autograd.attributes import Attribute, AttributeVector
 from mantle.nn.module import Layer
 
 
-# '''Activation functions.'''
+# ===----------------------------------------------------------------------===#
+# ReLU
+# ===----------------------------------------------------------------------===#
+
 def ReLU(mut g: Graph, input: Symbol) -> Symbol:
     return g.op(OP.RELU, input)
 
@@ -22,6 +37,10 @@ struct ReLULayer(Layer, Copyable, Movable):
         return ReLU(g, input)
 
 
+# ===----------------------------------------------------------------------===#
+# LeakyReLU
+# ===----------------------------------------------------------------------===#
+
 def LeakyReLU(
     mut g: Graph, input: Symbol, negative_slope: Scalar[f32]
 ) -> Symbol:
@@ -32,13 +51,25 @@ def LeakyReLU(
     )
 
 
-def Sigmoid(mut g: Graph, input: Symbol) -> Symbol:
-    return g.op(OP.SIGMOID, input)
+# ===----------------------------------------------------------------------===#
+# Sigmoid
+# ===----------------------------------------------------------------------===#
 
+def Sigmoid(mut g: Graph, input: Symbol) -> Symbol:
+    return g.op(OP.SIGMOID, input    )
+
+
+# ===----------------------------------------------------------------------===#
+# Tanh
+# ===----------------------------------------------------------------------===#
 
 def Tanh(mut g: Graph, input: Symbol) -> Symbol:
-    return g.op(OP.TANH, input)
+    return g.op(OP.TANH, input    )
 
+
+# ===----------------------------------------------------------------------===#
+# Softmax
+# ===----------------------------------------------------------------------===#
 
 def Softmax(mut g: Graph, input: Symbol, axis: Int) -> Symbol:
     # softmax: exp(x_i) / sum(exp(x_j))
@@ -53,8 +84,12 @@ def Softmax(mut g: Graph, input: Symbol, axis: Int) -> Symbol:
         OP.SUM, exp_values, attributes=AttributeVector(Attribute("axis", axis))
     )
 
-    return g.op(OP.DIV, exp_values, sum_values)
+    return g.op(OP.DIV, exp_values, sum_values    )
 
+
+# ===----------------------------------------------------------------------===#
+# LogSoftmax
+# ===----------------------------------------------------------------------===#
 
 def LogSoftmax(mut g: Graph, input: Symbol, axis: Int) -> Symbol:
     # stable logsoftmax: log(exp(x_i - max(x_j)) / sum(exp(x_j - max(x_j))))

@@ -1,3 +1,14 @@
+# ===----------------------------------------------------------------------=== #
+# Mantle: Linear Layer
+# Distributed under the Apache 2.0 License with LLVM Exceptions.
+# See LICENSE and the LLVM License for more information.
+# https://github.com/Mojo-Numerics-and-Algorithms-group/NuMojo/blob/main/LICENSE
+# https://llvm.org/LICENSE.txt
+#  ===----------------------------------------------------------------------=== #
+"""Linear (mantle.nn.layers.linear)
+------------------------------------------------
+Fully connected (dense) layer with uniform initialization.
+"""
 from mantle.core.tensor import Tensor, TensorShape
 from mantle.autograd.graph import Graph
 from mantle.autograd.symbol import Symbol
@@ -6,6 +17,10 @@ from mantle.core.math_util import q_sqrt
 from mantle.autograd.params import Param
 from mantle.nn.module import Layer
 
+
+# ===----------------------------------------------------------------------===#
+# Linear (functional)
+# ===----------------------------------------------------------------------===#
 
 def Linear(
     mut g: Graph,
@@ -30,6 +45,10 @@ def Linear(
     var res = g.op(OP.DOT, inputs, weights)
     return g.op(OP.ADD, res, b)
 
+
+# ===----------------------------------------------------------------------===#
+# LinearLayer
+# ===----------------------------------------------------------------------===#
 
 @fieldwise_init
 struct LinearLayer(Layer, Copyable, Movable):

@@ -1,9 +1,24 @@
+# ===----------------------------------------------------------------------=== #
+# Mantle: Loss Functions
+# Distributed under the Apache 2.0 License with LLVM Exceptions.
+# See LICENSE and the LLVM License for more information.
+# https://github.com/Mojo-Numerics-and-Algorithms-group/NuMojo/blob/main/LICENSE
+# https://llvm.org/LICENSE.txt
+#  ===----------------------------------------------------------------------=== #
+"""Loss (mantle.nn.loss)
+------------------------------------------------
+Loss function implementations (MSE, Cross-Entropy).
+"""
 import mantle.nn as nn
 from mantle.core.tensor import Tensor, TensorShape
 from mantle.autograd.graph import Graph
 from mantle.autograd.symbol import Symbol
 from mantle.autograd.ops import OP
 
+
+# ===----------------------------------------------------------------------===#
+# MSELoss
+# ===----------------------------------------------------------------------===#
 
 def MSELoss(
     mut g: Graph,
@@ -18,6 +33,10 @@ def MSELoss(
 
     return mean_loss
 
+
+# ===----------------------------------------------------------------------===#
+# CrossEntropyLoss
+# ===----------------------------------------------------------------------===#
 
 def CrossEntropyLoss(
     mut g: Graph,

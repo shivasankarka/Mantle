@@ -1,3 +1,14 @@
+# ===----------------------------------------------------------------------=== #
+# Mantle: Model
+# Distributed under the Apache 2.0 License with LLVM Exceptions.
+# See LICENSE and the LLVM License for more information.
+# https://github.com/Mojo-Numerics-and-Algorithms-group/NuMojo/blob/main/LICENSE
+# https://llvm.org/LICENSE.txt
+#  ===----------------------------------------------------------------------=== #
+"""Model (mantle.nn.model)
+------------------------------------------------
+Graph executor for forward/backward passes with memory management and ONNX I/O.
+"""
 from std.collections.optional import Optional, OptionalReg
 from std.pathlib import Path
 
@@ -12,7 +23,10 @@ from .initializers import initialize_tensor
 from mantle.serialize.onnx_utils import load_onnx_model, export_onnx_model
 
 
-# TODO: remove when ability to concatenate graphs (modules)
+# ===----------------------------------------------------------------------===#
+# Helpers
+# ===----------------------------------------------------------------------===#
+
 def dv_contains(dv: List[Symbol], symbol: Symbol) -> Bool:
     for i in range(len(dv)):
         if dv[i] == symbol:
@@ -33,6 +47,10 @@ def n_inference_nodes(g: Graph) -> OptionalReg[Int]:
                 return i + 1
     return None
 
+
+# ===----------------------------------------------------------------------===#
+# Model
+# ===----------------------------------------------------------------------===#
 
 struct Model[
     g: Graph,

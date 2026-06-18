@@ -1,3 +1,14 @@
+# ===----------------------------------------------------------------------=== #
+# Mantle: Datasets
+# Distributed under the Apache 2.0 License with LLVM Exceptions.
+# See LICENSE and the LLVM License for more information.
+# https://github.com/Mojo-Numerics-and-Algorithms-group/NuMojo/blob/main/LICENSE
+# https://llvm.org/LICENSE.txt
+#  ===----------------------------------------------------------------------=== #
+"""Datasets (mantle.data.datasets)
+------------------------------------------------
+Built-in dataset loaders (Boston Housing, MNIST) with CSV parsing and normalization.
+"""
 from std.algorithm import vectorize
 
 from mantle import f32
@@ -5,12 +16,20 @@ from mantle.core.tensor import Tensor, TensorShape
 from mantle.core.tensorutils import elwise_op, tmean, tstd
 
 
+# ===----------------------------------------------------------------------===#
+# Helpers
+# ===----------------------------------------------------------------------===#
+
 @always_inline
 def div[
     dtype: DType, simd_width: Int
 ](a: SIMD[dtype, simd_width], b: Scalar[dtype]) -> SIMD[dtype, simd_width]:
     return a / b
 
+
+# ===----------------------------------------------------------------------===#
+# Boston Housing
+# ===----------------------------------------------------------------------===#
 
 struct BostonHousing:
     comptime n_inputs = 13
@@ -56,6 +75,10 @@ struct BostonHousing:
                     self.data[i * self.n_inputs + j] - tmean(col)
                 ) / tstd(col)
 
+
+# ===----------------------------------------------------------------------===#
+# MNIST
+# ===----------------------------------------------------------------------===#
 
 struct MNIST:
     var data: Tensor[f32]

@@ -5,7 +5,7 @@
 # https://github.com/Mojo-Numerics-and-Algorithms-group/NuMojo/blob/main/LICENSE
 # https://llvm.org/LICENSE.txt
 #  ===----------------------------------------------------------------------=== #
-"""Bytes (mantle.utils.bytes)
+"""Bytes (mantle.core.bytes)
 ------------------------------------------------
 This module defines the `Bytes` struct, which represents a static sequence of bytes.
 It also provides functions to convert between scalar values and their byte representations.
@@ -16,8 +16,16 @@ from std.utils.numerics import inf
 from std.utils.static_tuple import StaticTuple
 from std.memory.unsafe import bitcast
 
+# ===----------------------------------------------------------------------===#
+# Constants
+# ===----------------------------------------------------------------------===#
+
 comptime ScalarBytes = size_of[DType.uint64]()
 """Number of bytes required to represent a scalar value (64 bits)."""
+
+# ===----------------------------------------------------------------------===#
+# Bytes
+# ===----------------------------------------------------------------------===#
 
 struct Bytes[capacity: Int](
     Copyable, Equatable, Movable, TrivialRegisterPassable, Writable
@@ -83,6 +91,10 @@ struct Bytes[capacity: Int](
         return String.write(self)
 
 
+# ===----------------------------------------------------------------------===#
+# Scalar Conversion
+# ===----------------------------------------------------------------------===#
+
 def scalar_to_bytes[
     dtype: DType, size: Int = ScalarBytes
 ](value: Scalar[dtype]) -> Bytes[size]:
@@ -121,6 +133,10 @@ def bytes_to_scalar[dtype: DType](data: Bytes) -> Scalar[dtype]:
 
     return bitcast[expand_type[dtype]()](bits).cast[dtype]()
 
+
+# ===----------------------------------------------------------------------===#
+# Type Helpers
+# ===----------------------------------------------------------------------===#
 
 def expand_type[dtype: DType]() -> DType:
     comptime if dtype.is_floating_point():

@@ -1,3 +1,14 @@
+# ===----------------------------------------------------------------------=== #
+# Mantle: Matrix Multiplication
+# Distributed under the Apache 2.0 License with LLVM Exceptions.
+# See LICENSE and the LLVM License for more information.
+# https://github.com/Mojo-Numerics-and-Algorithms-group/NuMojo/blob/main/LICENSE
+# https://llvm.org/LICENSE.txt
+#  ===----------------------------------------------------------------------=== #
+"""MatMul (mantle.autograd.ops.matmul)
+------------------------------------------------
+Tiled, parallelized matrix multiplication with transpose variants.
+"""
 from std.algorithm import vectorize, parallelize
 from std.memory import memset_zero, stack_allocation, UnsafePointer
 from std.sys.info import simd_width_of
@@ -6,6 +17,10 @@ from mantle import f32
 from mantle.core.tensor import Tensor, TensorShape
 from mantle.core.tensorutils import transpose_2D
 
+
+# ===----------------------------------------------------------------------===#
+# Block Helpers
+# ===----------------------------------------------------------------------===#
 
 @always_inline
 def calculate_block[

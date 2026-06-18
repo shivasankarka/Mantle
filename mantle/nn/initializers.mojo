@@ -1,9 +1,24 @@
+# ===----------------------------------------------------------------------=== #
+# Mantle: Initializers
+# Distributed under the Apache 2.0 License with LLVM Exceptions.
+# See LICENSE and the LLVM License for more information.
+# https://github.com/Mojo-Numerics-and-Algorithms-group/NuMojo/blob/main/LICENSE
+# https://llvm.org/LICENSE.txt
+#  ===----------------------------------------------------------------------=== #
+"""Initializers (mantle.nn.initializers)
+------------------------------------------------
+Tensor initialization strategies: random uniform, random normal, Kaiming (stubbed).
+"""
 from std.math import sqrt
 
 from mantle import f32
 from mantle.core.tensor import Tensor, TensorShape
 from mantle.core.rand_utils import rand_normal, rand_uniform
 
+
+# ===----------------------------------------------------------------------===#
+# initialize_tensor
+# ===----------------------------------------------------------------------===#
 
 def initialize_tensor(
     shape: TensorShape, type: String, data: List[Scalar[f32]]
@@ -34,6 +49,10 @@ def initialize_tensor(
         print("[ERROR] Unsupported initialization type: " + type)
         return Tensor[f32]()
 
+
+# ===----------------------------------------------------------------------===#
+# Fan Calculation
+# ===----------------------------------------------------------------------===#
 
 def calculate_fan(shape: TensorShape, mode: String) -> Scalar[f32]:
     """

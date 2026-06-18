@@ -1,3 +1,14 @@
+# ===----------------------------------------------------------------------=== #
+# Mantle: Module
+# Distributed under the Apache 2.0 License with LLVM Exceptions.
+# See LICENSE and the LLVM License for more information.
+# https://github.com/Mojo-Numerics-and-Algorithms-group/NuMojo/blob/main/LICENSE
+# https://llvm.org/LICENSE.txt
+#  ===----------------------------------------------------------------------=== #
+"""Module (mantle.nn.module)
+------------------------------------------------
+Layer trait, FlattenLayer, graph-building reflection, and Sequential container.
+"""
 from std.reflection import reflect
 
 from mantle.autograd.graph import Graph
@@ -7,10 +18,18 @@ from mantle.core.tensor import TensorShape
 from mantle.autograd.attributes import Attribute, AttributeVector
 
 
+# ===----------------------------------------------------------------------===#
+# Layer Trait
+# ===----------------------------------------------------------------------===#
+
 trait Layer:
     def forward(self, mut g: Graph, input: Symbol) -> Symbol:
         ...
 
+
+# ===----------------------------------------------------------------------===#
+# FlattenLayer
+# ===----------------------------------------------------------------------===#
 
 @fieldwise_init
 struct FlattenLayer(Layer, Copyable, Movable):
@@ -31,6 +50,10 @@ struct FlattenLayer(Layer, Copyable, Movable):
         )
 
 
+# ===----------------------------------------------------------------------===#
+# build_graph
+# ===----------------------------------------------------------------------===#
+
 def build_graph[T: AnyType](mut layers: T, mut g: Graph, input: Symbol) -> Symbol:
     """
     Reflects over `layers`' fields in declaration order, chaining every
@@ -49,6 +72,10 @@ def build_graph[T: AnyType](mut layers: T, mut g: Graph, input: Symbol) -> Symbo
             x = trait_downcast[Layer](field_val).forward(g, x)
     return x
 
+
+# ===----------------------------------------------------------------------===#
+# Sequential
+# ===----------------------------------------------------------------------===#
 
 struct Sequential[*Ts: Layer & Movable](Layer, Movable):
     """

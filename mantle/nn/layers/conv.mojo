@@ -1,3 +1,14 @@
+# ===----------------------------------------------------------------------=== #
+# Mantle: Convolution Layers
+# Distributed under the Apache 2.0 License with LLVM Exceptions.
+# See LICENSE and the LLVM License for more information.
+# https://github.com/Mojo-Numerics-and-Algorithms-group/NuMojo/blob/main/LICENSE
+# https://llvm.org/LICENSE.txt
+#  ===----------------------------------------------------------------------=== #
+"""Conv (mantle.nn.layers.conv)
+------------------------------------------------
+2D Convolution layer with im2col-based implementation and layer wrapper.
+"""
 from mantle.autograd.graph import Graph
 from mantle.autograd.symbol import Symbol
 from mantle.autograd.ops import OP
@@ -9,6 +20,10 @@ from mantle.nn.module import Layer
 
 from std.utils.index import IndexList
 
+
+# ===----------------------------------------------------------------------===#
+# Conv2d (functional)
+# ===----------------------------------------------------------------------===#
 
 def Conv2d(
     mut g: Graph,
@@ -55,6 +70,10 @@ def Conv2d(
         ),
     )
 
+
+# ===----------------------------------------------------------------------===#
+# Conv2dLayer
+# ===----------------------------------------------------------------------===#
 
 struct Conv2dLayer(Layer, Copyable, Movable):
     """

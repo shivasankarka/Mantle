@@ -1,3 +1,14 @@
+# ===----------------------------------------------------------------------=== #
+# Mantle: Dynamic Ops
+# Distributed under the Apache 2.0 License with LLVM Exceptions.
+# See LICENSE and the LLVM License for more information.
+# https://github.com/Mojo-Numerics-and-Algorithms-group/NuMojo/blob/main/LICENSE
+# https://llvm.org/LICENSE.txt
+#  ===----------------------------------------------------------------------=== #
+"""Dynamic Ops (mantle.autograd.ops.dynamics)
+------------------------------------------------
+Variable-input/output operators (CONCAT, SPLIT) with forward and backward passes.
+"""
 from mantle import f32
 from mantle.autograd.symbol import Symbol
 from mantle.core.tensor import Tensor, TensorShape
@@ -6,6 +17,10 @@ from mantle.autograd.attributes import AttributeVector
 
 from std.memory import memcpy
 
+
+# ===----------------------------------------------------------------------===#
+# CONCAT
+# ===----------------------------------------------------------------------===#
 
 struct CONCAT:
     @staticmethod

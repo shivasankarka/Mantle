@@ -27,6 +27,10 @@ comptime MAX_NAME_CHARS = 16
 comptime MAX_DATA_BYTES = 32
 
 
+# ===----------------------------------------------------------------------===#
+# AttributeType
+# ===----------------------------------------------------------------------===#
+
 struct AttributeType(TrivialRegisterPassable, Writable):
     comptime BOOL = AttributeType(0, "BOOL")
     comptime INT = AttributeType(1, "INT")
@@ -56,6 +60,10 @@ struct AttributeType(TrivialRegisterPassable, Writable):
     def __str__(self) -> String:
         return String(self.name)
 
+
+# ===----------------------------------------------------------------------===#
+# AttributeVector
+# ===----------------------------------------------------------------------===#
 
 struct AttributeVector(
     Copyable, Movable, Sized, TrivialRegisterPassable, Writable
@@ -92,6 +100,10 @@ struct AttributeVector(
                 s += ", "
         return s + "]"
 
+
+# ===----------------------------------------------------------------------===#
+# Attribute
+# ===----------------------------------------------------------------------===#
 
 struct Attribute(Copyable, Movable, TrivialRegisterPassable, Writable):
     var data_shape: IndexList[MAX_RANK]

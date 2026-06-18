@@ -1,9 +1,24 @@
+# ===----------------------------------------------------------------------=== #
+# Mantle: Pooling Ops
+# Distributed under the Apache 2.0 License with LLVM Exceptions.
+# See LICENSE and the LLVM License for more information.
+# https://github.com/Mojo-Numerics-and-Algorithms-group/NuMojo/blob/main/LICENSE
+# https://llvm.org/LICENSE.txt
+#  ===----------------------------------------------------------------------=== #
+"""Pool Ops (mantle.autograd.ops.pool)
+------------------------------------------------
+2D Max Pooling forward and backward passes.
+"""
 from std.utils.numerics import min_or_neg_inf
 
 from mantle.core.tensor import Tensor, TensorShape
 from mantle.autograd.attributes import AttributeVector
 from mantle.autograd.ops.conv import get_result_shape
 
+
+# ===----------------------------------------------------------------------===#
+# MAXPOOL2D
+# ===----------------------------------------------------------------------===#
 
 struct MAXPOOL2D:
     @staticmethod

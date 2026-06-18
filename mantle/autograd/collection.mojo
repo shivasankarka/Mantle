@@ -1,3 +1,14 @@
+# ===----------------------------------------------------------------------=== #
+# Mantle: Collection
+# Distributed under the Apache 2.0 License with LLVM Exceptions.
+# See LICENSE and the LLVM License for more information.
+# https://github.com/Mojo-Numerics-and-Algorithms-group/NuMojo/blob/main/LICENSE
+# https://llvm.org/LICENSE.txt
+#  ===----------------------------------------------------------------------=== #
+"""Collection (mantle.autograd.collection)
+------------------------------------------------
+Symbol-keyed tensor arena for dense O(1) tensor storage and lookup by symbol id.
+"""
 from std.collections.optional import Optional
 from std.memory.unsafe_pointer import UnsafePointer
 from std.memory import memset_zero, memcpy
@@ -5,6 +16,10 @@ from std.memory import memset_zero, memcpy
 from mantle.autograd.symbol import Symbol
 from mantle.core.tensor import Tensor
 
+
+# ===----------------------------------------------------------------------===#
+# Collection
+# ===----------------------------------------------------------------------===#
 
 struct Collection(Copyable, Movable, Sized):
     """

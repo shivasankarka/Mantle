@@ -1,3 +1,14 @@
+# ===----------------------------------------------------------------------=== #
+# Mantle: ML Ops
+# Distributed under the Apache 2.0 License with LLVM Exceptions.
+# See LICENSE and the LLVM License for more information.
+# https://github.com/Mojo-Numerics-and-Algorithms-group/NuMojo/blob/main/LICENSE
+# https://llvm.org/LICENSE.txt
+#  ===----------------------------------------------------------------------=== #
+"""ML Ops (mantle.autograd.ops.mlops)
+------------------------------------------------
+Forward and backward implementations for activation and shape-modifying ops.
+"""
 from std.algorithm import vectorize, parallelize
 from std.math import exp
 from std.utils.numerics import min_finite, max_finite
@@ -8,6 +19,10 @@ from mantle.core.tensor import Tensor, TensorShape, MAX_RANK
 from mantle.core.tensorutils import elwise_transform
 from mantle.autograd.attributes import Attribute, AttributeVector
 
+
+# ===----------------------------------------------------------------------===#
+# SIGMOID
+# ===----------------------------------------------------------------------===#
 
 struct SIGMOID(Copyable, Movable):
     @staticmethod

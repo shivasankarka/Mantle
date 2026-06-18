@@ -1,9 +1,24 @@
+# ===----------------------------------------------------------------------=== #
+# Mantle: DataLoader
+# Distributed under the Apache 2.0 License with LLVM Exceptions.
+# See LICENSE and the LLVM License for more information.
+# https://github.com/Mojo-Numerics-and-Algorithms-group/NuMojo/blob/main/LICENSE
+# https://llvm.org/LICENSE.txt
+#  ===----------------------------------------------------------------------=== #
+"""DataLoader (mantle.data.dataloader)
+------------------------------------------------
+Mini-batch iteration and row-slicing utilities.
+"""
 from std.testing import assert_equal
 from std.memory import memcpy
 
 from mantle import f32, nelts
 from mantle.core.tensor import Tensor, TensorShape
 
+
+# ===----------------------------------------------------------------------===#
+# Slice Rows
+# ===----------------------------------------------------------------------===#
 
 def slice_rows[
     dtype: DType
@@ -64,6 +79,10 @@ def cycle_pad_rows[
     return out^
 
 
+# ===----------------------------------------------------------------------===#
+# Batch
+# ===----------------------------------------------------------------------===#
+
 struct Batch[dtype: DType](Copyable, Movable):
     var data: Tensor[Self.dtype]
     var labels: Tensor[Self.dtype]
@@ -108,6 +127,10 @@ struct Batch[dtype: DType](Copyable, Movable):
             print("[ERROR] Batch.__getitem__(): Index out of bounds")
             return Tensor[Self.dtype]()
 
+
+# ===----------------------------------------------------------------------===#
+# DataLoader
+# ===----------------------------------------------------------------------===#
 
 struct DataLoader(Copyable, Movable):
     var data: Tensor[f32]

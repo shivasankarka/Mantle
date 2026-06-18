@@ -1,3 +1,14 @@
+# ===----------------------------------------------------------------------=== #
+# Mantle: Convolution Ops
+# Distributed under the Apache 2.0 License with LLVM Exceptions.
+# See LICENSE and the LLVM License for more information.
+# https://github.com/Mojo-Numerics-and-Algorithms-group/NuMojo/blob/main/LICENSE
+# https://llvm.org/LICENSE.txt
+#  ===----------------------------------------------------------------------=== #
+"""Conv Ops (mantle.autograd.ops.conv)
+------------------------------------------------
+im2col-based 2D convolution with forward and backward passes.
+"""
 from mantle.core.tensor import Tensor, TensorShape
 from mantle.autograd.attributes import AttributeVector
 
@@ -5,6 +16,10 @@ from std.algorithm import parallelize, vectorize
 from std.utils.index import IndexList
 from std.memory import memset_zero, UnsafePointer
 
+
+# ===----------------------------------------------------------------------===#
+# Shape Helpers
+# ===----------------------------------------------------------------------===#
 
 @always_inline
 def get_result_shape(
