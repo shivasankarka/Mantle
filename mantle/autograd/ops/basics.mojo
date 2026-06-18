@@ -1,3 +1,15 @@
+# ===----------------------------------------------------------------------=== #
+# Mantle
+# Distributed under the Apache 2.0 License with LLVM Exceptions.
+# See LICENSE and the LLVM License for more information.
+# https://github.com/Mojo-Numerics-and-Algorithms-group/NuMojo/blob/main/LICENSE
+# https://llvm.org/LICENSE.txt
+#  ===----------------------------------------------------------------------=== #
+"""Basic tensor ops (mantle.autograd.ops.basics)
+------------------------------------------------
+This file provides forward and backward implementations for basic tensor operations such as addition, subtraction, multiplication,
+division, dot product, exponentiation, logarithm, power, sum, mean, max, transpose, flatten, reshape and fused multiply-add (FMA).
+"""
 from std.algorithm import vectorize
 from std.memory import memcpy
 from std.utils.numerics import isinf
@@ -9,10 +21,9 @@ from mantle.autograd.ops.matmul import dot, dot_transpose_t1, dot_transpose_t2
 from mantle.utils.math_util import add, sub, mul, div, exp, log
 
 
-# """
-# Implement forward and backward operations for basic tensor manipulations.
-# """
-
+# ===----------------------------------------------------------------------===#
+# Forward/Backward operations for basic tensor ops
+# ===----------------------------------------------------------------------===#
 
 struct ADD:
     @staticmethod

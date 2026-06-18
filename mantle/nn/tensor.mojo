@@ -1,3 +1,16 @@
+# ===----------------------------------------------------------------------=== #
+# Mantle: Tensor
+# Distributed under the Apache 2.0 License with LLVM Exceptions.
+# See LICENSE and the LLVM License for more information.
+# https://github.com/Mojo-Numerics-and-Algorithms-group/NuMojo/blob/main/LICENSE
+# https://llvm.org/LICENSE.txt
+#  ===----------------------------------------------------------------------=== #
+"""Tensor (mantle.nn.tensor)
+------------------------------------------------
+This module defines the `Tensor` struct, which represents a multi-dimensional array of data. It also defines the `TensorShape` struct,
+which represents the shape of a tensor. The `Tensor` struct includes reference counting for memory management and supports basic
+operations such as indexing, reshaping, and zeroing out the data.
+"""
 from std.testing import assert_true
 from std.algorithm import vectorize
 from std.atomic import Atomic, Ordering, fence
@@ -5,7 +18,12 @@ from std.utils.index import IndexList
 from std.memory import memset_zero, memcpy, UnsafePointer
 
 comptime MAX_RANK = 8
+"""Max rank of a tensor."""
+# TODO: make it an explicit input to Tensor
 
+# ===----------------------------------------------------------------------===#
+# TensorShape
+# ===----------------------------------------------------------------------===#
 
 struct TensorShape(Equatable, TrivialRegisterPassable, Writable):
     var _rank: Int
@@ -105,6 +123,10 @@ struct TensorShape(Equatable, TrivialRegisterPassable, Writable):
         """
         writer.write(self.__str__())
 
+
+# ===----------------------------------------------------------------------===#
+# Tensor
+# ===----------------------------------------------------------------------===#
 
 struct Tensor[dtype: DType](Copyable, Movable, Writable):
     var _data: UnsafePointer[Scalar[Self.dtype], MutUntrackedOrigin]
