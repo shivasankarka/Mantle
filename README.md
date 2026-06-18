@@ -1,120 +1,195 @@
 <br/>
 <p align="center">
-  <a href="https://github.com/Basalt-Org/Basalt">
-    <img src="https://github.com/basalt-org/basalt/assets/46826967/4873806c-ff61-4903-bf3d-874d6acba3e8" alt="Logo" width="200" height="200">
+  <a href="https://github.com/shivasankarka/mantle#">
+    <img src="./assets/mantle.png" alt="Logo" width="300" height="300">
   </a>
 
-  <h1 align="center">Basalt</h1>
+  <h1 align="center">Mantle</h1>
 
   <p align="center">
-    A Machine Learning framework from scratch in pure Mojo 🔥
+    A Mojo🔥-native machine learning framework built from the ground up for performance and flexibility.
   </p>
 </p>
 
 <div align="center">
-  <img src="https://img.shields.io/github/contributors/Basalt-Org/Basalt?color=dark-green" />
-  <img src="https://img.shields.io/github/issues/Basalt-Org/Basalt?color=dark-green" />
-  <img src="https://img.shields.io/github/license/Basalt-Org/Basalt?color=dark-green" />
+  <a href="https://github.com/shivasankarka/mantle/graphs/contributors">
+    <img src="https://img.shields.io/github/contributors/shivasankarka/mantle?color=dark-green" />
+  </a>
+
+  <a href="https://github.com/shivasankarka/mantle/issues">
+    <img src="https://img.shields.io/github/issues/shivasankarka/mantle?color=dark-green" />
+  </a>
+
+  <a href="https://github.com/shivasankarka/mantle/blob/main/LICENSE">
+    <img src="https://img.shields.io/github/license/shivasankarka/mantle?color=dark-green" />
+  </a>
 </div>
 
+---
+
+> [!NOTE]
+> This repository is an actively maintained continuation of the original Basalta project.
+>
+> The original Mantle repository introduced one of the earliest machine learning frameworks built entirely in Mojo. This repository preserves that work and its history while updating the codebase for modern Mojo releases, improving the framework architecture, and introducing new features and functionality.
+>
+> We would like to thank the original authors and contributors whose work made this project possible.
 
 ## About The Project
 
-Basalt is a stand-alone machine learning framework that leverages the power of Mojo.
+Mantle is a machine learning framework built entirely in Mojo.
 
-As [discussed](https://docs.modular.com/mojo/why-mojo) by Modular, Mojo is a language for the future of AI development. Built on top of MLIR technology, rather than existing GCC and LLVM approaches, Mojo looks and feels like Python code, yet performs much closer to languages like Rust or C++. Parametric functions and compile time parameters allow for the graph to statically compiled. Having the static graph allows for much harder performance optimizations.
+Designed specifically for the Mojo ecosystem, Mantle provides the core building blocks needed to develop, train, and deploy machine learning models while taking advantage of Mojo's performance-oriented design. Rather than wrapping existing frameworks, Mantle is implemented natively in Mojo from the ground up, giving developers direct access to the language's strengths in performance, compile-time specialization, and low-level control.
 
-Basalt, while still in its infancy, is able to achieve speeds comparable to well established frameworks like Pytorch. Below a snapshot of the current benchmarks. But keep posted, there is much more room for improvement and we are upgrading the project on a daily basis.
+Originally derived from the Basalt project, Mantle continues development with support for modern Mojo releases, improved APIs, expanded operator coverage, and a stronger foundation for future machine learning workloads.
 
-![basalt_benchmark](https://github.com/basalt-org/basalt/assets/46826967/83037770-a9e3-440d-bdca-f51af0aebee0)
+Current areas of focus include:
 
+* Native Mojo-first machine learning APIs
+* High-performance tensor operations
+* Neural network layers and training utilities
+* Improved model-building ergonomics
+* Expanded operator and activation support
+* Long-term maintainability and active development
+
+As Mojo continues to evolve, Mantle aims to become a comprehensive machine learning toolkit for the ecosystem—providing a familiar developer experience while exploring new opportunities enabled by a language designed specifically for AI and high-performance computing.
+
+### Benchmarks
+
+Mantle is capable of achieving performance comparable to established frameworks such as PyTorch on a number of workloads, and there is still significant room for further optimization as Mojo continues to evolve.
+
+![basalt\_benchmark](https://github.com/basalt-org/basalt/assets/46826967/83037770-a9e3-440d-bdca-f51af0aebee0)
 
 ## Quick Start
 
-Try out the benchmarks yourself:
+Run the example models:
 
-```
+```bash
 mojo -I . examples/housing.mojo
 ```
-```
+
+```bash
 mojo -I . examples/sin_estimate.mojo
 ```
-```
+
+```bash
 mojo -I . examples/mnist.mojo
 ```
 
-Compare to the alternative PyTorch implementation:  
-Make sure to install the requirements in `python-requirements.txt` in your python environment.
+Compare against the equivalent PyTorch implementations.
 
-```
+Install the dependencies and run:
+
+```bash
 python examples/housing.py
 python examples/sin_estimate.py
 python examples/mnist.py
 ```
 
-Each of the three examples above also has two alternate versions showing newer,
-more PyTorch/sklearn-like ways to define a model - same training results, different
-model-definition ergonomics:
+Each example also includes alternate model-definition styles inspired by PyTorch and scikit-learn:
 
-```
-mojo -I . examples/housing_module.mojo       # reflection-based struct-of-layers
-mojo -I . examples/housing_sequential.mojo   # Sequential(Linear(...), ReLU(), ...)
+```bash
+mojo -I . examples/housing_module.mojo
+mojo -I . examples/housing_sequential.mojo
 ```
 
-(and likewise `sin_estimate_module.mojo`/`_sequential.mojo`, `mnist_module.mojo`/`_sequential.mojo`)
+Likewise:
+
+* `sin_estimate_module.mojo`
+* `sin_estimate_sequential.mojo`
+* `mnist_module.mojo`
+* `mnist_sequential.mojo`
+
+These variants produce equivalent training results while demonstrating different approaches to model construction.
 
 ## Roadmap
 
-See `ROADMAP.md` for the current, detailed plan (graph-building ergonomics,
-training utilities, operator coverage). Short version below.
+See `ROADMAP.md` for the current detailed roadmap.
 
-### v0.1.0 ✅
-- [x] Improve matrix multiplication and convolution kernels
-- [x] Switch to custom Tensor and TensorShape implementations
-- [x] Improve benchmarks and overall model execution performance
-- [x] Add profiling and additional performance tests
+### Current Focus
 
-### v0.2.0 (WIP)
-- [x] Reflection-based and `Sequential` model-building styles (see `ROADMAP.md`)
-- [ ] `fit()`-style high-level training loop
-- [ ] Add additional operators: Slice, (Un)Squeeze, Concat, Clip, Gather, Split, FMA ...
-- [ ] Better layer support and more activation functions
-- [ ] Graph submodules & graph concatenation
-- [ ] Computer vision benchmark. 
+* [x] Reflection-based model building
+* [x] Sequential model construction API
+* [x] Custom Tensor and TensorShape implementations
+* [x] Kernel and operator performance improvements
+* [x] Profiling and benchmarking infrastructure
 
-### Long-Term
-- [ ] Better parallelization
-- [ ] GPU support
-- [ ] Reworked Dataloader
-- [ ] Autotuning and related features
-- [ ] Graph compilation optimizations
-- [ ] Operator fusion
-- [ ] ONNX / Max compatibility
+### In Progress
+
+* [ ] High-level `fit()` training API
+* [ ] Additional tensor operators
+* [ ] Expanded layer library
+* [ ] Additional activation functions
+* [ ] Graph submodules and composition
+* [ ] Computer vision benchmarks
+
+### Long-Term Goals
+
+* [ ] Better parallelization support
+* [ ] GPU acceleration
+* [ ] Reworked dataloading pipeline
+* [ ] Autotuning
+* [ ] Graph compilation optimizations
+* [ ] Operator fusion
+* [ ] ONNX interoperability
+* [ ] MAX ecosystem compatibility
 
 ## Contributing
 
-Basalt is built by community efforts and relies on your expertise and enthousiasm!  
-Small fixes and improvements are much appreciated. If you are considering larger contributions, feel free to contact us for a smoother communication channel on Discord. If you find a bug or have an idea for a feature, please use our issue tracker. Before creating a new issue, please:
-* Check if the issue already exists. If an issue is already reported, you can contribute by commenting on the existing issue.
-* If not, create a new issue and include all the necessary details to understand/recreate the problem or feature request.
+Mantle is a community-driven project and contributions of all sizes are welcome.
+
+If you discover a bug, have an idea for a feature, or would like to contribute code, please open an issue or discussion first for larger changes.
+
+Before opening a new issue:
+
+* Check whether the issue has already been reported.
+* Provide steps to reproduce bugs whenever possible.
+* Include sufficient context for feature requests.
 
 ### Creating A Pull Request
 
-1. Fork the Project
-2. Create your Feature Branch
-3. Commit your Changes
-4. Push to the Branch
-5. Open a Pull Request
-> Once your changes are pushed, navigate to your fork on GitHub. And create a pull request against the original basalt-org/basalt repository.
-> - Before creating a PR make sure it doesn't break any of the unit-tests. (e.g. `mojo run -I . test/test_ops.mojo`)
-> - Introducing new big features requires a new test!
-> - In the pull request, provide a detailed description of the changes and why they're needed. Link any relevant issues.
-> - If there are any specific instructions for testing or validating your changes, include those as well.
+1. Fork the repository
+2. Create a feature branch
+3. Commit your changes
+4. Push your branch
+5. Open a pull request
+
+Before submitting:
+
+* Ensure existing tests pass.
+* Add tests for significant new functionality.
+* Provide a clear explanation of the changes.
+* Link any relevant issues or discussions.
+* Include any special testing instructions if applicable.
+
+Example test command:
+
+```bash
+mojo run -I . test/test_ops.mojo
+```
+
+## Origins
+
+This project originated from the original [Basalt](https://github.com/basalt-org/basalt/tree/main) repository and preserves its commit history.
+
+The original project demonstrated the potential of machine learning frameworks written entirely in Mojo and helped establish many of the ideas that continue to guide development today.
+
+Since the original repository became inactive, development has continued here with support for newer Mojo versions, architectural improvements, bug fixes, expanded functionality, and ongoing maintenance.
+
+We are grateful to all original Basalt contributors for their work and contributions.
 
 ## License
 
-Distributed under the Apache 2.0 License with LLVM Exceptions. See [LICENSE](https://github.com/Basalt-Org/Basalt/blob/main/LICENSE) and the LLVM [License](https://llvm.org/LICENSE.txt) for more information.
+Distributed under the Apache 2.0 License with LLVM Exceptions.
+
+See:
+
+* `LICENSE`
+* LLVM License: https://llvm.org/LICENSE.txt
+
+for additional details.
 
 ## Acknowledgements
 
-* Built with [Mojo](https://github.com/modularml/mojo) created by [Modular](https://github.com/modularml)
+* Built with Mojo by Modular
+* Thanks to the original Basalt authors and contributors
+* Thanks to everyone who continues to contribute to the project
