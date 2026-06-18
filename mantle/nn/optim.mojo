@@ -12,6 +12,12 @@ from mantle.utils.math_util import add, sub, mul, div
 def get_trainable_parameters(g: Graph) -> List[Symbol]:
     """
     Get all symbols of trainable parameters.
+
+    Args:
+        g: The computational graph.
+
+    Returns:
+        A list of symbols corresponding to trainable parameters.
     """
 
     var trainable_parameters = List[Symbol]()

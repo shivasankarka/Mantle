@@ -1,10 +1,22 @@
+# ===----------------------------------------------------------------------=== #
+# Mantle: A high performance machine learning framework written in pure mojo.
+# Distributed under the Apache 2.0 License with LLVM Exceptions.
+# See LICENSE and the LLVM License for more information.
+# https://github.com/Mojo-Numerics-and-Algorithms-group/NuMojo/blob/main/LICENSE
+# https://llvm.org/LICENSE.txt
+#  ===----------------------------------------------------------------------=== #
+"""Bytes (mantle.utils.bytes)
+------------------------------------------------
+This module defines the `Bytes` struct, which represents a static sequence of bytes.
+It also provides functions to convert between scalar values and their byte representations.
+"""
 from std.math import nan
 from std.sys.info import size_of
 from std.utils.numerics import inf
 from std.utils.static_tuple import StaticTuple
 
 comptime ScalarBytes = size_of[DType.uint64]()
-
+"""Number of bytes required to represent a scalar value (64 bits)."""
 
 struct Bytes[capacity: Int](
     Copyable, Equatable, Movable, TrivialRegisterPassable, Writable
@@ -71,12 +83,24 @@ struct Bytes[capacity: Int](
 
 
 def scalar_to_bytes[
-    dtype: DType, Size: Int = ScalarBytes
-](value: Scalar[dtype]) -> Bytes[Size]:
-    comptime assert Size >= ScalarBytes, "Size must be at least ${ScalarBytes}"
+    dtype: DType, size: Int = ScalarBytes
+](value: Scalar[dtype]) -> Bytes[size]:
+    """Convert a scalar value to its byte representation.
+
+    Parameters:
+        dtype: The data type of the scalar value.
+        size: The number of bytes to represent the scalar value (default is 8 bytes for 64-bit types).
+
+    Args:
+        value: The scalar value to convert.
+
+    Returns:
+        A `Bytes` instance containing the byte representation of the scalar value.
+    """
+    comptime assert size >= ScalarBytes, "Size must be at least ${ScalarBytes}"
 
     var bits = bitcast[DType.uint64](value.cast[expand_type[dtype]()]())
-    var data = Bytes[Size]()
+    var data = Bytes[size]()
 
     for i in range(ScalarBytes):
         data[i] = (bits >> UInt64((i << 3))).cast[DType.uint8]()
