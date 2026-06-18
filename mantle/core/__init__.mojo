@@ -1,3 +1,14 @@
+# ===----------------------------------------------------------------------=== #
+# Mantle: Core
+# Distributed under the Apache 2.0 License with LLVM Exceptions.
+# See LICENSE and the LLVM License for more information.
+# https://github.com/Mojo-Numerics-and-Algorithms-group/NuMojo/blob/main/LICENSE
+# https://llvm.org/LICENSE.txt
+#  ===----------------------------------------------------------------------=== #
+"""Core (mantle.core)
+------------------------------------------------
+Foundation types and utilities with zero dependencies on other mantle packages.
+"""
 from .tensor import Tensor, TensorShape
 from .math_util import q_sqrt
 from .bytes import Bytes, scalar_to_bytes, bytes_to_scalar

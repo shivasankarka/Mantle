@@ -1,6 +1,21 @@
+# ===----------------------------------------------------------------------=== #
+# Mantle: Math Utilities
+# Distributed under the Apache 2.0 License with LLVM Exceptions.
+# See LICENSE and the LLVM License for more information.
+# https://github.com/Mojo-Numerics-and-Algorithms-group/NuMojo/blob/main/LICENSE
+# https://llvm.org/LICENSE.txt
+#  ===----------------------------------------------------------------------=== #
+"""Math Util (mantle.core.math_util)
+------------------------------------------------
+SIMD math wrappers for arithmetic and transcendental operations.
+"""
 from std.math import exp as _std_exp, log as _std_log, sqrt as _std_sqrt
 from std.memory.unsafe import bitcast
 
+
+# ===----------------------------------------------------------------------===#
+# Fast Inverse Square Root
+# ===----------------------------------------------------------------------===#
 
 @always_inline("nodebug")
 def q_sqrt(value: Float32) -> Float32:

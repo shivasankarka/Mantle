@@ -1,3 +1,15 @@
+# ===----------------------------------------------------------------------=== #
+# Mantle: Attributes
+# Distributed under the Apache 2.0 License with LLVM Exceptions.
+# See LICENSE and the LLVM License for more information.
+# https://github.com/Mojo-Numerics-and-Algorithms-group/NuMojo/blob/main/LICENSE
+# https://llvm.org/LICENSE.txt
+#  ===----------------------------------------------------------------------=== #
+"""Attributes (mantle.autograd.attributes)
+------------------------------------------------
+Typed key-value metadata attached to graph nodes (e.g., stride, padding, axis).
+Uses fixed-size byte buffers for storage.
+"""
 from std.collections import Optional, OptionalReg
 from std.utils.static_tuple import StaticTuple
 from std.utils.index import IndexList
@@ -5,13 +17,10 @@ from std.utils.index import IndexList
 from mantle.core.tensor import Tensor, TensorShape, MAX_RANK
 from mantle.core.bytes import Bytes, scalar_to_bytes, bytes_to_scalar
 
-# Figure out what this attribute does in this code.
-# 1) AttributeType seems to be defining some container for the type being used with fixed size
-#
-#
-#
-#
 
+# ===----------------------------------------------------------------------===#
+# Constants
+# ===----------------------------------------------------------------------===#
 
 comptime MAX_ATTRS = 10
 comptime MAX_NAME_CHARS = 16

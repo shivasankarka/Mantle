@@ -1,7 +1,21 @@
+# ===----------------------------------------------------------------------=== #
+# Mantle: Symbol
+# Distributed under the Apache 2.0 License with LLVM Exceptions.
+# See LICENSE and the LLVM License for more information.
+# https://github.com/Mojo-Numerics-and-Algorithms-group/NuMojo/blob/main/LICENSE
+# https://llvm.org/LICENSE.txt
+#  ===----------------------------------------------------------------------=== #
+"""Symbol (mantle.autograd.symbol)
+------------------------------------------------
+Represents a named typed tensor in the compute graph, used as data-flow tokens
+between graph nodes.
+"""
 from mantle.core.tensor import Tensor, TensorShape
 
-# I don't know what's the shape doing yet and why there's no initializer
 
+# ===----------------------------------------------------------------------===#
+# Symbol
+# ===----------------------------------------------------------------------===#
 
 @fieldwise_init
 struct Symbol(

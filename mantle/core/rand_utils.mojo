@@ -1,9 +1,24 @@
+# ===----------------------------------------------------------------------=== #
+# Mantle: Random Utilities
+# Distributed under the Apache 2.0 License with LLVM Exceptions.
+# See LICENSE and the LLVM License for more information.
+# https://github.com/Mojo-Numerics-and-Algorithms-group/NuMojo/blob/main/LICENSE
+# https://llvm.org/LICENSE.txt
+#  ===----------------------------------------------------------------------=== #
+"""Random Utils (mantle.core.rand_utils)
+------------------------------------------------
+Random number generation utilities for tensor initialization and stochastic operations.
+"""
 from std.random import rand, randn
 from std.algorithm import vectorize
 from std.utils.static_tuple import StaticTuple
 
 from mantle.core.tensor import Tensor
 
+
+# ===----------------------------------------------------------------------===#
+# Tensor Initialization
+# ===----------------------------------------------------------------------===#
 
 @always_inline
 def rand_uniform[

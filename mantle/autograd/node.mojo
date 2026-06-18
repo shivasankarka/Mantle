@@ -1,3 +1,15 @@
+# ===----------------------------------------------------------------------=== #
+# Mantle: Node
+# Distributed under the Apache 2.0 License with LLVM Exceptions.
+# See LICENSE and the LLVM License for more information.
+# https://github.com/Mojo-Numerics-and-Algorithms-group/NuMojo/blob/main/LICENSE
+# https://llvm.org/LICENSE.txt
+#  ===----------------------------------------------------------------------=== #
+"""Node (mantle.autograd.node)
+------------------------------------------------
+Represents an operator node in the compute graph, connecting input and output
+symbols with an operator type and optional attributes.
+"""
 from std.collections.optional import Optional
 from std.utils.variant import Variant
 
@@ -5,6 +17,10 @@ from mantle.autograd.symbol import Symbol
 from mantle.autograd.ops import OP
 from mantle.autograd.attributes import AttributeVector
 
+
+# ===----------------------------------------------------------------------===#
+# Node
+# ===----------------------------------------------------------------------===#
 
 struct Node(Copyable, Movable, Writable):
     var operator: OP

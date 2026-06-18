@@ -1,9 +1,24 @@
+# ===----------------------------------------------------------------------=== #
+# Mantle: Performance Utilities
+# Distributed under the Apache 2.0 License with LLVM Exceptions.
+# See LICENSE and the LLVM License for more information.
+# https://github.com/Mojo-Numerics-and-Algorithms-group/NuMojo/blob/main/LICENSE
+# https://llvm.org/LICENSE.txt
+#  ===----------------------------------------------------------------------=== #
+"""Perf Utils (mantle.autograd.perf_utils)
+------------------------------------------------
+Per-node forward/backward timing utilities for profiling compute graph execution.
+"""
 from std.time import perf_counter_ns as now
 from std.memory import UnsafePointer, memcpy, memset
 
 from mantle.autograd.node import Node
 from mantle.autograd.graph import Graph
 
+
+# ===----------------------------------------------------------------------===#
+# String Helpers
+# ===----------------------------------------------------------------------===#
 
 @always_inline("nodebug")
 def fit_string[num: Int](s: String) -> String:
