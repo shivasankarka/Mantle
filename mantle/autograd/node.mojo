@@ -16,6 +16,14 @@ from std.utils.variant import Variant
 from mantle.autograd.symbol import Symbol
 from mantle.autograd.ops import OP
 from mantle.autograd.attributes import AttributeVector
+from mantle.core.bytes import Bytes
+
+
+# ===----------------------------------------------------------------------===#
+# Constants
+# ===----------------------------------------------------------------------===#
+
+comptime SCOPE_MAX = 32
 
 
 # ===----------------------------------------------------------------------===#
@@ -27,6 +35,7 @@ struct Node(Copyable, Movable, Writable):
     var inputs: List[Symbol]
     var outputs: List[Symbol]
     var attributes: AttributeVector
+    var scope: Bytes[SCOPE_MAX]
 
     def __init__(
         out self,
@@ -34,11 +43,13 @@ struct Node(Copyable, Movable, Writable):
         inputs: List[Symbol],
         outputs: List[Symbol],
         attributes: AttributeVector = AttributeVector(),
+        scope: Bytes[SCOPE_MAX] = Bytes[SCOPE_MAX](),
     ):
         self.operator = operator
         self.inputs = inputs.copy()
         self.outputs = outputs.copy()
         self.attributes = attributes
+        self.scope = scope
 
     def __str__(self) -> String:
         return self.json()
