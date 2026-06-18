@@ -11,6 +11,7 @@ Compute graph builder: manages symbols, parameters, nodes, and graph compilation
 """
 from std.python.python import Python
 from std.collections.optional import Optional, OptionalReg
+from std.collections.set import Set
 
 from mantle.autograd.node import Node
 from mantle.autograd.attributes import AttributeVector, Attribute
@@ -429,6 +430,36 @@ struct Graph(Copyable, ImplicitlyCopyable, Movable):
             print("  Loss: s" + String(self.loss_out.value().name))
 
     def compile(mut self):
+        var changed: Bool = True
+        while changed:
+            changed = False
+            var consumed = Set[UInt32]()
+            for sym in self.outputs:
+                consumed.add(sym.name)
+                print("Consuming output symbol s" + sym.name)
+            if self.loss_out:
+                consumed.add(self.loss_out.value().name)
+                print("Consuming loss symbol s" + self.loss_out.value().name)
+            for i in range(len(self.nodes)):
+                for j in range(len(self.nodes[i].inputs)):
+                    consumed.add(self.nodes[i].inputs[j].name)
+
+            var keep = List[Node]()
+            for i in range(len(self.nodes)):
+                var all_dead = True
+                for j in range(len(self.nodes[i].outputs)):
+                    var temp_set = Set[UInt32](self.nodes[i].outputs[j].name)
+                    if consumed.intersection(temp_set):
+                        all_dead = False
+                        break
+                if not all_dead:
+                    keep.append(self.nodes[i].copy())
+                else:
+                    changed = True
+                    print("Pruning node " + String(self.nodes[i].operator)
+
+            self.nodes = keep^
+
         # 0. Sorting the graph
         # The staticlly defined graph has an implicit topological sorted order because,
         # each new operation is added the list of nodes after its dependencies have been calculated.
@@ -457,4 +488,4 @@ struct Graph(Copyable, ImplicitlyCopyable, Movable):
         #       - Data layout from BCHW (batch, channel, height, width) to BHWC can lead to better utilization and efficiency
         # - VJP, JVP (for automatic differentiation)
 
-        pass
+        # pass
