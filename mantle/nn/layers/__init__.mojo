@@ -12,3 +12,4 @@ Concrete neural network layer implementations (Linear, Conv2d, MaxPool2d).
 from .linear import Linear, LinearLayer
 from .conv import Conv2d, Conv2dLayer
 from .pool import MaxPool2d, MaxPool2dLayer
+from .dropout import Dropout, DropoutLayer

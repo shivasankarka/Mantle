@@ -16,6 +16,7 @@ from .module import Layer, build_graph, FlattenLayer, Sequential
 from .layers.linear import Linear, LinearLayer
 from .layers.conv import Conv2d, Conv2dLayer
 from .layers.pool import MaxPool2d, MaxPool2dLayer
+from .layers.dropout import Dropout, DropoutLayer
 
 from .loss import MSELoss, CrossEntropyLoss
 from .activations import (

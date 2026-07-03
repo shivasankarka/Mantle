@@ -35,6 +35,7 @@ from .mlops import (
     SQUEEZE,
     UNSQUEEZE,
     SLICE,
+    DROPOUT,
 )
 from .dynamics import CONCAT, SPLIT
 from .conv import CONV2D
@@ -80,6 +81,7 @@ struct OP(TrivialRegisterPassable, Writable):
     comptime CONCAT = OP(23, "CONCAT", dynamic=True)
     comptime SPLIT = OP(24, "SPLIT", dynamic=True)
     comptime SLICE = OP(25, "SLICE")
+    comptime DROPOUT = OP(26, "DROPOUT")
     comptime LEAKYRELU = OP(28, "LEAKYRELU")
 
     var id: UInt8
@@ -166,6 +168,8 @@ def static_result_shape(
         return UNSQUEEZE.result_shape(t1_shape, attributes)
     elif op == OP.SLICE:
         return SLICE.result_shape(t1_shape, attributes)
+    elif op == OP.DROPOUT:
+        return DROPOUT.result_shape(t1_shape)
     else:
         print("[ERROR] Operator not found.")
         return TensorShape(-1)
@@ -242,7 +246,12 @@ def dynamic_result_shape(
 
 def forward_op[
     op: OP, t1_shape: TensorShape, attributes: AttributeVector
-](mut res: Tensor[f32], t1: Tensor[f32]):
+](
+    mut res: Tensor[f32],
+    t1: Tensor[f32],
+    runtime_seed: UInt64 = 0,
+    training: Bool = True,
+):
     """
     Forward pass for unary operators.
     """
@@ -281,6 +290,8 @@ def forward_op[
         UNSQUEEZE.forward[t1_shape, attributes](res, t1)
     elif op == OP.SLICE:
         SLICE.forward[t1_shape, attributes](res, t1)
+    elif op == OP.DROPOUT:
+        DROPOUT.forward[t1_shape, attributes](res, t1, runtime_seed, training)
     else:
         print("[ERROR] Operator not found.")
 
@@ -358,7 +369,13 @@ def backward_op[
     ug_shape: TensorShape,
     t1_shape: TensorShape,
     attributes: AttributeVector,
-](ug: Tensor[f32], t1: Tensor[f32], mut grad: Tensor[f32]):
+](
+    ug: Tensor[f32],
+    t1: Tensor[f32],
+    mut grad: Tensor[f32],
+    runtime_seed: UInt64 = 0,
+    training: Bool = True,
+):
     """
     Backward pass for unary operators.
     """
@@ -398,6 +415,10 @@ def backward_op[
         res_grad = UNSQUEEZE.backward[ug_shape, t1_shape](ug, t1)
     elif op == OP.SLICE:
         res_grad = SLICE.backward[ug_shape, t1_shape, attributes](ug, t1)
+    elif op == OP.DROPOUT:
+        res_grad = DROPOUT.backward[ug_shape, t1_shape, attributes](
+            ug, t1, runtime_seed, training
+        )
     else:
         print("[ERROR] Operator not found.")
         res_grad = Tensor[f32](-1)

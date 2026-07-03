@@ -11,6 +11,7 @@ Graph executor for forward/backward passes with memory management and ONNX I/O.
 """
 from std.collections.optional import Optional, OptionalReg
 from std.pathlib import Path
+from std.random import random_ui64
 
 from mantle import f32
 from mantle.autograd.graph import Graph
@@ -57,9 +58,14 @@ struct Model[
     n_inference_nodes: OptionalReg[Int] = OptionalReg[Int](len(g.nodes)),
 ]():
     var parameters: Parameters
+    var step_seed: UInt64
+    """Seed drawn fresh on every `forward()` call and reused by the matching
+    `backward()` call, so stochastic ops (e.g. Dropout) get a different mask
+    per training step but backward reconstructs the same mask forward used."""
 
     def __init__(out self, inference_only: Bool = False):
         self.parameters = Parameters()
+        self.step_seed = 0
 
         self.allocate_tensor_memory()
         self.allocate_grad_memory()
@@ -92,15 +98,22 @@ struct Model[
         #   model.forward(batch.labels, batch.inputs)
 
         # 1. Execute a full forward pass (model inference + loss)
-        self.execute[len(Self.g.nodes)](t_inputs)
+        self.step_seed = random_ui64(0, UInt64.MAX)
+        self.execute[len(Self.g.nodes)](
+            t_inputs, self.step_seed, training=True
+        )
 
         # 2. Return loss from allocated output memory
         # TODO: known copy (reference?)
         return self.parameters.tensors[Self.g.loss_out.value()]
 
     def inference(mut self, *t_inputs: Tensor[f32]) -> List[Tensor[f32]]:
-        # 1. Execute forward pass up to model out
-        self.execute[Self.n_inference_nodes.value()](t_inputs)
+        # 1. Execute forward pass up to model out. training=False disables
+        # stochastic ops (e.g. Dropout becomes the identity function), as
+        # is standard for eval-mode inference.
+        self.execute[Self.n_inference_nodes.value()](
+            t_inputs, seed=0, training=False
+        )
 
         # 2. Return outputs from allocated output memory
         # TODO: known copies (reference?)
@@ -112,7 +125,12 @@ struct Model[
 
     def execute[
         num_nodes: Int
-    ](mut self, t_input: VariadicList[Tensor[f32], _]):
+    ](
+        mut self,
+        t_input: VariadicList[Tensor[f32], _],
+        seed: UInt64 = 0,
+        training: Bool = True,
+    ):
         # 1. Write inputs to allocated input memory
         comptime for i in range(len(Self.g.inputs)):
             comptime sym = Self.g.inputs[i]
@@ -150,6 +168,8 @@ struct Model[
                     forward_op[op, t1.shape, attrs](
                         self.parameters.tensors[out],
                         self.parameters.tensors[t1],
+                        seed,
+                        training,
                     )
                 elif num_operands == 2:
                     # Binary operator
@@ -237,6 +257,8 @@ struct Model[
                             self.parameters.grads[
                                 t1
                             ],  # grad to be updated: inputs[0]
+                            self.step_seed,
+                            True,  # training: backward only runs during training
                         )
 
                 elif num_operands == 2:
