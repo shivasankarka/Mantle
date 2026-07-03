@@ -654,3 +654,80 @@ struct SLICE:
         )
 
         return res_grad^
+
+# ===----------------------------------------------------------------------===#
+# Dropout
+# ===----------------------------------------------------------------------===#
+
+def _dropout_mask(seed: UInt64, idx: Int) -> Float32:
+    # splitmix64-style hash; keep all 64 bits of seed entropy through the
+    # mix step, otherwise folding straight to UInt32 drops the high bits
+    # of `seed` and masks collide far more than intended.
+    var h = seed ^ UInt64(idx)
+    h = (h ^ (h >> 33)) * 0xFF51AFD7ED558CCD
+    h = (h ^ (h >> 33)) * 0xC4CEB9FE1A85EC53
+    h = h ^ (h >> 33)
+    var h32 = UInt32(h & 0xFFFFFFFF)
+    return Float32(h32 & 0x007FFFFF) * (1.0 / Float32(0x00800000))
+
+
+struct DROPOUT:
+    @staticmethod
+    def result_shape(t_shape: TensorShape) -> TensorShape:
+        return t_shape
+
+    @staticmethod
+    def forward[
+        t_shape: TensorShape, attributes: AttributeVector
+    ](mut res: Tensor[f32], t: Tensor[f32], runtime_seed: UInt64, training: Bool):
+        """
+        Dropout forward: mask = dropout_mask(seed, i) < (1-p), res = t * mask / (1-p).
+        `runtime_seed` is mixed in fresh per call so masks differ across
+        training steps; backward is given the same `runtime_seed` to
+        reconstruct the identical mask. When `training` is False this is
+        the identity function, matching eval-mode dropout semantics.
+        """
+        if not training:
+            for i in range(t_shape.num_elements()):
+                res[i] = t[i]
+            return
+
+        var p = attributes["p"].value().to_scalar[f32]()
+        var base_seed = UInt64(
+            attributes["seed"].value().to_scalar[DType.int64]()
+        )
+        var seed = base_seed ^ runtime_seed
+        var scale: Float32 = 1.0 / (1.0 - p)
+        var keep: Float32 = 1.0 - p
+        for i in range(t_shape.num_elements()):
+            var r = _dropout_mask(seed, i)
+            if r < keep:
+                res[i] = t[i] * scale
+            else:
+                res[i] = Float32(0.0)
+
+    @staticmethod
+    def backward[
+        ug_shape: TensorShape, t_shape: TensorShape, attributes: AttributeVector
+    ](ug: Tensor[f32], t: Tensor[f32], runtime_seed: UInt64, training: Bool) -> Tensor[f32]:
+        var res_grad = Tensor[f32](ug_shape)
+
+        if not training:
+            for i in range(t_shape.num_elements()):
+                res_grad[i] = ug[i]
+            return res_grad^
+
+        var p = attributes["p"].value().to_scalar[f32]()
+        var base_seed = UInt64(
+            attributes["seed"].value().to_scalar[DType.int64]()
+        )
+        var seed = base_seed ^ runtime_seed
+        var scale: Float32 = 1.0 / (1.0 - p)
+        var keep: Float32 = 1.0 - p
+        for i in range(t_shape.num_elements()):
+            var r = _dropout_mask(seed, i)
+            if r < keep:
+                res_grad[i] = ug[i] * scale
+            else:
+                res_grad[i] = Float32(0.0)
+        return res_grad^
