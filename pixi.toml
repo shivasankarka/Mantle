@@ -14,14 +14,14 @@ format = { cmd = "mojo format mantle/" }
 precompile = { cmd = "mojo precompile mantle -o mantle.mojoc" }
 
 [dependencies]
-pytorch = ">=2.11.0,<3"
-torchvision = ">=0.26.0,<0.27"
+pytorch = ">=2.12.1,<3"
+torchvision = ">=0.27.1,<0.28"
 torchaudio = ">=2.11.0,<3"
-onnx = ">=1.21.0,<2"
+onnx = ">=1.22.0,<2"
 pandas = ">=3.0.3,<4"
-mojo = ">=1.0.0b3.dev2026061606,<2"
+mojo = ">=1.0.0b3.dev2026070206,<2"
 matplotlib = ">=3.11.0,<4"
-netron = ">=9.1.1,<10"
+netron = ">=9.1.3,<10"
 
 [pypi-dependencies]
 # torch = ">=2.5.1, <3"
