@@ -436,10 +436,8 @@ struct Graph(Copyable, ImplicitlyCopyable, Movable):
             var consumed = Set[UInt32]()
             for sym in self.outputs:
                 consumed.add(sym.name)
-                print("Consuming output symbol s" + sym.name)
             if self.loss_out:
                 consumed.add(self.loss_out.value().name)
-                print("Consuming loss symbol s" + self.loss_out.value().name)
             for i in range(len(self.nodes)):
                 for j in range(len(self.nodes[i].inputs)):
                     consumed.add(self.nodes[i].inputs[j].name)
@@ -456,7 +454,7 @@ struct Graph(Copyable, ImplicitlyCopyable, Movable):
                     keep.append(self.nodes[i].copy())
                 else:
                     changed = True
-                    print("Pruning node " + String(self.nodes[i].operator)
+                    print("Pruning node " + String(self.nodes[i].operator))
 
             self.nodes = keep^
 
