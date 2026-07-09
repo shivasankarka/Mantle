@@ -35,6 +35,12 @@ def initialize_tensor(
         var t = Tensor[f32](shape)
         rand_normal(t, mean=mean, std=std)
         return t^
+    elif type == "constant":
+        var value = data[0]
+        var t = Tensor[f32](shape)
+        for i in range(shape.num_elements()):
+            t[i] = value
+        return t^
     # elif type == "kaiming_uniform":
     #     # mode, nonlinearity
     #     var mode_id = data[0]
