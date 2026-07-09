@@ -10,7 +10,7 @@
 Forward and backward implementations for activation and shape-modifying ops.
 """
 from std.algorithm import vectorize, parallelize
-from std.math import exp
+from std.math import exp, sqrt
 from std.utils.numerics import min_finite, max_finite
 from std.memory import memcpy
 from std.utils.index import IndexList
@@ -670,6 +670,271 @@ def _dropout_mask(seed: UInt64, idx: Int) -> Float32:
     h = h ^ (h >> 33)
     var h32 = UInt32(h & 0xFFFFFFFF)
     return Float32(h32 & 0x007FFFFF) * (1.0 / Float32(0x00800000))
+
+
+# ===----------------------------------------------------------------------===#
+# BATCHNORM2D
+# ===----------------------------------------------------------------------===#
+
+struct BATCHNORM2D:
+    @staticmethod
+    def result_shape(
+        input_shape: TensorShape,
+        gamma_shape: TensorShape,
+        beta_shape: TensorShape,
+        attributes: AttributeVector,
+    ) -> TensorShape:
+        return input_shape
+
+    @staticmethod
+    def forward[
+        input_shape: TensorShape,
+        gamma_shape: TensorShape,
+        beta_shape: TensorShape,
+        attributes: AttributeVector,
+    ](
+        mut res: Tensor[f32],
+        inputs: Tensor[f32],
+        gamma: Tensor[f32],
+        beta: Tensor[f32],
+    ):
+        """
+        Batch Normalization forward pass.
+
+        Supports 2D [N, C] and 4D [N, C, H, W] inputs.
+        Normalizes over N (and H, W for 4D) per channel C.
+        gamma and beta are [C] shaped scale and shift parameters.
+        """
+        comptime eps_attr = attributes["epsilon"]
+        var epsilon = eps_attr.value().to_scalar[f32]() if eps_attr else Scalar[f32](1e-5)
+
+        comptime rank = input_shape.rank()
+        comptime N = input_shape[0]
+        comptime C = input_shape[1]
+
+        comptime if rank == 2:
+            # [N, C] — normalize over N per channel
+            comptime n_elements = N
+            for c in range(C):
+                var mean: Scalar[f32] = 0.0
+                for n in range(N):
+                    mean += inputs[n * C + c]
+                mean /= Scalar[f32](n_elements)
+
+                var variance: Scalar[f32] = 0.0
+                for n in range(N):
+                    var diff = inputs[n * C + c] - mean
+                    variance += diff * diff
+                variance /= Scalar[f32](n_elements)
+
+                var inv_std = 1.0 / sqrt(variance + epsilon)
+                for n in range(N):
+                    var x_hat = (inputs[n * C + c] - mean) * inv_std
+                    res[n * C + c] = gamma[c] * x_hat + beta[c]
+
+        elif rank == 4:
+            # [N, C, H, W] — normalize over N, H, W per channel
+            comptime H = input_shape[2]
+            comptime W = input_shape[3]
+            comptime n_elements = N * H * W
+            comptime HW = H * W
+
+            for c in range(C):
+                var mean: Scalar[f32] = 0.0
+                for n in range(N):
+                    for hw in range(HW):
+                        mean += inputs[n * C * HW + c * HW + hw]
+                mean /= Scalar[f32](n_elements)
+
+                var variance: Scalar[f32] = 0.0
+                for n in range(N):
+                    for hw in range(HW):
+                        var diff = inputs[n * C * HW + c * HW + hw] - mean
+                        variance += diff * diff
+                variance /= Scalar[f32](n_elements)
+
+                var inv_std = 1.0 / sqrt(variance + epsilon)
+                for n in range(N):
+                    for hw in range(HW):
+                        var idx = n * C * HW + c * HW + hw
+                        var x_hat = (inputs[idx] - mean) * inv_std
+                        res[idx] = gamma[c] * x_hat + beta[c]
+
+    @staticmethod
+    def backward[
+        tensor_id: Int,
+        ug_shape: TensorShape,
+        input_shape: TensorShape,
+        gamma_shape: TensorShape,
+        beta_shape: TensorShape,
+        attributes: AttributeVector,
+    ](
+        ug: Tensor[f32],
+        inputs: Tensor[f32],
+        gamma: Tensor[f32],
+        beta: Tensor[f32],
+    ) -> Tensor[f32]:
+        """
+        Batch Normalization backward pass.
+
+        tensor_id 0: gradient w.r.t. inputs
+        tensor_id 1: gradient w.r.t. gamma (scale)
+        tensor_id 2: gradient w.r.t. beta (shift)
+        """
+        comptime eps_attr = attributes["epsilon"]
+        var epsilon = eps_attr.value().to_scalar[f32]() if eps_attr else Scalar[f32](1e-5)
+
+        comptime rank = input_shape.rank()
+        comptime N = input_shape[0]
+        comptime C = input_shape[1]
+
+        comptime if rank == 2:
+            comptime n_elements = N
+
+            comptime if tensor_id == 2:
+                # d_beta[c] = sum_n ug[n, c]
+                var res = Tensor[f32](beta_shape)
+                for c in range(C):
+                    var s: Scalar[f32] = 0.0
+                    for n in range(N):
+                        s += ug[n * C + c]
+                    res[c] = s
+                return res^
+
+            elif tensor_id == 1:
+                # d_gamma[c] = sum_n ug[n, c] * x_hat[n, c]
+                var res = Tensor[f32](gamma_shape)
+                for c in range(C):
+                    var mean: Scalar[f32] = 0.0
+                    for n in range(N):
+                        mean += inputs[n * C + c]
+                    mean /= Scalar[f32](n_elements)
+                    var variance: Scalar[f32] = 0.0
+                    for n in range(N):
+                        var diff = inputs[n * C + c] - mean
+                        variance += diff * diff
+                    variance /= Scalar[f32](n_elements)
+                    var inv_std = 1.0 / sqrt(variance + epsilon)
+                    var s: Scalar[f32] = 0.0
+                    for n in range(N):
+                        var x_hat = (inputs[n * C + c] - mean) * inv_std
+                        s += ug[n * C + c] * x_hat
+                    res[c] = s
+                return res^
+
+            else:
+                # d_input: standard BN input grad formula
+                var res = Tensor[f32](input_shape)
+                var m = Scalar[f32](n_elements)
+                for c in range(C):
+                    var mean: Scalar[f32] = 0.0
+                    for n in range(N):
+                        mean += inputs[n * C + c]
+                    mean /= m
+                    var variance: Scalar[f32] = 0.0
+                    for n in range(N):
+                        var diff = inputs[n * C + c] - mean
+                        variance += diff * diff
+                    variance /= m
+                    var inv_std = 1.0 / sqrt(variance + epsilon)
+
+                    var sum_ug: Scalar[f32] = 0.0
+                    var sum_ug_xhat: Scalar[f32] = 0.0
+                    for n in range(N):
+                        var x_hat = (inputs[n * C + c] - mean) * inv_std
+                        sum_ug += ug[n * C + c]
+                        sum_ug_xhat += ug[n * C + c] * x_hat
+
+                    for n in range(N):
+                        var x_hat = (inputs[n * C + c] - mean) * inv_std
+                        res[n * C + c] = (
+                            gamma[c]
+                            * inv_std
+                            / m
+                            * (m * ug[n * C + c] - sum_ug - x_hat * sum_ug_xhat)
+                        )
+                return res^
+
+        elif rank == 4:
+            comptime H = input_shape[2]
+            comptime W = input_shape[3]
+            comptime n_elements = N * H * W
+            comptime HW = H * W
+
+            comptime if tensor_id == 2:
+                var res = Tensor[f32](beta_shape)
+                for c in range(C):
+                    var s: Scalar[f32] = 0.0
+                    for n in range(N):
+                        for hw in range(HW):
+                            s += ug[n * C * HW + c * HW + hw]
+                    res[c] = s
+                return res^
+
+            elif tensor_id == 1:
+                var res = Tensor[f32](gamma_shape)
+                for c in range(C):
+                    var mean: Scalar[f32] = 0.0
+                    for n in range(N):
+                        for hw in range(HW):
+                            mean += inputs[n * C * HW + c * HW + hw]
+                    mean /= Scalar[f32](n_elements)
+                    var variance: Scalar[f32] = 0.0
+                    for n in range(N):
+                        for hw in range(HW):
+                            var diff = inputs[n * C * HW + c * HW + hw] - mean
+                            variance += diff * diff
+                    variance /= Scalar[f32](n_elements)
+                    var inv_std = 1.0 / sqrt(variance + epsilon)
+                    var s: Scalar[f32] = 0.0
+                    for n in range(N):
+                        for hw in range(HW):
+                            var idx = n * C * HW + c * HW + hw
+                            var x_hat = (inputs[idx] - mean) * inv_std
+                            s += ug[idx] * x_hat
+                    res[c] = s
+                return res^
+
+            else:
+                var res = Tensor[f32](input_shape)
+                var m = Scalar[f32](n_elements)
+                for c in range(C):
+                    var mean: Scalar[f32] = 0.0
+                    for n in range(N):
+                        for hw in range(HW):
+                            mean += inputs[n * C * HW + c * HW + hw]
+                    mean /= m
+                    var variance: Scalar[f32] = 0.0
+                    for n in range(N):
+                        for hw in range(HW):
+                            var diff = inputs[n * C * HW + c * HW + hw] - mean
+                            variance += diff * diff
+                    variance /= m
+                    var inv_std = 1.0 / sqrt(variance + epsilon)
+
+                    var sum_ug: Scalar[f32] = 0.0
+                    var sum_ug_xhat: Scalar[f32] = 0.0
+                    for n in range(N):
+                        for hw in range(HW):
+                            var idx = n * C * HW + c * HW + hw
+                            var x_hat = (inputs[idx] - mean) * inv_std
+                            sum_ug += ug[idx]
+                            sum_ug_xhat += ug[idx] * x_hat
+
+                    for n in range(N):
+                        for hw in range(HW):
+                            var idx = n * C * HW + c * HW + hw
+                            var x_hat = (inputs[idx] - mean) * inv_std
+                            res[idx] = (
+                                gamma[c]
+                                * inv_std
+                                / m
+                                * (m * ug[idx] - sum_ug - x_hat * sum_ug_xhat)
+                            )
+                return res^
+
+        # Fallback (should never be reached with rank 2 or 4)
+        return Tensor[f32](input_shape)
 
 
 struct DROPOUT:

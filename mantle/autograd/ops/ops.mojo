@@ -36,6 +36,7 @@ from .mlops import (
     UNSQUEEZE,
     SLICE,
     DROPOUT,
+    BATCHNORM2D,
 )
 from .dynamics import CONCAT, SPLIT
 from .conv import CONV2D
@@ -84,6 +85,7 @@ struct OP(TrivialRegisterPassable, Writable):
     comptime SLICE = OP(25, "SLICE")
     comptime DROPOUT = OP(26, "DROPOUT")
     comptime LEAKYRELU = OP(28, "LEAKYRELU")
+    comptime BATCHNORM2D = OP(29, "BATCHNORM2D")
 
     var id: UInt8
     var name: Bytes[16]
@@ -218,6 +220,8 @@ def static_result_shape(
         return CONV2D.result_shape(t1_shape, t2_shape, t3_shape, attributes)
     elif op == OP.FMA:
         return FMA.result_shape(t1_shape, t2_shape, t3_shape)
+    elif op == OP.BATCHNORM2D:
+        return BATCHNORM2D.result_shape(t1_shape, t2_shape, t3_shape, attributes)
     else:
         print("[ERROR] Operator not found.")
         return TensorShape(-1, -1)
@@ -345,6 +349,10 @@ def forward_op[
         )
     elif op == OP.FMA:
         FMA.forward[t1_shape, t2_shape, t3_shape](res, t1, t2, t3)
+    elif op == OP.BATCHNORM2D:
+        BATCHNORM2D.forward[t1_shape, t2_shape, t3_shape, attributes](
+            res, t1, t2, t3
+        )
     else:
         print("[ERROR] Operator not found.")
 
@@ -512,6 +520,10 @@ def backward_op[
     elif op == OP.FMA:
         res_grad = FMA.backward[
             tensor_id, ug_shape, t1_shape, t2_shape, t3_shape
+        ](ug, t1, t2, t3)
+    elif op == OP.BATCHNORM2D:
+        res_grad = BATCHNORM2D.backward[
+            tensor_id, ug_shape, t1_shape, t2_shape, t3_shape, attributes
         ](ug, t1, t2, t3)
     else:
         print("[ERROR] Operator not found.")
