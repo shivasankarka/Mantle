@@ -14,6 +14,7 @@ from std.algorithm import vectorize
 from std.memory import memcpy
 from std.utils.numerics import isinf
 
+from mantle import f32, nelts
 from mantle.core.tensor import Tensor, TensorShape, MAX_RANK
 from mantle.core.tensorutils import *
 from mantle.autograd.attributes import Attribute, AttributeVector

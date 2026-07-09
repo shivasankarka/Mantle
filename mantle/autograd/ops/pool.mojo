@@ -11,6 +11,7 @@
 """
 from std.utils.numerics import min_or_neg_inf
 
+from mantle import f32
 from mantle.core.tensor import Tensor, TensorShape
 from mantle.autograd.attributes import AttributeVector
 from mantle.autograd.ops.conv import get_result_shape

@@ -9,6 +9,7 @@
 ------------------------------------------------
 2D Convolution layer with im2col-based implementation and layer wrapper.
 """
+from mantle import f32
 from mantle.autograd.graph import Graph
 from mantle.autograd.symbol import Symbol
 from mantle.autograd.ops import OP

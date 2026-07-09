@@ -12,6 +12,7 @@ Optimizer implementations (Adam).
 from std.math import sqrt
 from std.algorithm import vectorize, parallelize
 
+from mantle import f32
 from mantle.nn.parameters import Parameters
 from mantle.autograd.graph import Graph
 from mantle.autograd.symbol import Symbol
@@ -52,7 +53,7 @@ struct Adam[
     g: Graph,
     trainable_parameters: List[Symbol] = get_trainable_parameters(g),
 ]:
-    var parameters: Pointer[Parameters, MutAnyOrigin]
+    var parameters: UnsafePointer[Parameters, MutUntrackedOrigin]
 
     var lr: Scalar[f32]
     var beta1: Scalar[f32]
@@ -71,8 +72,7 @@ struct Adam[
         beta2: Scalar[f32] = 0.999,
         epsilon: Scalar[f32] = 1e-8,
     ):
-        # self.parameters = Pointer.address_of(parameters)
-        self.parameters = Pointer(to=parameters)
+        self.parameters = UnsafePointer(to=parameters).unsafe_origin_cast[MutUntrackedOrigin]()
 
         self.lr = lr
         self.beta1 = beta1

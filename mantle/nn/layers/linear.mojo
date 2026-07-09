@@ -9,6 +9,7 @@
 ------------------------------------------------
 Fully connected (dense) layer with uniform initialization.
 """
+from mantle import f32
 from mantle.core.tensor import Tensor, TensorShape
 from mantle.autograd.graph import Graph
 from mantle.autograd.symbol import Symbol

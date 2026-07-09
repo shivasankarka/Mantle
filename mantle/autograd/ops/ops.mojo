@@ -41,6 +41,7 @@ from .dynamics import CONCAT, SPLIT
 from .conv import CONV2D
 from .pool import MAXPOOL2D
 
+from mantle import f32
 from mantle.autograd.symbol import Symbol
 from mantle.core.tensor import Tensor, TensorShape
 from mantle.nn.parameters import Parameters

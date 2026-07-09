@@ -9,6 +9,7 @@
 ------------------------------------------------
 im2col-based 2D convolution with forward and backward passes.
 """
+from mantle import f32, nelts
 from mantle.core.tensor import Tensor, TensorShape
 from mantle.autograd.attributes import AttributeVector
 

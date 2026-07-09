@@ -15,6 +15,7 @@ from std.utils.numerics import min_finite, max_finite
 from std.memory import memcpy
 from std.utils.index import IndexList
 
+from mantle import f32, nelts
 from mantle.core.tensor import Tensor, TensorShape, MAX_RANK
 from mantle.core.tensorutils import elwise_transform
 from mantle.autograd.attributes import Attribute, AttributeVector

@@ -13,6 +13,7 @@ from std.collections.optional import Optional
 from std.memory.unsafe_pointer import UnsafePointer
 from std.memory import memset_zero, memcpy
 
+from mantle import f32
 from mantle.autograd.symbol import Symbol
 from mantle.core.tensor import Tensor
 

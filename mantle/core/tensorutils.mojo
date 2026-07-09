@@ -17,6 +17,7 @@ from std.random import rand
 from std.utils.numerics import min_finite, max_finite
 from std.utils.index import IndexList
 
+from mantle import f32, nelts
 from mantle.core.tensor import Tensor, TensorShape, MAX_RANK
 from mantle.core.math_util import add, sub, mul, div, sqrt_simd, max_simd
 
