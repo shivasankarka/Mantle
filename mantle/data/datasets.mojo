@@ -10,6 +10,7 @@
 Built-in dataset loaders (Boston Housing, MNIST) with CSV parsing and normalization.
 """
 from std.algorithm import vectorize
+from std.sys.info import simd_width_of
 
 from mantle import f32
 from mantle.core.tensor import Tensor, TensorShape

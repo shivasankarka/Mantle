@@ -74,7 +74,11 @@ def build_graph[T: AnyType](mut layers: T, mut g: Graph, input: Symbol) -> Symbo
             ref field_val = r.field_ref[idx](layers)
             var before = len(g.nodes)
             comptime type_name = reflect[field_type].base_name()
-            x = trait_downcast[Layer](field_val).forward(g, x)
+            # x = trait_downcast[Layer](field_val).forward(g, x)
+            comptime if conforms_to(type_of(field_val), Layer):
+                x = field_val.forward(g, x)
+            else:
+                continue
             g.set_scope_from(before, type_name)
     return x
 
