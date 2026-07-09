@@ -7,7 +7,7 @@
 #  ===----------------------------------------------------------------------=== #
 """Optim (mantle.nn.optim)
 ------------------------------------------------
-Optimizer implementations (Adam).
+Optimizer implementations (Adam, SGD).
 """
 from std.math import sqrt
 from std.algorithm import vectorize, parallelize
@@ -147,3 +147,85 @@ struct Adam[
             var param = tr[i]
             self.rms_grads.append(Tensor[f32](param.shape), param)
             self.momentum_grads.append(Tensor[f32](param.shape), param)
+
+
+# ===----------------------------------------------------------------------===#
+# SGD
+# ===----------------------------------------------------------------------===#
+
+struct SGD[
+    g: Graph,
+    trainable_parameters: List[Symbol] = get_trainable_parameters(g),
+]:
+    """
+    Stochastic Gradient Descent optimizer with optional momentum.
+
+    Update rule (momentum=0):
+        param = param - lr * grad
+
+    Update rule (momentum > 0):
+        velocity = momentum * velocity - lr * grad
+        param    = param + velocity
+    """
+
+    var parameters: UnsafePointer[Parameters, MutUntrackedOrigin]
+
+    var lr: Scalar[f32]
+    var momentum: Scalar[f32]
+    var weight_decay: Scalar[f32]
+
+    var velocities: Collection
+
+    def __init__(
+        out self,
+        ref[MutAnyOrigin] parameters: Parameters,
+        lr: Scalar[f32] = 0.01,
+        momentum: Scalar[f32] = 0.0,
+        weight_decay: Scalar[f32] = 0.0,
+    ):
+        self.parameters = UnsafePointer(to=parameters).unsafe_origin_cast[MutUntrackedOrigin]()
+        self.lr = lr
+        self.momentum = momentum
+        self.weight_decay = weight_decay
+
+        var tr = materialize[Self.trainable_parameters]()
+        self.velocities = Collection(capacity=len(tr))
+        self.allocate_velocities()
+
+    def zero_grad(mut self):
+        """Set all gradients to zero."""
+        self.parameters[].grads.set_zero()
+
+    def step(mut self):
+        """Update model parameters."""
+        var tr = materialize[Self.trainable_parameters]()
+
+        @parameter
+        def p_step(i: Int):
+            var param = tr[i]
+
+            def v_step[nelts: Int](j: Int) {mut self, read param}:
+                var grad = self.parameters[].grads[param].load[nelts](j)
+                var w = self.parameters[].tensors[param].load[nelts](j)
+
+                # Optional weight decay (L2 regularization)
+                if self.weight_decay != 0.0:
+                    grad = grad + self.weight_decay * w
+
+                if self.momentum != 0.0:
+                    var vel = self.velocities[param].load[nelts](j)
+                    vel = self.momentum * vel - self.lr * grad
+                    self.velocities[param].store[nelts](j, vel)
+                    self.parameters[].tensors[param].store[nelts](j, w + vel)
+                else:
+                    self.parameters[].tensors[param].store[nelts](j, w - self.lr * grad)
+
+            vectorize[1](param.shape.num_elements(), v_step)
+
+        parallelize[p_step](len(tr))
+
+    def allocate_velocities(mut self):
+        var tr = materialize[Self.trainable_parameters]()
+        for i in range(len(tr)):
+            var param = tr[i]
+            self.velocities.append(Tensor[f32](param.shape), param)
