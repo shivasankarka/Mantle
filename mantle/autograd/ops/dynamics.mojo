@@ -22,6 +22,7 @@ from std.memory import memcpy
 # CONCAT
 # ===----------------------------------------------------------------------===#
 
+
 struct CONCAT:
     @staticmethod
     def result_shape(

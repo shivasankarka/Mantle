@@ -22,6 +22,7 @@ from mantle.core.tensor import Tensor, TensorShape
 # Dropout (functional)
 # ===----------------------------------------------------------------------===#
 
+
 def Dropout(mut g: Graph, inputs: Symbol, p: Float32, seed: Int = 42) -> Symbol:
     """
     Apply dropout with probability `p`. Uses a deterministic seed for mask
@@ -41,7 +42,8 @@ def Dropout(mut g: Graph, inputs: Symbol, p: Float32, seed: Int = 42) -> Symbol:
 # DropoutLayer
 # ===----------------------------------------------------------------------===#
 
-struct DropoutLayer(Layer, Copyable, Movable):
+
+struct DropoutLayer(Copyable, Layer, Movable):
     """
     `Layer`-conforming wrapper around `Dropout`, for use in a reflection-based
     Module struct.

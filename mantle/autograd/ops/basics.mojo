@@ -26,6 +26,7 @@ from mantle.core.math_util import add, sub, mul, div, exp, log
 # Forward/Backward operations for basic tensor ops
 # ===----------------------------------------------------------------------===#
 
+
 struct ADD:
     @staticmethod
     def result_shape(
@@ -367,9 +368,7 @@ struct POW:
                 # the case when the value passed to log is 0.0
                 var temp_log = log(t1.load[nelts](i))
                 var temp_log_is_inf = isinf(temp_log)
-                temp_log = temp_log_is_inf.select(
-                    SIMD[f32, nelts](0), temp_log
-                )
+                temp_log = temp_log_is_inf.select(SIMD[f32, nelts](0), temp_log)
                 res_grad[0] += (
                     (t1.load[nelts](i) ** a) * temp_log * ug.load[nelts](i)
                 ).reduce_add()
@@ -771,12 +770,7 @@ struct FMA:
         t1_shape: TensorShape,
         t2_shape: TensorShape,
         t3_shape: TensorShape,
-    ](
-        mut res: Tensor[f32],
-        t1: Tensor[f32],
-        t2: Tensor[f32],
-        t3: Tensor[f32],
-    ):
+    ](mut res: Tensor[f32], t1: Tensor[f32], t2: Tensor[f32], t3: Tensor[f32],):
         """
         Forward pass of the fma operation.
         """

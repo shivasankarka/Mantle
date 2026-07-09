@@ -22,14 +22,14 @@ from mantle.core.tensorutils import transpose_2D
 # Block Helpers
 # ===----------------------------------------------------------------------===#
 
+
 @always_inline
 def calculate_block[
     mut1: Bool,
     mut2: Bool,
     origin_res: MutOrigin,
     origin_t1: Origin[mut=mut1],
-    origin_t2: Origin[mut=mut2],
-    //,
+    origin_t2: Origin[mut=mut2], //,
     M: Int,
     N: Int,
     K: Int,
@@ -89,8 +89,7 @@ def dot[
     mut2: Bool,
     origin_res: MutOrigin,
     origin_t1: Origin[mut=mut1],
-    origin_t2: Origin[mut=mut2],
-    //,
+    origin_t2: Origin[mut=mut2], //,
     t1_shape: TensorShape,
     t2_shape: TensorShape,
 ](
@@ -158,8 +157,7 @@ def dot_transpose_t2[
     mut2: Bool,
     origin_res: MutOrigin,
     origin_t1: Origin[mut=mut1],
-    origin_t2: Origin[mut=mut2],
-    //,
+    origin_t2: Origin[mut=mut2], //,
     A_shape: TensorShape,
     B_shape: TensorShape,
 ](

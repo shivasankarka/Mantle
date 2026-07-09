@@ -21,6 +21,7 @@ from mantle.autograd.ops.conv import get_result_shape
 # MAXPOOL2D
 # ===----------------------------------------------------------------------===#
 
+
 struct MAXPOOL2D:
     @staticmethod
     def result_shape(

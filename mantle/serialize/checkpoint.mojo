@@ -104,7 +104,9 @@ def _write_tensor(
         _write_u32(f, UInt32(tensor.dim(i)))
 
     var n_bytes = tensor.num_elements() * size_of[f32]()
-    var data_bytes = Span[UInt8](ptr=tensor.ptr().bitcast[UInt8](), length=n_bytes)
+    var data_bytes = Span[UInt8](
+        ptr=tensor.ptr().bitcast[UInt8](), length=n_bytes
+    )
     f.write_bytes(data_bytes)
 
 
@@ -134,7 +136,9 @@ def _read_entry_header(
     return (symbol_id, kind, TensorShape(dims))
 
 
-def _read_tensor_into(data: List[UInt8], mut offset: Int, mut collection: Collection):
+def _read_tensor_into(
+    data: List[UInt8], mut offset: Int, mut collection: Collection
+):
     """
     Reads one tensor entry and copies its bytes into `collection`, keyed
     by the saved symbol id.
@@ -290,7 +294,9 @@ def save_checkpoint_with_optim(
     f.close()
 
 
-def load_checkpoint(path: String, mut parameters: Parameters) raises -> CheckpointInfo:
+def load_checkpoint(
+    path: String, mut parameters: Parameters
+) raises -> CheckpointInfo:
     """
     Restores model tensors from a checkpoint written by
     `save_checkpoint`/`save_checkpoint_with_optim`.

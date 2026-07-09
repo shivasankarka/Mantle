@@ -22,6 +22,7 @@ from mantle.core.tensor import Tensor
 # Collection
 # ===----------------------------------------------------------------------===#
 
+
 struct Collection(Copyable, Movable, Sized):
     """
     Symbol-keyed tensor arena.

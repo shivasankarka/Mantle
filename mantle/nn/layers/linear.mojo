@@ -23,6 +23,7 @@ from mantle.nn.module import Layer
 # Linear (functional)
 # ===----------------------------------------------------------------------===#
 
+
 def Linear(
     mut g: Graph,
     inputs: Symbol,
@@ -51,8 +52,9 @@ def Linear(
 # LinearLayer
 # ===----------------------------------------------------------------------===#
 
+
 @fieldwise_init
-struct LinearLayer(Layer, Copyable, Movable):
+struct LinearLayer(Copyable, Layer, Movable):
     """
     `Layer`-conforming wrapper around `Linear`, for use in a reflection-based
     Module struct.

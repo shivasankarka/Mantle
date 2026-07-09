@@ -30,6 +30,7 @@ from mantle.core.tensor import Tensor, TensorShape
 # Graph
 # ===----------------------------------------------------------------------===#
 
+
 struct Graph(Copyable, ImplicitlyCopyable, Movable):
     var inputs: List[Symbol]
     var params: ParamDict
@@ -291,13 +292,28 @@ struct Graph(Copyable, ImplicitlyCopyable, Movable):
         print("  Layer 0  [inputs/params]:")
         for i in range(len(self.inputs)):
             var sym = self.inputs[i]
-            print("    s" + String(sym.name), String(sym.dtype), String(sym.shape), "[input]")
+            print(
+                "    s" + String(sym.name),
+                String(sym.dtype),
+                String(sym.shape),
+                "[input]",
+            )
         for i in range(len(self.params)):
             var sym = self.params.symbols[i]
             if sym.trainable:
-                print("    s" + String(sym.name), String(sym.dtype), String(sym.shape), "[param, trainable]")
+                print(
+                    "    s" + String(sym.name),
+                    String(sym.dtype),
+                    String(sym.shape),
+                    "[param, trainable]",
+                )
             else:
-                print("    s" + String(sym.name), String(sym.dtype), String(sym.shape), "[param]")
+                print(
+                    "    s" + String(sym.name),
+                    String(sym.dtype),
+                    String(sym.shape),
+                    "[param]",
+                )
 
         for layer in range(1, max_layer + 1):
             print("  Layer", layer, ":")
@@ -306,7 +322,10 @@ struct Graph(Copyable, ImplicitlyCopyable, Movable):
                 var at_this_layer = False
                 for j in range(len(node.outputs)):
                     for k in range(len(sym_names)):
-                        if sym_names[k] == node.outputs[j].name and sym_layers[k] == layer:
+                        if (
+                            sym_names[k] == node.outputs[j].name
+                            and sym_layers[k] == layer
+                        ):
                             at_this_layer = True
                             break
                     if at_this_layer:
@@ -329,7 +348,15 @@ struct Graph(Copyable, ImplicitlyCopyable, Movable):
                 var scope_tag = ""
                 if String(node.scope).byte_length() > 0:
                     scope_tag = "  [" + String(node.scope) + "]"
-                print("    " + String(node.operator) + "(" + input_desc + ") -> " + output_desc + scope_tag)
+                print(
+                    "    "
+                    + String(node.operator)
+                    + "("
+                    + input_desc
+                    + ") -> "
+                    + output_desc
+                    + scope_tag
+                )
 
         var out_str = "  Outputs:"
         for i in range(len(self.outputs)):
@@ -410,7 +437,14 @@ struct Graph(Copyable, ImplicitlyCopyable, Movable):
                     if j > 0:
                         output_desc += ", "
                     output_desc += "s" + String(node.outputs[j].name)
-                print("    " + String(node.operator) + "(" + input_desc + ") -> " + output_desc)
+                print(
+                    "    "
+                    + String(node.operator)
+                    + "("
+                    + input_desc
+                    + ") -> "
+                    + output_desc
+                )
 
         # Flow summary
         print("  ---")

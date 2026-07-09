@@ -24,6 +24,7 @@ from mantle.nn.module import Layer
 # Helpers
 # ===----------------------------------------------------------------------===#
 
+
 def set_static_stride(
     kernel_size: IndexList[2], stride: Optional[Int] = None
 ) -> IndexList[2]:
@@ -36,6 +37,7 @@ def set_static_stride(
 # ===----------------------------------------------------------------------===#
 # MaxPool2d (functional)
 # ===----------------------------------------------------------------------===#
+
 
 def MaxPool2d(
     mut g: Graph,
@@ -91,7 +93,8 @@ def MaxPool2d(
 # MaxPool2dLayer
 # ===----------------------------------------------------------------------===#
 
-struct MaxPool2dLayer(Layer, Copyable, Movable):
+
+struct MaxPool2dLayer(Copyable, Layer, Movable):
     """
     `Layer`-conforming wrapper around `MaxPool2d`, for use in a
     reflection-based Module struct.

@@ -20,6 +20,7 @@ from mantle.core.tensor import Tensor, TensorShape
 # Slice Rows
 # ===----------------------------------------------------------------------===#
 
+
 def slice_rows[
     dtype: DType
 ](t: Tensor[dtype], start: Int, num_rows: Int) -> Tensor[dtype]:
@@ -83,6 +84,7 @@ def cycle_pad_rows[
 # Batch
 # ===----------------------------------------------------------------------===#
 
+
 struct Batch[dtype: DType](Copyable, Movable):
     var data: Tensor[Self.dtype]
     var labels: Tensor[Self.dtype]
@@ -131,6 +133,7 @@ struct Batch[dtype: DType](Copyable, Movable):
 # ===----------------------------------------------------------------------===#
 # DataLoader
 # ===----------------------------------------------------------------------===#
+
 
 struct DataLoader(Copyable, Movable):
     var data: Tensor[f32]

@@ -17,6 +17,7 @@ from mantle.autograd.collection import Collection
 # Parameters
 # ===----------------------------------------------------------------------===#
 
+
 struct Parameters:
     var tensors: Collection
     var grads: Collection

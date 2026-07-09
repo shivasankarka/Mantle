@@ -21,6 +21,7 @@ from mantle.core.tensor import Tensor
 # Tensor Initialization
 # ===----------------------------------------------------------------------===#
 
+
 @always_inline
 def rand_uniform[
     dtype: DType

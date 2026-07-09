@@ -23,12 +23,13 @@ from mantle.nn.module import Layer
 # ReLU
 # ===----------------------------------------------------------------------===#
 
+
 def ReLU(mut g: Graph, input: Symbol) -> Symbol:
     return g.op(OP.RELU, input)
 
 
 @fieldwise_init
-struct ReLULayer(Layer, Copyable, Movable):
+struct ReLULayer(Copyable, Layer, Movable):
     """
     `Layer`-conforming wrapper around `ReLU`, for use in a reflection-based
     Module struct.
@@ -41,6 +42,7 @@ struct ReLULayer(Layer, Copyable, Movable):
 # ===----------------------------------------------------------------------===#
 # LeakyReLU
 # ===----------------------------------------------------------------------===#
+
 
 def LeakyReLU(
     mut g: Graph, input: Symbol, negative_slope: Scalar[f32]
@@ -56,21 +58,24 @@ def LeakyReLU(
 # Sigmoid
 # ===----------------------------------------------------------------------===#
 
+
 def Sigmoid(mut g: Graph, input: Symbol) -> Symbol:
-    return g.op(OP.SIGMOID, input    )
+    return g.op(OP.SIGMOID, input)
 
 
 # ===----------------------------------------------------------------------===#
 # Tanh
 # ===----------------------------------------------------------------------===#
 
+
 def Tanh(mut g: Graph, input: Symbol) -> Symbol:
-    return g.op(OP.TANH, input    )
+    return g.op(OP.TANH, input)
 
 
 # ===----------------------------------------------------------------------===#
 # Softmax
 # ===----------------------------------------------------------------------===#
+
 
 def Softmax(mut g: Graph, input: Symbol, axis: Int) -> Symbol:
     # softmax: exp(x_i) / sum(exp(x_j))
@@ -85,12 +90,13 @@ def Softmax(mut g: Graph, input: Symbol, axis: Int) -> Symbol:
         OP.SUM, exp_values, attributes=AttributeVector(Attribute("axis", axis))
     )
 
-    return g.op(OP.DIV, exp_values, sum_values    )
+    return g.op(OP.DIV, exp_values, sum_values)
 
 
 # ===----------------------------------------------------------------------===#
 # LogSoftmax
 # ===----------------------------------------------------------------------===#
+
 
 def LogSoftmax(mut g: Graph, input: Symbol, axis: Int) -> Symbol:
     # stable logsoftmax: log(exp(x_i - max(x_j)) / sum(exp(x_j - max(x_j))))

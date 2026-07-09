@@ -22,6 +22,7 @@ from mantle.autograd.attributes import Attribute
 # Param
 # ===----------------------------------------------------------------------===#
 
+
 struct Param(Copyable, Movable, Writable):
     var data: Optional[List[Scalar[f32]]]
     var initializer: Optional[Attribute]

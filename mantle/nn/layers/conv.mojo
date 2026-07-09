@@ -26,6 +26,7 @@ from std.utils.index import IndexList
 # Conv2d (functional)
 # ===----------------------------------------------------------------------===#
 
+
 def Conv2d(
     mut g: Graph,
     inputs: Symbol,
@@ -76,7 +77,8 @@ def Conv2d(
 # Conv2dLayer
 # ===----------------------------------------------------------------------===#
 
-struct Conv2dLayer(Layer, Copyable, Movable):
+
+struct Conv2dLayer(Copyable, Layer, Movable):
     """
     `Layer`-conforming wrapper around `Conv2d`, for use in a reflection-based
     Module struct.

@@ -22,6 +22,7 @@ from mantle.autograd.ops import OP
 # MSELoss
 # ===----------------------------------------------------------------------===#
 
+
 def MSELoss(
     mut g: Graph,
     y_pred: Symbol,
@@ -41,6 +42,7 @@ def MSELoss(
 # ===----------------------------------------------------------------------===#
 # CrossEntropyLoss
 # ===----------------------------------------------------------------------===#
+
 
 def CrossEntropyLoss(
     mut g: Graph,

@@ -20,6 +20,7 @@ from mantle.core.rand_utils import rand_normal, rand_uniform
 # initialize_tensor
 # ===----------------------------------------------------------------------===#
 
+
 def initialize_tensor(
     shape: TensorShape, type: String, data: List[Scalar[f32]]
 ) -> Tensor[f32]:
@@ -59,6 +60,7 @@ def initialize_tensor(
 # ===----------------------------------------------------------------------===#
 # Fan Calculation
 # ===----------------------------------------------------------------------===#
+
 
 def calculate_fan(shape: TensorShape, mode: String) -> Scalar[f32]:
     """

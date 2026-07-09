@@ -22,6 +22,7 @@ from std.memory import memset_zero, UnsafePointer
 # Shape Helpers
 # ===----------------------------------------------------------------------===#
 
+
 @always_inline
 def get_result_shape(
     input_shape: TensorShape,

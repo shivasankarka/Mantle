@@ -22,6 +22,7 @@ from mantle.autograd.attributes import Attribute, AttributeVector
 # Layer Trait
 # ===----------------------------------------------------------------------===#
 
+
 trait Layer:
     def forward(self, mut g: Graph, input: Symbol) -> Symbol:
         ...
@@ -31,8 +32,9 @@ trait Layer:
 # FlattenLayer
 # ===----------------------------------------------------------------------===#
 
+
 @fieldwise_init
-struct FlattenLayer(Layer, Copyable, Movable):
+struct FlattenLayer(Copyable, Layer, Movable):
     """
     Flattens every dim except the batch dim (dim 0). Equivalent to PyTorch's
     `x.view(x.size(0), -1)`, e.g. after Conv2d/MaxPool2d before a Linear layer.
@@ -54,7 +56,10 @@ struct FlattenLayer(Layer, Copyable, Movable):
 # build_graph
 # ===----------------------------------------------------------------------===#
 
-def build_graph[T: AnyType](mut layers: T, mut g: Graph, input: Symbol) -> Symbol:
+
+def build_graph[
+    T: AnyType
+](mut layers: T, mut g: Graph, input: Symbol) -> Symbol:
     """
     Reflects over `layers`' fields in declaration order, chaining every
     `Layer`-conforming field's `forward(g, x) -> x` to build up a Graph.
@@ -86,6 +91,7 @@ def build_graph[T: AnyType](mut layers: T, mut g: Graph, input: Symbol) -> Symbo
 # ===----------------------------------------------------------------------===#
 # Sequential
 # ===----------------------------------------------------------------------===#
+
 
 struct Sequential[*Ts: Layer & Movable](Layer, Movable):
     """

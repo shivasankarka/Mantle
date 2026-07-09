@@ -17,6 +17,7 @@ from std.memory.unsafe import bitcast
 # Fast Inverse Square Root
 # ===----------------------------------------------------------------------===#
 
+
 @always_inline("nodebug")
 def q_sqrt(value: Float32) -> Float32:
     """

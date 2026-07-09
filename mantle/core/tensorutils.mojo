@@ -39,6 +39,7 @@ def fill[dtype: DType](mut t: Tensor[dtype], val: Scalar[dtype]):
         t: The tensor to fill.
         val: The value to fill with.
     """
+
     def fill_vec[nelts: Int](idx: Int) {mut t, read val}:
         t.store[nelts](idx, val)
 
@@ -195,6 +196,7 @@ def elwise_transform[
         res: The output tensor.
         t: The input tensor.
     """
+
     def vecmath[nelts: Int](idx: Int) {mut res, read t}:
         res.store[nelts](idx, func[f32, nelts](t.load[nelts](idx)))
 
@@ -215,6 +217,7 @@ def elwise_transform[
     Args:
         t: The tensor to transform in-place.
     """
+
     def vecmath[nelts: Int](idx: Int) {mut t}:
         t.store[nelts](idx, func[f32, nelts](t.load[nelts](idx)))
 
@@ -234,6 +237,7 @@ def elwise_pow(mut res: Tensor[f32], t: Tensor[f32], x: Int):
         t: The input tensor.
         x: The exponent.
     """
+
     def vecpow[nelts: Int](idx: Int) {mut res, read t, read x}:
         res.store[nelts](idx, pow(t.load[nelts](idx), x))
 
@@ -410,6 +414,7 @@ def accumulate_op[
         res: The accumulator tensor (read-write).
         t: The input tensor.
     """
+
     def vecmath[nelts: Int](idx: Int) {mut res, read t}:
         res.store[nelts](
             idx, func[f32, nelts](res.load[nelts](idx), t.load[nelts](idx))
@@ -434,6 +439,7 @@ def accumulate_op[
         res: The accumulator tensor (read-write).
         a: The scalar value.
     """
+
     def vecmath[nelts: Int](idx: Int) {mut res, read a}:
         res.store[nelts](idx, func[f32, nelts](res.load[nelts](idx), a))
 

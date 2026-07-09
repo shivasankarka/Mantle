@@ -24,6 +24,7 @@ from mantle.core.tensor import Tensor, TensorShape
 # to_numpy
 # ===----------------------------------------------------------------------===#
 
+
 def to_numpy[dtype: DType](tensor: Tensor[dtype]) -> PythonObject:
     try:
         var np = Python.import_module("numpy")
@@ -53,6 +54,7 @@ def to_numpy[dtype: DType](tensor: Tensor[dtype]) -> PythonObject:
 # ===----------------------------------------------------------------------===#
 # to_tensor
 # ===----------------------------------------------------------------------===#
+
 
 def to_tensor(np_array: PythonObject) raises -> Tensor[f32]:
     var shape = List[Int]()
@@ -90,7 +92,10 @@ def to_tensor(np_array: PythonObject) raises -> Tensor[f32]:
 # copy_np_data
 # ===----------------------------------------------------------------------===#
 
-def copy_np_data[dtype: DType](mut tensor: Tensor[dtype], np_array: PythonObject) raises:
+
+def copy_np_data[
+    dtype: DType
+](mut tensor: Tensor[dtype], np_array: PythonObject) raises:
     var np_array_2: PythonObject
     try:
         var np = Python.import_module("numpy")

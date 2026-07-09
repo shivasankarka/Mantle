@@ -30,6 +30,7 @@ comptime SCOPE_MAX = 32
 # Node
 # ===----------------------------------------------------------------------===#
 
+
 struct Node(Copyable, Movable, Writable):
     var operator: OP
     var inputs: List[Symbol]

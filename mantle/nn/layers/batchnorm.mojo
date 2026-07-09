@@ -24,6 +24,7 @@ from mantle.nn.module import Layer
 # BatchNorm2d (functional)
 # ===----------------------------------------------------------------------===#
 
+
 def BatchNorm2d(
     mut g: Graph,
     inputs: Symbol,
@@ -42,10 +43,12 @@ def BatchNorm2d(
     """
     var C = inputs.shape[1]
     var gamma = g.param(
-        TensorShape(C), init=Param("constant", Scalar[f32](1.0), Scalar[f32](0.0))
+        TensorShape(C),
+        init=Param("constant", Scalar[f32](1.0), Scalar[f32](0.0)),
     )
     var beta = g.param(
-        TensorShape(C), init=Param("constant", Scalar[f32](0.0), Scalar[f32](0.0))
+        TensorShape(C),
+        init=Param("constant", Scalar[f32](0.0), Scalar[f32](0.0)),
     )
 
     return g.op(
@@ -63,7 +66,8 @@ def BatchNorm2d(
 # BatchNorm2dLayer
 # ===----------------------------------------------------------------------===#
 
-struct BatchNorm2dLayer(Layer, Copyable, Movable):
+
+struct BatchNorm2dLayer(Copyable, Layer, Movable):
     """
     `Layer`-conforming wrapper around `BatchNorm2d`, for use in a
     reflection-based Module struct.

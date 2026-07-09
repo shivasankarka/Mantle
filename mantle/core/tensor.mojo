@@ -25,12 +25,14 @@ comptime MAX_RANK = 8
 # TensorShape
 # ===----------------------------------------------------------------------===#
 
+
 struct TensorShape(Equatable, TrivialRegisterPassable, Writable):
     """
     Represents the shape of a tensor.
 
     Stores the rank and dimension sizes with a maximum rank of MAX_RANK.
     """
+
     var _rank: Int
     """The number of dimensions."""
     var _shape: IndexList[MAX_RANK]
@@ -233,6 +235,7 @@ struct TensorShape(Equatable, TrivialRegisterPassable, Writable):
 # Tensor
 # ===----------------------------------------------------------------------===#
 
+
 struct Tensor[dtype: DType](Copyable, Movable, Writable):
     """
     A reference-counted multi-dimensional array.
@@ -240,6 +243,7 @@ struct Tensor[dtype: DType](Copyable, Movable, Writable):
     Parameters:
         dtype: The data type of the tensor elements.
     """
+
     var _data: UnsafePointer[Scalar[Self.dtype], MutUntrackedOrigin]
     """Pointer to the underlying data buffer."""
     var _refcount: UnsafePointer[Atomic[DType.uint64], MutUntrackedOrigin]
@@ -425,7 +429,9 @@ struct Tensor[dtype: DType](Copyable, Movable, Writable):
         Returns:
             A pointer to the tensor's data, valid for the lifetime of `self`.
         """
-        return self._data.mut_cast[False]().unsafe_origin_cast[origin_of(self)]()
+        return self._data.mut_cast[False]().unsafe_origin_cast[
+            origin_of(self)
+        ]()
 
     @always_inline("nodebug")
     def mut_ptr(mut self) -> UnsafePointer[Scalar[Self.dtype], origin_of(self)]:

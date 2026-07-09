@@ -28,6 +28,7 @@ from mantle.serialize.onnx_utils import load_onnx_model, export_onnx_model
 # Helpers
 # ===----------------------------------------------------------------------===#
 
+
 def dv_contains(dv: List[Symbol], symbol: Symbol) -> Bool:
     for i in range(len(dv)):
         if dv[i] == symbol:
@@ -52,6 +53,7 @@ def n_inference_nodes(g: Graph) -> OptionalReg[Int]:
 # ===----------------------------------------------------------------------===#
 # Model
 # ===----------------------------------------------------------------------===#
+
 
 struct Model[
     g: Graph,
@@ -99,9 +101,7 @@ struct Model[
 
         # 1. Execute a full forward pass (model inference + loss)
         self.step_seed = random_ui64(0, UInt64.MAX)
-        self.execute[len(Self.g.nodes)](
-            t_inputs, self.step_seed, training=True
-        )
+        self.execute[len(Self.g.nodes)](t_inputs, self.step_seed, training=True)
 
         # 2. Return loss from allocated output memory
         # TODO: known copy (reference?)

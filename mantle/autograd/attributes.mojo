@@ -31,6 +31,7 @@ comptime MAX_DATA_BYTES = 32
 # AttributeType
 # ===----------------------------------------------------------------------===#
 
+
 struct AttributeType(TrivialRegisterPassable, Writable):
     comptime BOOL = AttributeType(0, "BOOL")
     comptime INT = AttributeType(1, "INT")
@@ -63,9 +64,11 @@ struct AttributeType(TrivialRegisterPassable, Writable):
     def write_to[W: Writer](self, mut writer: W):
         writer.write(self.__str__())
 
+
 # ===----------------------------------------------------------------------===#
 # AttributeVector
 # ===----------------------------------------------------------------------===#
+
 
 struct AttributeVector(
     Copyable, Movable, Sized, TrivialRegisterPassable, Writable
@@ -113,6 +116,7 @@ struct AttributeVector(
 # ===----------------------------------------------------------------------===#
 # Attribute
 # ===----------------------------------------------------------------------===#
+
 
 struct Attribute(Copyable, Movable, TrivialRegisterPassable, Writable):
     var data_shape: IndexList[MAX_RANK]

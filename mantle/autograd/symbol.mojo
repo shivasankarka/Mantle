@@ -17,6 +17,7 @@ from mantle.core.tensor import Tensor, TensorShape
 # Symbol
 # ===----------------------------------------------------------------------===#
 
+
 @fieldwise_init
 struct Symbol(
     Copyable,

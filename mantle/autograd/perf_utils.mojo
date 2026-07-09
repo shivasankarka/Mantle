@@ -20,6 +20,7 @@ from mantle.autograd.graph import Graph
 # String Helpers
 # ===----------------------------------------------------------------------===#
 
+
 @always_inline("nodebug")
 def fit_string[num: Int](s: String) -> String:
     var data = alloc[Byte](num + 1)
@@ -50,6 +51,7 @@ def truncate_decimals[num: Int](s: String) -> String:
 # ===----------------------------------------------------------------------===#
 # PerfMetrics
 # ===----------------------------------------------------------------------===#
+
 
 @fieldwise_init
 struct PerfMetricsValues(Copyable, Movable):

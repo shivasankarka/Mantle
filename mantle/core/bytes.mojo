@@ -27,6 +27,7 @@ comptime ScalarBytes = size_of[DType.uint64]()
 # Bytes
 # ===----------------------------------------------------------------------===#
 
+
 struct Bytes[capacity: Int](
     Copyable, Equatable, Movable, TrivialRegisterPassable, Writable
 ):
@@ -146,6 +147,7 @@ struct Bytes[capacity: Int](
 # Scalar Conversion
 # ===----------------------------------------------------------------------===#
 
+
 def scalar_to_bytes[
     dtype: DType, size: Int = ScalarBytes
 ](value: Scalar[dtype]) -> Bytes[size]:
@@ -200,6 +202,7 @@ def bytes_to_scalar[dtype: DType](data: Bytes) -> Scalar[dtype]:
 # ===----------------------------------------------------------------------===#
 # Type Helpers
 # ===----------------------------------------------------------------------===#
+
 
 def expand_type[dtype: DType]() -> DType:
     """

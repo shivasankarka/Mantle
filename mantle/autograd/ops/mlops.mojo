@@ -25,6 +25,7 @@ from mantle.autograd.attributes import Attribute, AttributeVector
 # SIGMOID
 # ===----------------------------------------------------------------------===#
 
+
 struct SIGMOID(Copyable, Movable):
     @staticmethod
     def result_shape(t1_shape: TensorShape) -> TensorShape:
@@ -656,9 +657,11 @@ struct SLICE:
 
         return res_grad^
 
+
 # ===----------------------------------------------------------------------===#
 # Dropout
 # ===----------------------------------------------------------------------===#
+
 
 def _dropout_mask(seed: UInt64, idx: Int) -> Float32:
     # splitmix64-style hash; keep all 64 bits of seed entropy through the
@@ -675,6 +678,7 @@ def _dropout_mask(seed: UInt64, idx: Int) -> Float32:
 # ===----------------------------------------------------------------------===#
 # BATCHNORM2D
 # ===----------------------------------------------------------------------===#
+
 
 struct BATCHNORM2D:
     @staticmethod
@@ -706,7 +710,9 @@ struct BATCHNORM2D:
         gamma and beta are [C] shaped scale and shift parameters.
         """
         comptime eps_attr = attributes["epsilon"]
-        var epsilon = eps_attr.value().to_scalar[f32]() if eps_attr else Scalar[f32](1e-5)
+        var epsilon = eps_attr.value().to_scalar[f32]() if eps_attr else Scalar[
+            f32
+        ](1e-5)
 
         comptime rank = input_shape.rank()
         comptime N = input_shape[0]
@@ -782,7 +788,9 @@ struct BATCHNORM2D:
         tensor_id 2: gradient w.r.t. beta (shift)
         """
         comptime eps_attr = attributes["epsilon"]
-        var epsilon = eps_attr.value().to_scalar[f32]() if eps_attr else Scalar[f32](1e-5)
+        var epsilon = eps_attr.value().to_scalar[f32]() if eps_attr else Scalar[
+            f32
+        ](1e-5)
 
         comptime rank = input_shape.rank()
         comptime N = input_shape[0]
@@ -945,7 +953,12 @@ struct DROPOUT:
     @staticmethod
     def forward[
         t_shape: TensorShape, attributes: AttributeVector
-    ](mut res: Tensor[f32], t: Tensor[f32], runtime_seed: UInt64, training: Bool):
+    ](
+        mut res: Tensor[f32],
+        t: Tensor[f32],
+        runtime_seed: UInt64,
+        training: Bool,
+    ):
         """
         Dropout forward: mask = dropout_mask(seed, i) < (1-p), res = t * mask / (1-p).
         `runtime_seed` is mixed in fresh per call so masks differ across
@@ -975,7 +988,9 @@ struct DROPOUT:
     @staticmethod
     def backward[
         ug_shape: TensorShape, t_shape: TensorShape, attributes: AttributeVector
-    ](ug: Tensor[f32], t: Tensor[f32], runtime_seed: UInt64, training: Bool) -> Tensor[f32]:
+    ](
+        ug: Tensor[f32], t: Tensor[f32], runtime_seed: UInt64, training: Bool
+    ) -> Tensor[f32]:
         var res_grad = Tensor[f32](ug_shape)
 
         if not training:

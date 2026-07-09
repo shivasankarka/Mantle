@@ -221,7 +221,9 @@ def static_result_shape(
     elif op == OP.FMA:
         return FMA.result_shape(t1_shape, t2_shape, t3_shape)
     elif op == OP.BATCHNORM2D:
-        return BATCHNORM2D.result_shape(t1_shape, t2_shape, t3_shape, attributes)
+        return BATCHNORM2D.result_shape(
+            t1_shape, t2_shape, t3_shape, attributes
+        )
     else:
         print("[ERROR] Operator not found.")
         return TensorShape(-1, -1)
@@ -333,12 +335,7 @@ def forward_op[
     t2_shape: TensorShape,
     t3_shape: TensorShape,
     attributes: AttributeVector,
-](
-    mut res: Tensor[f32],
-    t1: Tensor[f32],
-    t2: Tensor[f32],
-    t3: Tensor[f32],
-):
+](mut res: Tensor[f32], t1: Tensor[f32], t2: Tensor[f32], t3: Tensor[f32],):
     """
     Forward pass for ternary operators.
     """
@@ -442,12 +439,7 @@ def backward_op[
     t1_shape: TensorShape,
     t2_shape: TensorShape,
     attributes: AttributeVector,
-](
-    ug: Tensor[f32],
-    t1: Tensor[f32],
-    t2: Tensor[f32],
-    mut grad: Tensor[f32],
-):
+](ug: Tensor[f32], t1: Tensor[f32], t2: Tensor[f32], mut grad: Tensor[f32],):
     """
     Backward pass for binary operators.
     """

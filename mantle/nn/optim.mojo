@@ -25,6 +25,7 @@ from mantle.core.math_util import add, sub, mul, div
 # Helpers
 # ===----------------------------------------------------------------------===#
 
+
 def get_trainable_parameters(g: Graph) -> List[Symbol]:
     """
     Get all symbols of trainable parameters.
@@ -49,6 +50,7 @@ def get_trainable_parameters(g: Graph) -> List[Symbol]:
 # Adam
 # ===----------------------------------------------------------------------===#
 
+
 struct Adam[
     g: Graph,
     trainable_parameters: List[Symbol] = get_trainable_parameters(g),
@@ -72,7 +74,9 @@ struct Adam[
         beta2: Scalar[f32] = 0.999,
         epsilon: Scalar[f32] = 1e-8,
     ):
-        self.parameters = UnsafePointer(to=parameters).unsafe_origin_cast[MutUntrackedOrigin]()
+        self.parameters = UnsafePointer(to=parameters).unsafe_origin_cast[
+            MutUntrackedOrigin
+        ]()
 
         self.lr = lr
         self.beta1 = beta1
@@ -153,6 +157,7 @@ struct Adam[
 # SGD
 # ===----------------------------------------------------------------------===#
 
+
 struct SGD[
     g: Graph,
     trainable_parameters: List[Symbol] = get_trainable_parameters(g),
@@ -183,7 +188,9 @@ struct SGD[
         momentum: Scalar[f32] = 0.0,
         weight_decay: Scalar[f32] = 0.0,
     ):
-        self.parameters = UnsafePointer(to=parameters).unsafe_origin_cast[MutUntrackedOrigin]()
+        self.parameters = UnsafePointer(to=parameters).unsafe_origin_cast[
+            MutUntrackedOrigin
+        ]()
         self.lr = lr
         self.momentum = momentum
         self.weight_decay = weight_decay
@@ -218,7 +225,9 @@ struct SGD[
                     self.velocities[param].store[nelts](j, vel)
                     self.parameters[].tensors[param].store[nelts](j, w + vel)
                 else:
-                    self.parameters[].tensors[param].store[nelts](j, w - self.lr * grad)
+                    self.parameters[].tensors[param].store[nelts](
+                        j, w - self.lr * grad
+                    )
 
             vectorize[1](param.shape.num_elements(), v_step)
 
