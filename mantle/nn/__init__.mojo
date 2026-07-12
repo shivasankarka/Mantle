@@ -23,6 +23,7 @@ from .loss import MSELoss, CrossEntropyLoss
 import mantle.nn.optim as optim
 from .activations import (
     Softmax,
+    SoftmaxLayer,
     LogSoftmax,
     ReLU,
     ReLULayer,

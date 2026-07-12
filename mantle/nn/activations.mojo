@@ -93,6 +93,19 @@ def Softmax(mut g: Graph, input: Symbol, axis: Int) -> Symbol:
     return g.op(OP.DIV, exp_values, sum_values)
 
 
+@fieldwise_init
+struct SoftmaxLayer(Copyable, Layer, Movable):
+    """
+    `Layer`-conforming wrapper around `Softmax`, for use in a reflection-based
+    Module struct or `Sequential`.
+    """
+
+    var axis: Int
+
+    def forward(self, mut g: Graph, input: Symbol) -> Symbol:
+        return Softmax(g, input, self.axis)
+
+
 # ===----------------------------------------------------------------------===#
 # LogSoftmax
 # ===----------------------------------------------------------------------===#
