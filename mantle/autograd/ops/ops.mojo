@@ -31,6 +31,9 @@ from .mlops import (
     RELU,
     LEAKYRELU,
     TANH,
+    NEG,
+    ABS,
+    SQRT,
     CLIP,
     SQUEEZE,
     UNSQUEEZE,
@@ -86,6 +89,9 @@ struct OP(TrivialRegisterPassable, Writable):
     comptime DROPOUT = OP(26, "DROPOUT")
     comptime LEAKYRELU = OP(28, "LEAKYRELU")
     comptime BATCHNORM2D = OP(29, "BATCHNORM2D")
+    comptime NEG = OP(30, "NEG")
+    comptime ABS = OP(31, "ABS")
+    comptime SQRT = OP(32, "SQRT")
 
     var id: UInt8
     var name: Bytes[16]
@@ -173,6 +179,12 @@ def static_result_shape(
         return SLICE.result_shape(t1_shape, attributes)
     elif op == OP.DROPOUT:
         return DROPOUT.result_shape(t1_shape)
+    elif op == OP.NEG:
+        return NEG.result_shape(t1_shape)
+    elif op == OP.ABS:
+        return ABS.result_shape(t1_shape)
+    elif op == OP.SQRT:
+        return SQRT.result_shape(t1_shape)
     else:
         print("[ERROR] Operator not found.")
         return TensorShape(-1)
@@ -299,6 +311,12 @@ def forward_op[
         SLICE.forward[t1_shape, attributes](res, t1)
     elif op == OP.DROPOUT:
         DROPOUT.forward[t1_shape, attributes](res, t1, runtime_seed, training)
+    elif op == OP.NEG:
+        NEG.forward[t1_shape](res, t1)
+    elif op == OP.ABS:
+        ABS.forward[t1_shape](res, t1)
+    elif op == OP.SQRT:
+        SQRT.forward[t1_shape](res, t1)
     else:
         print("[ERROR] Operator not found.")
 
@@ -425,6 +443,12 @@ def backward_op[
         res_grad = DROPOUT.backward[ug_shape, t1_shape, attributes](
             ug, t1, runtime_seed, training
         )
+    elif op == OP.NEG:
+        res_grad = NEG.backward[ug_shape, t1_shape](ug, t1)
+    elif op == OP.ABS:
+        res_grad = ABS.backward[ug_shape, t1_shape](ug, t1)
+    elif op == OP.SQRT:
+        res_grad = SQRT.backward[ug_shape, t1_shape](ug, t1)
     else:
         print("[ERROR] Operator not found.")
         res_grad = Tensor[f32](-1)
