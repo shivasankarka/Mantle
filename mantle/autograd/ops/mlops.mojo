@@ -10,7 +10,7 @@
 Forward and backward implementations for activation and shape-modifying ops.
 """
 from std.algorithm import vectorize, parallelize
-from std.math import exp, sqrt
+from std.math import exp, sqrt, abs
 from std.utils.numerics import min_finite, max_finite
 from std.memory import memcpy
 from std.utils.index import IndexList
@@ -234,6 +234,114 @@ struct TANH:
 
         vectorize[nelts](ug_shape.num_elements(), vec_tanh_bw)
 
+        return res_grad^
+
+
+# ===----------------------------------------------------------------------===#
+# NEG
+# ===----------------------------------------------------------------------===#
+
+
+struct NEG:
+    @staticmethod
+    def result_shape(t1_shape: TensorShape) -> TensorShape:
+        return t1_shape
+
+    @staticmethod
+    def forward[t1_shape: TensorShape](mut res: Tensor[f32], t1: Tensor[f32]):
+        """Forward: res = -t1."""
+
+        def neg[type: DType, w: Int](x: SIMD[type, w]) -> SIMD[type, w]:
+            return -x
+
+        elwise_transform[neg](res, t1)
+
+    @staticmethod
+    def backward[
+        ug_shape: TensorShape, t1_shape: TensorShape
+    ](ug: Tensor[f32], t1: Tensor[f32]) -> Tensor[f32]:
+        """Backward: d(-x)/dx = -1."""
+        var res_grad = Tensor[f32](ug_shape)
+
+        def vec_neg_bw[n: Int](i: Int) {mut res_grad, read ug}:
+            res_grad.store[n](i, -ug.load[n](i))
+
+        vectorize[nelts](ug_shape.num_elements(), vec_neg_bw)
+        return res_grad^
+
+
+# ===----------------------------------------------------------------------===#
+# ABS
+# ===----------------------------------------------------------------------===#
+
+
+struct ABS:
+    @staticmethod
+    def result_shape(t1_shape: TensorShape) -> TensorShape:
+        return t1_shape
+
+    @staticmethod
+    def forward[t1_shape: TensorShape](mut res: Tensor[f32], t1: Tensor[f32]):
+        """Forward: res = abs(t1)."""
+
+        def abs_fn[type: DType, w: Int](x: SIMD[type, w]) -> SIMD[type, w]:
+            return abs(x)
+
+        elwise_transform[abs_fn](res, t1)
+
+    @staticmethod
+    def backward[
+        ug_shape: TensorShape, t1_shape: TensorShape
+    ](ug: Tensor[f32], t1: Tensor[f32]) -> Tensor[f32]:
+        """Backward: d(abs(x))/dx = sign(x)."""
+        var res_grad = Tensor[f32](ug_shape)
+
+        def vec_abs_bw[n: Int](i: Int) {mut res_grad, read t1, read ug}:
+            var x = t1.load[n](i)
+            # sign: +1 if x > 0, -1 if x < 0, 0 if x == 0
+            var sign = x.gt(SIMD[f32, n](0)).select[f32](
+                SIMD[f32, n](1),
+                x.lt(SIMD[f32, n](0)).select[f32](SIMD[f32, n](-1), SIMD[f32, n](0)),
+            )
+            res_grad.store[n](i, sign * ug.load[n](i))
+
+        vectorize[nelts](ug_shape.num_elements(), vec_abs_bw)
+        return res_grad^
+
+
+# ===----------------------------------------------------------------------===#
+# SQRT
+# ===----------------------------------------------------------------------===#
+
+
+struct SQRT:
+    @staticmethod
+    def result_shape(t1_shape: TensorShape) -> TensorShape:
+        return t1_shape
+
+    @staticmethod
+    def forward[t1_shape: TensorShape](mut res: Tensor[f32], t1: Tensor[f32]):
+        """Forward: res = sqrt(t1)."""
+
+        def sqrt_fn[
+            type: DType, w: Int
+        ](x: SIMD[type, w]) -> SIMD[type, w] where type.is_floating_point():
+            return sqrt(x)
+
+        elwise_transform[sqrt_fn](res, t1)
+
+    @staticmethod
+    def backward[
+        ug_shape: TensorShape, t1_shape: TensorShape
+    ](ug: Tensor[f32], t1: Tensor[f32]) -> Tensor[f32]:
+        """Backward: d(sqrt(x))/dx = 1 / (2 * sqrt(x))."""
+        var res_grad = Tensor[f32](ug_shape)
+
+        def vec_sqrt_bw[n: Int](i: Int) {mut res_grad, read t1, read ug}:
+            var s = sqrt(t1.load[n](i))
+            res_grad.store[n](i, ug.load[n](i) / (SIMD[f32, n](2) * s))
+
+        vectorize[nelts](ug_shape.num_elements(), vec_sqrt_bw)
         return res_grad^
 
 
