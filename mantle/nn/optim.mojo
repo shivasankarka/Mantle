@@ -7,7 +7,7 @@
 #  ===----------------------------------------------------------------------=== #
 """Optim (mantle.nn.optim)
 ------------------------------------------------
-Optimizer implementations (Adam, SGD).
+Optimizer implementations (Adam, SGD) and gradient utilities.
 """
 from std.math import sqrt
 from std.algorithm import vectorize, parallelize
@@ -44,6 +44,63 @@ def get_trainable_parameters(g: Graph) -> List[Symbol]:
             trainable_parameters.append(g.params.symbols[i])
 
     return trainable_parameters^
+
+
+# ===----------------------------------------------------------------------===#
+# Gradient Clipping
+# ===----------------------------------------------------------------------===#
+
+
+def clip_grad_norm[
+    g: Graph,
+    trainable_parameters: List[Symbol] = get_trainable_parameters(g),
+](mut parameters: Parameters, max_norm: Scalar[f32]) -> Scalar[f32]:
+    """
+    Clip gradients by global L2 norm (in-place).
+
+    Computes the total L2 norm of all trainable parameter gradients, then
+    rescales every gradient by `max_norm / norm` when `norm > max_norm`.
+    This is the standard PyTorch `clip_grad_norm_` behaviour.
+
+    Args:
+        parameters: The model's parameter/gradient storage.
+        max_norm:   Maximum allowed gradient norm.
+
+    Returns:
+        The pre-clipping global gradient norm (useful for monitoring).
+    """
+    var tr = materialize[trainable_parameters]()
+
+    # --- compute global L2 norm ---
+    var total_norm: Scalar[f32] = 0.0
+
+    for i in range(len(tr)):
+        var param = tr[i]
+        var n = param.shape.num_elements()
+
+        def v_norm[nelts: Int](j: Int) {mut total_norm, read param, read parameters}:
+            var g_vec = parameters.grads[param].load[nelts](j)
+            total_norm += (g_vec * g_vec).reduce_add()
+
+        vectorize[1](n, v_norm)
+
+    total_norm = sqrt(total_norm)
+
+    # --- rescale if norm exceeds max_norm ---
+    if total_norm > max_norm:
+        var scale = max_norm / (total_norm + Scalar[f32](1e-6))
+
+        for i in range(len(tr)):
+            var param = tr[i]
+            var n = param.shape.num_elements()
+
+            def v_scale[nelts: Int](j: Int) {mut parameters, read param, read scale}:
+                var g_vec = parameters.grads[param].load[nelts](j)
+                parameters.grads[param].store[nelts](j, g_vec * scale)
+
+            vectorize[1](n, v_scale)
+
+    return total_norm
 
 
 # ===----------------------------------------------------------------------===#
