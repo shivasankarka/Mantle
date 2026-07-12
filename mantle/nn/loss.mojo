@@ -7,7 +7,7 @@
 #  ===----------------------------------------------------------------------=== #
 """Loss (mantle.nn.loss)
 ------------------------------------------------
-Loss function implementations (MSE, Cross-Entropy).
+Loss function implementations (MSE, Cross-Entropy, L1).
 """
 from std.reflection import reflect_fn
 
@@ -42,6 +42,27 @@ def MSELoss(
 # ===----------------------------------------------------------------------===#
 # CrossEntropyLoss
 # ===----------------------------------------------------------------------===#
+
+
+# ===----------------------------------------------------------------------===#
+# L1Loss (MAE)
+# ===----------------------------------------------------------------------===#
+
+
+def L1Loss(
+    mut g: Graph,
+    y_pred: Symbol,
+    y_true: Symbol,
+) -> Symbol:
+    # 1/N * sum( abs(outputs - targets) )
+
+    var before = len(g.nodes)
+    var diff = g.op(OP.SUB, y_pred, y_true)
+    var abs_diff = g.op(OP.ABS, diff)
+    var mean_loss = g.op(OP.MEAN, abs_diff)
+
+    g.set_scope_from(before, reflect_fn[L1Loss].display_name())
+    return mean_loss
 
 
 def CrossEntropyLoss(
