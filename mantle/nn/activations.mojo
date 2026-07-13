@@ -73,6 +73,26 @@ def Tanh(mut g: Graph, input: Symbol) -> Symbol:
 
 
 # ===----------------------------------------------------------------------===#
+# GELU
+# ===----------------------------------------------------------------------===#
+
+
+def GELU(mut g: Graph, input: Symbol) -> Symbol:
+    return g.op(OP.GELU, input)
+
+
+@fieldwise_init
+struct GELULayer(Copyable, Layer, Movable):
+    """
+    `Layer`-conforming wrapper around `GELU`, for use in a reflection-based
+    Module struct.
+    """
+
+    def forward(self, mut g: Graph, input: Symbol) -> Symbol:
+        return GELU(g, input)
+
+
+# ===----------------------------------------------------------------------===#
 # Softmax
 # ===----------------------------------------------------------------------===#
 

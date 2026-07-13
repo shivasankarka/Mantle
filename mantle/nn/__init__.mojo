@@ -31,4 +31,6 @@ from .activations import (
     LeakyReLU,
     Sigmoid,
     Tanh,
+    GELU,
+    GELULayer,
 )

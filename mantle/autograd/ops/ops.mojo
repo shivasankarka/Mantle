@@ -32,6 +32,7 @@ from .mlops import (
     RELU,
     LEAKYRELU,
     TANH,
+    GELU,
     NEG,
     ABS,
     SQRT,
@@ -95,6 +96,7 @@ struct OP(TrivialRegisterPassable, Writable):
     comptime ABS = OP(31, "ABS")
     comptime SQRT = OP(32, "SQRT")
     comptime GATHER = OP(33, "GATHER")
+    comptime GELU = OP(34, "GELU")
 
     var id: UInt8
     var name: Bytes[16]
@@ -168,6 +170,8 @@ def static_result_shape(
         return LEAKYRELU.result_shape(t1_shape)
     elif op == OP.TANH:
         return TANH.result_shape(t1_shape)
+    elif op == OP.GELU:
+        return GELU.result_shape(t1_shape)
     elif op == OP.TRANSPOSE:
         return TRANSPOSE.result_shape(t1_shape, attributes)
     elif op == OP.MAXPOOL2D:
@@ -302,6 +306,8 @@ def forward_op[
         LEAKYRELU.forward[t1_shape, attributes](res, t1)
     elif op == OP.TANH:
         TANH.forward[t1_shape](res, t1)
+    elif op == OP.GELU:
+        GELU.forward[t1_shape](res, t1)
     elif op == OP.TRANSPOSE:
         TRANSPOSE.forward[t1_shape, attributes](res, t1)
     elif op == OP.MAXPOOL2D:
@@ -434,6 +440,8 @@ def backward_op[
         res_grad = LEAKYRELU.backward[ug_shape, t1_shape, attributes](ug, t1)
     elif op == OP.TANH:
         res_grad = TANH.backward[ug_shape, t1_shape](ug, t1)
+    elif op == OP.GELU:
+        res_grad = GELU.backward[ug_shape, t1_shape](ug, t1)
     elif op == OP.TRANSPOSE:
         res_grad = TRANSPOSE.backward[ug_shape, t1_shape, attributes](ug, t1)
     elif op == OP.MAXPOOL2D:

@@ -238,6 +238,70 @@ struct TANH:
 
 
 # ===----------------------------------------------------------------------===#
+# GELU
+# ===----------------------------------------------------------------------===#
+
+
+struct GELU:
+    """GELU activation, tanh approximation (as used by GPT-2/BERT):
+    `0.5x(1 + tanh(sqrt(2/pi)(x + 0.044715x^3)))`."""
+
+    comptime SQRT_2_OVER_PI: Float64 = 0.7978845608028654
+    comptime COEFF: Float64 = 0.044715
+
+    @staticmethod
+    def result_shape(t1_shape: TensorShape) -> TensorShape:
+        return t1_shape
+
+    @staticmethod
+    @always_inline
+    def gelu[
+        type: DType, simd_width: Int
+    ](x: SIMD[type, simd_width]) -> SIMD[
+        type, simd_width
+    ] where type.is_floating_point():
+        comptime c0 = Scalar[type](Self.SQRT_2_OVER_PI)
+        comptime c1 = Scalar[type](Self.COEFF)
+        var u = c0 * (x + c1 * x * x * x)
+        return 0.5 * x * (1 + TANH.tanh(u))
+
+    @staticmethod
+    def forward[
+        t1_shape: TensorShape,
+    ](mut res: Tensor[f32], t1: Tensor[f32]):
+        """Forward operation of GELU."""
+        elwise_transform[Self.gelu](res, t1)
+
+    @staticmethod
+    def backward[
+        ug_shape: TensorShape,
+        t1_shape: TensorShape,
+    ](ug: Tensor[f32], t1: Tensor[f32]) -> Tensor[f32]:
+        """Backward operation of GELU.
+
+        d(gelu(x))/dx = 0.5(1 + tanh(u)) + 0.5x(1 - tanh(u)^2) * du/dx
+        where u = sqrt(2/pi)(x + 0.044715x^3), du/dx = sqrt(2/pi)(1 + 3*0.044715x^2)
+        """
+        var res_grad = Tensor[f32](ug_shape)
+
+        def vec_gelu_bw[
+            nelts: Int
+        ](idx: Int) {mut res_grad, read t1, read ug}:
+            comptime c0 = SIMD[f32, nelts](Self.SQRT_2_OVER_PI)
+            comptime c1 = SIMD[f32, nelts](Self.COEFF)
+            var x = t1.load[nelts](idx)
+            var u = c0 * (x + c1 * x * x * x)
+            var t = TANH.tanh(u)
+            var du_dx = c0 * (1 + 3 * c1 * x * x)
+            var dgelu = 0.5 * (1 + t) + 0.5 * x * (1 - t * t) * du_dx
+            res_grad.store[nelts](idx, dgelu * ug.load[nelts](idx))
+
+        vectorize[nelts](ug_shape.num_elements(), vec_gelu_bw)
+
+        return res_grad^
+
+
+# ===----------------------------------------------------------------------===#
 # NEG
 # ===----------------------------------------------------------------------===#
 
