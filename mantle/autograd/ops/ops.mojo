@@ -41,6 +41,7 @@ from .mlops import (
     SLICE,
     DROPOUT,
     BATCHNORM2D,
+    GATHER,
 )
 from .dynamics import CONCAT, SPLIT
 from .conv import CONV2D
@@ -93,6 +94,7 @@ struct OP(TrivialRegisterPassable, Writable):
     comptime NEG = OP(30, "NEG")
     comptime ABS = OP(31, "ABS")
     comptime SQRT = OP(32, "SQRT")
+    comptime GATHER = OP(33, "GATHER")
 
     var id: UInt8
     var name: Bytes[16]
@@ -212,6 +214,8 @@ def static_result_shape(
         return POW.result_shape(t1_shape, t2_shape)
     elif op == OP.DOT:
         return DOT.result_shape(t1_shape, t2_shape)
+    elif op == OP.GATHER:
+        return GATHER.result_shape(t1_shape, t2_shape)
     else:
         # We can't print at compile time (at least for now it crashes at comp time with an error)
         print("[ERROR] Operator not found.")
@@ -344,6 +348,8 @@ def forward_op[
         POW.forward[t1_shape, t2_shape](res, t1, t2)
     elif op == OP.DOT:
         DOT.forward[t1_shape, t2_shape](res, t1, t2)
+    elif op == OP.GATHER:
+        GATHER.forward[t1_shape, t2_shape](res, t1, t2)
     else:
         print("[ERROR] Operator not found.")
 
@@ -492,6 +498,10 @@ def backward_op[
         )
     elif op == OP.DOT:
         res_grad = DOT.backward[tensor_id, ug_shape, t1_shape, t2_shape](
+            ug, t1, t2
+        )
+    elif op == OP.GATHER:
+        res_grad = GATHER.backward[tensor_id, ug_shape, t1_shape, t2_shape](
             ug, t1, t2
         )
     else:

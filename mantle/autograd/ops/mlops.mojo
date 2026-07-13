@@ -1120,3 +1120,67 @@ struct DROPOUT:
             else:
                 res_grad[i] = Float32(0.0)
         return res_grad^
+
+
+# ===----------------------------------------------------------------------===#
+# GATHER
+# ===----------------------------------------------------------------------===#
+
+
+struct GATHER:
+    """Row lookup: `table` is `(V, D)`, `indices` is any shape holding
+    row ids (stored as f32, truncated to Int). Output is
+    `indices.shape + (D,)`. No gradient flows to `indices`."""
+
+    @staticmethod
+    def result_shape(
+        table_shape: TensorShape, indices_shape: TensorShape
+    ) -> TensorShape:
+        var D = table_shape[-1]
+        var rank = indices_shape.rank()
+        var shape = IndexList[MAX_RANK]()
+        for i in range(rank):
+            shape[i] = indices_shape[i]
+        shape[rank] = D
+        return TensorShape(rank=rank + 1, shape=shape)
+
+    @staticmethod
+    def forward[
+        table_shape: TensorShape,
+        indices_shape: TensorShape,
+    ](mut res: Tensor[f32], table: Tensor[f32], indices: Tensor[f32]):
+        comptime D = table_shape[-1]
+        var n = indices_shape.num_elements()
+
+        for i in range(n):
+            var row = Int(indices[i])
+            memcpy(
+                dest=res.mut_ptr() + i * D,
+                src=table.ptr() + row * D,
+                count=D,
+            )
+
+    @staticmethod
+    def backward[
+        tensor_id: Int,
+        ug_shape: TensorShape,
+        table_shape: TensorShape,
+        indices_shape: TensorShape,
+    ](
+        ug: Tensor[f32], table: Tensor[f32], indices: Tensor[f32]
+    ) -> Tensor[f32]:
+        comptime if tensor_id == 0:
+            comptime D = table_shape[-1]
+            var n = indices_shape.num_elements()
+            var res_grad = Tensor[f32](table_shape)
+
+            for i in range(n):
+                var row = Int(indices[i])
+                for d in range(D):
+                    res_grad[row * D + d] += ug[i * D + d]
+
+            return res_grad^
+        else:
+            # No gradient flows to indices; indices are non-trainable so
+            # this branch is never invoked by the dispatcher.
+            return Tensor[f32](indices_shape)
