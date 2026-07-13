@@ -19,6 +19,7 @@ from .layers.pool import MaxPool2d, MaxPool2dLayer
 from .layers.dropout import Dropout, DropoutLayer
 from .layers.batchnorm import BatchNorm2d, BatchNorm2dLayer
 from .layers.embedding import Embedding, EmbeddingLayer
+from .layers.layernorm import LayerNorm, LayerNormLayer
 
 from .loss import MSELoss, CrossEntropyLoss, L1Loss
 import mantle.nn.optim as optim

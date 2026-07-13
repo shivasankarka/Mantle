@@ -384,6 +384,7 @@ def accumulate_op[
     """
     if res_shape == t1_shape:
         accumulate_op[func](res, t1)
+        return
 
     comptime size = res_shape.rank()
     comptime strides1 = broadcast_calculate_strides[size, t1_shape, res_shape]()

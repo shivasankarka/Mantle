@@ -202,11 +202,11 @@ struct DIV:
                 ](i: Int) {mut res_grad, read ug, read t1, read t2,}:
                     var index1 = get_real_index[size, strides1, ug_shape](i)
                     var index2 = get_real_index[size, strides2, ug_shape](i)
-                    res_grad.store[nelts](
+                    res_grad.store[netls](
                         i,
-                        -t1.load[nelts](index1)
-                        / (t2.load[nelts](index2) ** 2)
-                        * ug.load[nelts](i),
+                        -t1.load[netls](index1)
+                        / (t2.load[netls](index2) ** 2)
+                        * ug.load[netls](i),
                     )
 
                 vectorize[1](ug_shape.num_elements(), vec_div_bw_broadcast)
