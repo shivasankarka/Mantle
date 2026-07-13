@@ -198,6 +198,104 @@ def dot_transpose_t2[
     # parallelize[calc_row](A_shape[0], 1)
 
 
+# ===----------------------------------------------------------------------===#
+# Batched matmul
+# ===----------------------------------------------------------------------===#
+#
+# Semantics: matmul on the last two dims of t1/t2. Leading (batch) dims
+# either match exactly, or one operand is rank-2 and is broadcast (shared)
+# across every batch slice of the other operand — this covers both
+# `(B,T,D)@(D,K)` (Linear on batched input) and `(B,H,T,d)@(B,H,d,T)`
+# (attention, matching batch dims).
+
+
+@always_inline
+def num_batches(shape: TensorShape) -> Int:
+    var n = 1
+    for i in range(shape.rank() - 2):
+        n *= shape[i]
+    return n
+
+
+def batched_dot[
+    t1_shape: TensorShape, t2_shape: TensorShape
+](mut res: Tensor[f32], t1: Tensor[f32], t2: Tensor[f32]):
+    comptime M = t1_shape[-2]
+    comptime K = t1_shape[-1]
+    comptime N = t2_shape[-1]
+    comptime t1_batches = num_batches(t1_shape)
+    comptime t2_batches = num_batches(t2_shape)
+    comptime batches = max(t1_batches, t2_batches)
+
+    comptime t1_step = 0 if t1_batches == 1 else M * K
+    comptime t2_step = 0 if t2_batches == 1 else K * N
+
+    var res_ptr = res.mut_ptr()
+    var t1_ptr = t1.ptr()
+    var t2_ptr = t2.ptr()
+
+    for b in range(batches):
+        dot[TensorShape(M, K), TensorShape(K, N)](
+            res_ptr + b * M * N,
+            t1_ptr + b * t1_step,
+            t2_ptr + b * t2_step,
+        )
+
+
+def batched_dot_transpose_t2[
+    A_shape: TensorShape, B_shape: TensorShape
+](mut C: Tensor[f32], A: Tensor[f32], B: Tensor[f32]):
+    """Batched dot(A, B^T) over the last two dims."""
+    comptime M = A_shape[-2]
+    comptime K = A_shape[-1]
+    comptime N = B_shape[-2]
+    comptime A_batches = num_batches(A_shape)
+    comptime B_batches = num_batches(B_shape)
+    comptime batches = max(A_batches, B_batches)
+
+    comptime A_step = 0 if A_batches == 1 else M * K
+    comptime B_step = 0 if B_batches == 1 else N * K
+
+    memset_zero(C.mut_ptr(), C.num_elements())
+
+    var C_ptr = C.mut_ptr()
+    var A_ptr = A.ptr()
+    var B_ptr = B.ptr()
+
+    for b in range(batches):
+        var B_t = transpose_2D[TensorShape(N, K)](B_ptr + b * B_step)
+        dot[TensorShape(M, K), TensorShape(K, N)](
+            C_ptr + b * M * N, A_ptr + b * A_step, B_t
+        )
+
+
+def batched_dot_transpose_t1[
+    A_shape: TensorShape, B_shape: TensorShape
+](mut C: Tensor[f32], A: Tensor[f32], B: Tensor[f32]):
+    """Batched dot(A^T, B) over the last two dims."""
+    comptime M = A_shape[-1]
+    comptime K = A_shape[-2]
+    comptime N = B_shape[-1]
+    comptime A_batches = num_batches(A_shape)
+    comptime B_batches = num_batches(B_shape)
+    comptime batches = max(A_batches, B_batches)
+
+    comptime A_step = 0 if A_batches == 1 else K * M
+    comptime B_step = 0 if B_batches == 1 else K * N
+
+    memset_zero(C.mut_ptr(), C.num_elements())
+
+    var C_ptr = C.mut_ptr()
+    var A_ptr = A.ptr()
+    var B_ptr = B.ptr()
+
+    for b in range(batches):
+        var A_t = transpose_2D[TensorShape(K, M)](A_ptr + b * A_step)
+        dot[TensorShape(M, K), TensorShape(K, N)](
+            C_ptr + b * M * N, A_t, B_ptr + b * B_step
+        )
+
+
 def dot_transpose_t1[
     A_shape: TensorShape, B_shape: TensorShape
 ](mut C: Tensor[f32], A: Tensor[f32], B: Tensor[f32]):

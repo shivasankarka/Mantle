@@ -30,13 +30,14 @@ def Linear(
     n_outputs: Int,
 ) -> Symbol:
     """
-    A fully connected layer.
+    A fully connected layer. Accepts input of any rank >= 2; the matmul
+    contracts the last dimension (e.g. `(B, D)` or `(B, T, D)`).
     """
 
-    var fan_in: Scalar[f32] = Scalar[f32](inputs.shape[1])
+    var fan_in: Scalar[f32] = Scalar[f32](inputs.shape[-1])
     var bound = q_sqrt(fan_in)
     var weights = g.param(
-        TensorShape(inputs.shape[1], n_outputs),
+        TensorShape(inputs.shape[-1], n_outputs),
         init=Param("random_uniform", -bound, bound)
         # init=Param("random_uniform", 1) # NOTE: mode: fan_out required as weight are defined transposed
     )

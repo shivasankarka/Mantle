@@ -18,7 +18,14 @@ from mantle import f32, nelts
 from mantle.core.tensor import Tensor, TensorShape, MAX_RANK
 from mantle.core.tensorutils import *
 from mantle.autograd.attributes import Attribute, AttributeVector
-from mantle.autograd.ops.matmul import dot, dot_transpose_t1, dot_transpose_t2
+from mantle.autograd.ops.matmul import (
+    dot,
+    dot_transpose_t1,
+    dot_transpose_t2,
+    batched_dot,
+    batched_dot_transpose_t1,
+    batched_dot_transpose_t2,
+)
 from mantle.core.math_util import add, sub, mul, div, exp, log
 
 
@@ -221,12 +228,36 @@ struct DIV:
             return res_grad^
 
 
+def dot_batch_broadcast_shape(
+    t1_shape: TensorShape, t2_shape: TensorShape
+) -> TensorShape:
+    """The result shape of DOT: last two dims are (t1[-2], t2[-1]); leading
+    (batch) dims come from whichever operand has more of them (the other
+    is required to be rank-2, i.e. shared/broadcast across all batches)."""
+    var batch_rank = max(t1_shape.rank(), t2_shape.rank()) - 2
+    var batch_shape = (
+        t1_shape if t1_shape.rank() >= t2_shape.rank() else t2_shape
+    )
+
+    var shape = IndexList[MAX_RANK]()
+    for i in range(batch_rank):
+        shape[i] = batch_shape[i]
+    shape[batch_rank] = t1_shape[-2]
+    shape[batch_rank + 1] = t2_shape[-1]
+
+    return TensorShape(rank=batch_rank + 2, shape=shape)
+
+
 struct DOT:
+    """Matrix multiply on the last two dims; leading (batch) dims either
+    match exactly or one operand is rank-2 and is shared across all batches
+    of the other (the `Linear`-layer case)."""
+
     @staticmethod
     def result_shape(
         t1_shape: TensorShape, t2_shape: TensorShape
     ) -> TensorShape:
-        return TensorShape(t1_shape[0], t2_shape[1])
+        return dot_batch_broadcast_shape(t1_shape, t2_shape)
 
     @staticmethod
     def forward[
@@ -236,7 +267,10 @@ struct DOT:
         """
         Forward pass of the dot operation.
         """
-        dot[t1_shape, t2_shape](res, t1, t2)
+        comptime if t1_shape.rank() == 2 and t2_shape.rank() == 2:
+            dot[t1_shape, t2_shape](res, t1, t2)
+        else:
+            batched_dot[t1_shape, t2_shape](res, t1, t2)
 
     @staticmethod
     def backward[
@@ -245,18 +279,47 @@ struct DOT:
         t1_shape: TensorShape,
         t2_shape: TensorShape,
     ](ug: Tensor[f32], t1: Tensor[f32], t2: Tensor[f32]) -> Tensor[f32]:
-        """Backward operation of dot product."""
+        """Backward operation of dot product.
 
-        comptime if tensor_id == 0:
-            # dot(ug, t2.T)
-            var res_grad = Tensor[f32](t1_shape)
-            dot_transpose_t2[ug_shape, t2_shape](res_grad, ug, t2)
-            return res_grad^
+        For the batched case, the returned gradient has the "full" batch
+        shape (t1's batch dims broadcast against t2's); when an operand was
+        rank-2 (shared across batches), the dispatcher (`ops.mojo`) reduces
+        this down via `accumulate_grad`'s broadcasting path, same as
+        ADD/SUB/MUL/DIV.
+        """
+
+        comptime if t1_shape.rank() == 2 and t2_shape.rank() == 2:
+            comptime if tensor_id == 0:
+                # dot(ug, t2.T)
+                var res_grad = Tensor[f32](t1_shape)
+                dot_transpose_t2[ug_shape, t2_shape](res_grad, ug, t2)
+                return res_grad^
+            else:
+                # dot(t1.T, ug)
+                var res_grad = Tensor[f32](t2_shape)
+                dot_transpose_t1[t1_shape, ug_shape](res_grad, t1, ug)
+                return res_grad^
         else:
-            # dot(t1.T, ug)
-            var res_grad = Tensor[f32](t2_shape)
-            dot_transpose_t1[t1_shape, ug_shape](res_grad, t1, ug)
-            return res_grad^
+            comptime if tensor_id == 0:
+                # dot(ug, t2.T), full batch shape (t1's batch dims broadcast)
+                comptime full_shape = dot_batch_broadcast_shape(
+                    ug_shape, TensorShape(t2_shape[-1], t2_shape[-2])
+                )
+                var res_grad = Tensor[f32](full_shape)
+                batched_dot_transpose_t2[ug_shape, t2_shape](
+                    res_grad, ug, t2
+                )
+                return res_grad^
+            else:
+                # dot(t1.T, ug), full batch shape (t2's batch dims broadcast)
+                comptime full_shape = dot_batch_broadcast_shape(
+                    TensorShape(t1_shape[-1], t1_shape[-2]), ug_shape
+                )
+                var res_grad = Tensor[f32](full_shape)
+                batched_dot_transpose_t1[t1_shape, ug_shape](
+                    res_grad, t1, ug
+                )
+                return res_grad^
 
 
 struct EXP:
