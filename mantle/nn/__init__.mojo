@@ -20,6 +20,11 @@ from .layers.dropout import Dropout, DropoutLayer
 from .layers.batchnorm import BatchNorm2d, BatchNorm2dLayer
 from .layers.embedding import Embedding, EmbeddingLayer
 from .layers.layernorm import LayerNorm, LayerNormLayer
+from .layers.attention import (
+    MultiHeadAttention,
+    MultiHeadAttentionLayer,
+    causal_mask,
+)
 
 from .loss import MSELoss, CrossEntropyLoss, L1Loss
 import mantle.nn.optim as optim
