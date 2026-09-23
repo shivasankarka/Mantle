@@ -267,6 +267,7 @@ def batched_dot_transpose_t2[
         dot[TensorShape(M, K), TensorShape(K, N)](
             C_ptr + b * M * N, A_ptr + b * A_step, B_t
         )
+        B_t.free()
 
 
 def batched_dot_transpose_t1[
@@ -294,6 +295,7 @@ def batched_dot_transpose_t1[
         dot[TensorShape(M, K), TensorShape(K, N)](
             C_ptr + b * M * N, A_t, B_ptr + b * B_step
         )
+        A_t.free()
 
 
 def dot_transpose_t1[

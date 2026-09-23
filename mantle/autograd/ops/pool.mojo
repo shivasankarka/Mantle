@@ -165,3 +165,160 @@ struct MAXPOOL2D:
                         res[max_idx] += ug[ug_idx]
 
         return res^
+
+
+# ===----------------------------------------------------------------------===#
+# AVGPOOL2D
+# ===----------------------------------------------------------------------===#
+
+
+struct AVGPOOL2D:
+    """
+    Average pooling: divides by the count of in-bounds kernel cells
+    (`count_include_pad=False` semantics), so padded/out-of-frame
+    positions never dilute the average. A `GlobalAvgPool` is the same op
+    with `kernel_size` set to the full spatial extent.
+    """
+
+    @staticmethod
+    def result_shape(
+        input_shape: TensorShape, attributes: AttributeVector
+    ) -> TensorShape:
+        return MAXPOOL2D.result_shape(input_shape, attributes)
+
+    @staticmethod
+    def forward[
+        input_shape: TensorShape, attributes: AttributeVector
+    ](mut outputs: Tensor[f32], inputs: Tensor[f32]):
+        """
+        Returns the average value of each kernel in the input tensor.
+            inputs.shape     [batch_size, channels, iX, iY]
+            with kernel_size = (kX, kY)
+            outputs.shape    [batch_size, channels, oX, oY].
+        """
+        comptime kernel_size = attributes["kernel_size"].value().to_static[2]()
+        comptime padding = attributes["padding"].value().to_static[2]()
+        comptime stride = attributes["stride"].value().to_static[2]()
+        comptime dilation = attributes["dilation"].value().to_static[2]()
+
+        comptime inputs_strides = input_shape.strides()
+        comptime output_shape = Self.result_shape(input_shape, attributes)
+        comptime outputs_strides = output_shape.strides()
+
+        for batch in range(input_shape[0]):
+            for in_ch in range(input_shape[1]):
+                for x in range(output_shape[2]):
+                    for y in range(output_shape[3]):
+                        var sum_val: Scalar[f32] = 0.0
+                        var count: Int = 0
+                        var ix_base = x * stride[0] - padding[0]
+                        var iy_base = y * stride[1] - padding[1]
+                        for kx in range(kernel_size[0]):
+                            for ky in range(kernel_size[1]):
+                                var ix = ix_base + kx * dilation[0]
+                                var iy = iy_base + ky * dilation[1]
+
+                                if (
+                                    ix < 0
+                                    or iy < 0
+                                    or ix >= input_shape[2]
+                                    or iy >= input_shape[3]
+                                ):
+                                    continue
+
+                                var idx = (
+                                    batch * inputs_strides[0]
+                                    + in_ch * inputs_strides[1]
+                                    + ix * inputs_strides[2]
+                                    + iy
+                                )
+
+                                sum_val += inputs[idx]
+                                count += 1
+
+                        var out_idx = (
+                            batch * outputs_strides[0]
+                            + in_ch * outputs_strides[1]
+                            + x * outputs_strides[2]
+                            + y
+                        )
+
+                        outputs[out_idx] = sum_val / Scalar[f32](
+                            max(count, 1)
+                        )
+
+    @staticmethod
+    def backward[
+        ug_shape: TensorShape,
+        input_shape: TensorShape,
+        attributes: AttributeVector,
+    ](ug: Tensor[f32], inputs: Tensor[f32]) -> Tensor[f32]:
+        """
+        Backward operation of AVGPOOL2D: distributes `ug / count` uniformly
+        to every in-bounds cell that contributed to the average.
+
+        Upper gradient of shape: [batch_size, channels, uX, uY]
+        """
+        comptime kernel_size = attributes["kernel_size"].value().to_static[2]()
+        comptime padding = attributes["padding"].value().to_static[2]()
+        comptime stride = attributes["stride"].value().to_static[2]()
+        comptime dilation = attributes["dilation"].value().to_static[2]()
+
+        comptime ug_strides = ug_shape.strides()
+        comptime inputs_strides = input_shape.strides()
+
+        var res = Tensor[f32](input_shape)
+
+        for batch in range(input_shape[0]):
+            for in_ch in range(input_shape[1]):
+                for x in range(ug_shape[2]):
+                    for y in range(ug_shape[3]):
+                        var ix_base = x * stride[0] - padding[0]
+                        var iy_base = y * stride[1] - padding[1]
+
+                        var count: Int = 0
+                        for kx in range(kernel_size[0]):
+                            for ky in range(kernel_size[1]):
+                                var ix = ix_base + kx * dilation[0]
+                                var iy = iy_base + ky * dilation[1]
+                                if (
+                                    ix < 0
+                                    or iy < 0
+                                    or ix >= input_shape[2]
+                                    or iy >= input_shape[3]
+                                ):
+                                    continue
+                                count += 1
+
+                        var ug_idx = (
+                            batch * ug_strides[0]
+                            + in_ch * ug_strides[1]
+                            + x * ug_strides[2]
+                            + y
+                        )
+                        var grad_share = ug[ug_idx] / Scalar[f32](
+                            max(count, 1)
+                        )
+
+                        for kx in range(kernel_size[0]):
+                            for ky in range(kernel_size[1]):
+                                var ix = ix_base + kx * dilation[0]
+                                var iy = iy_base + ky * dilation[1]
+
+                                if (
+                                    ix < 0
+                                    or iy < 0
+                                    or ix >= input_shape[2]
+                                    or iy >= input_shape[3]
+                                ):
+                                    continue
+
+                                var idx = (
+                                    batch * inputs_strides[0]
+                                    + in_ch * inputs_strides[1]
+                                    + ix * inputs_strides[2]
+                                    + iy
+                                )
+                                res[idx] += grad_share
+
+        return res^

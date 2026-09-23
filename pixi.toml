@@ -1,6 +1,6 @@
 [workspace]
-authors = ["stijn", "benny", "andres"]
-channels = ["https://conda.modular.com/max-nightly", "conda-forge", "https://conda.modular.com/max"]
+authors = ["shivasankar"]
+channels = ["conda-forge", "https://conda.modular.com/max", "https://conda.modular.com/max-nightly"]
 description = "Mantle is a stand-alone machine learning framework that leverages the power of Mojo."
 name = "Mantle"
 platforms = ["osx-arm64", "linux-64"]
@@ -19,9 +19,10 @@ torchvision = ">=0.27.1,<0.28"
 torchaudio = ">=2.11.0,<3"
 onnx = ">=1.22.0,<2"
 pandas = ">=3.0.3,<4"
-mojo = ">=1.0.0b3.dev2026070206,<2"
+mojo = ">=1.1.0,<2"
 matplotlib = ">=3.11.0,<4"
 netron = ">=9.1.3,<10"
+max-core = ">=26.6.0,<27"
 
 [pypi-dependencies]
 # torch = ">=2.5.1, <3"

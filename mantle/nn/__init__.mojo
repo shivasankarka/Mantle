@@ -18,13 +18,15 @@ from .layers.conv import Conv2d, Conv2dLayer
 from .layers.pool import MaxPool2d, MaxPool2dLayer
 from .layers.dropout import Dropout, DropoutLayer
 from .layers.batchnorm import BatchNorm2d, BatchNorm2dLayer
-from .layers.embedding import Embedding, EmbeddingLayer
+from .layers.embedding import Embedding, EmbeddingLayer, PositionalEmbedding
 from .layers.layernorm import LayerNorm, LayerNormLayer
 from .layers.attention import (
     MultiHeadAttention,
     MultiHeadAttentionLayer,
     causal_mask,
 )
+from .layers.feedforward import FeedForward, FeedForwardLayer
+from .layers.transformer_block import TransformerBlock, TransformerBlockLayer
 
 from .loss import MSELoss, CrossEntropyLoss, L1Loss
 import mantle.nn.optim as optim

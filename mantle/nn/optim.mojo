@@ -7,10 +7,13 @@
 #  ===----------------------------------------------------------------------=== #
 """Optim (mantle.nn.optim)
 ------------------------------------------------
-Optimizer implementations (Adam, SGD) and gradient utilities.
+Optimizer implementations (Adam, AdamW, SGD), LR schedulers, and gradient
+utilities.
 """
-from std.math import sqrt
+from std.math import sqrt, cos
 from std.algorithm import vectorize, parallelize
+
+comptime PI = Float64(3.14159265358979323846)
 
 from mantle import f32
 from mantle.nn.parameters import Parameters
@@ -211,6 +214,118 @@ struct Adam[
 
 
 # ===----------------------------------------------------------------------===#
+# AdamW
+# ===----------------------------------------------------------------------===#
+
+
+struct AdamW[
+    g: Graph,
+    trainable_parameters: List[Symbol] = get_trainable_parameters(g),
+]:
+    """
+    Adam with decoupled weight decay (Loshchilov & Hutter, 2019).
+
+    Unlike plain Adam + L2 regularization (which folds `weight_decay * w`
+    into the gradient, so it gets divided by the RMS term), AdamW applies
+    decay directly to the parameter: `param -= lr * weight_decay * param`,
+    decoupled from the gradient-based update. This is the standard
+    optimizer for training Transformers.
+    """
+
+    var parameters: UnsafePointer[Parameters, MutUntrackedOrigin]
+
+    var lr: Scalar[f32]
+    var beta1: Scalar[f32]
+    var beta2: Scalar[f32]
+    var epsilon: Scalar[f32]
+    var weight_decay: Scalar[f32]
+    var iter: Int
+
+    var rms_grads: Collection
+    var momentum_grads: Collection
+
+    def __init__(
+        out self,
+        ref[MutAnyOrigin] parameters: Parameters,
+        lr: Scalar[f32] = 0.001,
+        beta1: Scalar[f32] = 0.9,
+        beta2: Scalar[f32] = 0.999,
+        epsilon: Scalar[f32] = 1e-8,
+        weight_decay: Scalar[f32] = 0.01,
+    ):
+        self.parameters = UnsafePointer(to=parameters).unsafe_origin_cast[
+            MutUntrackedOrigin
+        ]()
+
+        self.lr = lr
+        self.beta1 = beta1
+        self.beta2 = beta2
+        self.epsilon = epsilon
+        self.weight_decay = weight_decay
+        self.iter = 0
+
+        var tr = materialize[Self.trainable_parameters]()
+        self.rms_grads = Collection(capacity=len(tr))
+        self.momentum_grads = Collection(capacity=len(tr))
+
+        self.allocate_rms_and_momentum()
+
+    def zero_grad(mut self):
+        """Set all gradients to zero."""
+        self.parameters[].grads.set_zero()
+
+    def step(mut self):
+        """Update model parameters."""
+        self.iter += 1
+        var tr = materialize[Self.trainable_parameters]()
+
+        @parameter
+        def p_step(i: Int):
+            var param = tr[i]
+
+            def v_step[nelts: Int](j: Int) {mut self, read param}:
+                var momentum_grads = self.momentum_grads[param].load[nelts](j)
+                var rms_grads = self.rms_grads[param].load[nelts](j)
+                var grads = self.parameters[].grads[param].load[nelts](j)
+                var params = self.parameters[].tensors[param].load[nelts](j)
+
+                # Momentum beta 1
+                momentum_grads = (
+                    self.beta1 * momentum_grads + (1 - self.beta1) * grads
+                )
+                self.momentum_grads[param].store[nelts](j, momentum_grads)
+                momentum_grads = momentum_grads / (1 - self.beta1**self.iter)
+
+                # RMS beta 2
+                rms_grads = (
+                    self.beta2 * rms_grads + (1 - self.beta2) * grads * grads
+                )
+                self.rms_grads[param].store[nelts](j, rms_grads)
+                rms_grads = rms_grads / (1 - self.beta2**self.iter)
+
+                # Decoupled weight decay, applied directly to the param
+                # (not folded into the gradient like Adam + L2 would).
+                if self.weight_decay != 0.0:
+                    params = params - self.lr * self.weight_decay * params
+
+                params = params - self.lr * (
+                    momentum_grads / (sqrt(rms_grads) + self.epsilon)
+                )
+                self.parameters[].tensors[param].store[nelts](j, params)
+
+            vectorize[1](param.shape.num_elements(), v_step)
+
+        parallelize[p_step](len(tr))
+
+    def allocate_rms_and_momentum(mut self):
+        var tr = materialize[Self.trainable_parameters]()
+        for i in range(len(tr)):
+            var param = tr[i]
+            self.rms_grads.append(Tensor[f32](param.shape), param)
+            self.momentum_grads.append(Tensor[f32](param.shape), param)
+
+
+# ===----------------------------------------------------------------------===#
 # SGD
 # ===----------------------------------------------------------------------===#
 
@@ -295,3 +410,87 @@ struct SGD[
         for i in range(len(tr)):
             var param = tr[i]
             self.velocities.append(Tensor[f32](param.shape), param)
+
+
+# ===----------------------------------------------------------------------===#
+# LR Schedulers
+# ===----------------------------------------------------------------------===#
+
+
+struct WarmupCosineSchedule(Copyable, Movable):
+    """
+    Linear warmup for `warmup_steps`, then cosine decay from `base_lr` down
+    to `min_lr` over the remaining `total_steps - warmup_steps`. Standard
+    schedule for training Transformers.
+
+    Usage:
+        var sched = WarmupCosineSchedule(base_lr=3e-4, warmup_steps=100, total_steps=3000)
+        for step in range(num_steps):
+            optim.lr = sched.get_lr(step)
+            ...
+    """
+
+    var base_lr: Scalar[f32]
+    var min_lr: Scalar[f32]
+    var warmup_steps: Int
+    var total_steps: Int
+
+    def __init__(
+        out self,
+        base_lr: Scalar[f32],
+        warmup_steps: Int,
+        total_steps: Int,
+        min_lr: Scalar[f32] = 0.0,
+    ):
+        self.base_lr = base_lr
+        self.min_lr = min_lr
+        self.warmup_steps = warmup_steps
+        self.total_steps = total_steps
+
+    def get_lr(self, step: Int) -> Scalar[f32]:
+        """Learning rate for `step` (0-indexed)."""
+        if self.warmup_steps > 0 and step < self.warmup_steps:
+            return self.base_lr * Scalar[f32](step + 1) / Scalar[f32](
+                self.warmup_steps
+            )
+
+        var decay_steps = self.total_steps - self.warmup_steps
+        if decay_steps <= 0:
+            return self.base_lr
+
+        var progress = Scalar[f32](step - self.warmup_steps) / Scalar[f32](
+            decay_steps
+        )
+        if progress > 1.0:
+            progress = 1.0
+
+        var cosine_factor = Scalar[f32](
+            0.5 * (1.0 + cos(PI * Float64(progress)))
+        )
+        return self.min_lr + (self.base_lr - self.min_lr) * cosine_factor
+
+
+struct StepDecaySchedule(Copyable, Movable):
+    """
+    Multiplies `base_lr` by `gamma` every `step_size` steps. Standard
+    schedule for vision models (e.g. ResNet).
+    """
+
+    var base_lr: Scalar[f32]
+    var step_size: Int
+    var gamma: Scalar[f32]
+
+    def __init__(
+        out self, base_lr: Scalar[f32], step_size: Int, gamma: Scalar[f32] = 0.1
+    ):
+        self.base_lr = base_lr
+        self.step_size = step_size
+        self.gamma = gamma
+
+    def get_lr(self, step: Int) -> Scalar[f32]:
+        """Learning rate for `step` (0-indexed)."""
+        var num_decays = step // self.step_size
+        var lr = self.base_lr
+        for _ in range(num_decays):
+            lr *= self.gamma
+        return lr

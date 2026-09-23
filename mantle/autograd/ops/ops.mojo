@@ -43,10 +43,11 @@ from .mlops import (
     DROPOUT,
     BATCHNORM2D,
     GATHER,
+    PAD,
 )
 from .dynamics import CONCAT, SPLIT
 from .conv import CONV2D
-from .pool import MAXPOOL2D
+from .pool import MAXPOOL2D, AVGPOOL2D
 
 from mantle import f32
 from mantle.autograd.symbol import Symbol
@@ -97,6 +98,8 @@ struct OP(TrivialRegisterPassable, Writable):
     comptime SQRT = OP(32, "SQRT")
     comptime GATHER = OP(33, "GATHER")
     comptime GELU = OP(34, "GELU")
+    comptime PAD = OP(35, "PAD")
+    comptime AVGPOOL2D = OP(36, "AVGPOOL2D")
 
     var id: UInt8
     var name: Bytes[16]
@@ -176,6 +179,8 @@ def static_result_shape(
         return TRANSPOSE.result_shape(t1_shape, attributes)
     elif op == OP.MAXPOOL2D:
         return MAXPOOL2D.result_shape(t1_shape, attributes)
+    elif op == OP.AVGPOOL2D:
+        return AVGPOOL2D.result_shape(t1_shape, attributes)
     elif op == OP.CLIP:
         return CLIP.result_shape(t1_shape)
     elif op == OP.SQUEEZE:
@@ -184,6 +189,8 @@ def static_result_shape(
         return UNSQUEEZE.result_shape(t1_shape, attributes)
     elif op == OP.SLICE:
         return SLICE.result_shape(t1_shape, attributes)
+    elif op == OP.PAD:
+        return PAD.result_shape(t1_shape, attributes)
     elif op == OP.DROPOUT:
         return DROPOUT.result_shape(t1_shape)
     elif op == OP.NEG:
@@ -320,6 +327,8 @@ def forward_op[
         UNSQUEEZE.forward[t1_shape, attributes](res, t1)
     elif op == OP.SLICE:
         SLICE.forward[t1_shape, attributes](res, t1)
+    elif op == OP.PAD:
+        PAD.forward[t1_shape, attributes](res, t1)
     elif op == OP.DROPOUT:
         DROPOUT.forward[t1_shape, attributes](res, t1, runtime_seed, training)
     elif op == OP.NEG:
@@ -454,6 +463,8 @@ def backward_op[
         res_grad = UNSQUEEZE.backward[ug_shape, t1_shape](ug, t1)
     elif op == OP.SLICE:
         res_grad = SLICE.backward[ug_shape, t1_shape, attributes](ug, t1)
+    elif op == OP.PAD:
+        res_grad = PAD.backward[ug_shape, t1_shape, attributes](ug, t1)
     elif op == OP.DROPOUT:
         res_grad = DROPOUT.backward[ug_shape, t1_shape, attributes](
             ug, t1, runtime_seed, training

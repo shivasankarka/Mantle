@@ -17,7 +17,7 @@ from std.utils.index import IndexList
 
 from mantle import f32, nelts
 from mantle.core.tensor import Tensor, TensorShape, MAX_RANK
-from mantle.core.tensorutils import elwise_transform
+from mantle.core.tensorutils import elwise_transform, fill
 from mantle.autograd.attributes import Attribute, AttributeVector
 
 
@@ -827,6 +827,94 @@ struct SLICE:
             res_grad, ug
         )
 
+        return res_grad^
+
+
+# ===----------------------------------------------------------------------===#
+# PAD
+# ===----------------------------------------------------------------------===#
+
+
+struct PAD:
+    """Constant-value padding: adds `before[axis]` elements before and
+    `after[axis]` elements after every axis, filled with `value` (default
+    0). Backward crops `ug` back down to the original shape (the padded
+    region carries no gradient)."""
+
+    @staticmethod
+    def result_shape(
+        t1_shape: TensorShape, attributes: AttributeVector
+    ) -> TensorShape:
+        var before = attributes["before"].value().to_list()
+        var after = attributes["after"].value().to_list()
+
+        var new_shape = t1_shape
+        for axis in range(t1_shape.rank()):
+            new_shape[axis] = t1_shape[axis] + before[axis] + after[axis]
+
+        return new_shape
+
+    @staticmethod
+    def pad_kernel[
+        res_shape: TensorShape,
+        t1_shape: TensorShape,
+        before: IndexList[MAX_RANK],
+        backward_op: Bool = False,
+    ](mut res: Tensor[f32], t1: Tensor[f32]):
+        comptime rank = t1_shape.rank()
+        comptime res_strides = res_shape.strides()
+
+        var coords = IndexList[MAX_RANK]()
+
+        for idx_original in range(t1_shape.num_elements()):
+            # Decompose the flat t1 index into per-axis coordinates.
+            var rem = idx_original
+            for axis in range(rank - 1, -1, -1):
+                coords[axis] = rem % t1_shape[axis]
+                rem //= t1_shape[axis]
+
+            var idx_res = 0
+            for axis in range(rank):
+                idx_res += (coords[axis] + before[axis]) * res_strides[axis]
+
+            comptime if not backward_op:
+                res[idx_res] = t1[idx_original]
+            else:
+                res[idx_original] = t1[idx_res]
+
+    @staticmethod
+    def forward[
+        t1_shape: TensorShape, attributes: AttributeVector
+    ](mut res: Tensor[f32], t1: Tensor[f32]):
+        comptime before_list = attributes["before"].value().to_list()
+        comptime before = Self.to_index_list(before_list)
+        comptime value_attr = attributes["value"]
+        var value = value_attr.value().to_scalar[
+            f32
+        ]() if value_attr else Scalar[f32](0.0)
+
+        comptime res_shape = Self.result_shape(t1_shape, attributes)
+
+        if value != 0.0:
+            fill(res, value)
+        Self.pad_kernel[res_shape, t1_shape, before](res, t1)
+
+    @staticmethod
+    def to_index_list(lst: List[Int]) -> IndexList[MAX_RANK]:
+        var result = IndexList[MAX_RANK]()
+        for i in range(len(lst)):
+            result[i] = lst[i]
+        return result
+
+    @staticmethod
+    def backward[
+        ug_shape: TensorShape, t1_shape: TensorShape, attributes: AttributeVector
+    ](ug: Tensor[f32], t1: Tensor[f32]) -> Tensor[f32]:
+        comptime before_list = attributes["before"].value().to_list()
+        comptime before = Self.to_index_list(before_list)
+
+        var res_grad = Tensor[f32](t1_shape)
+        Self.pad_kernel[ug_shape, t1_shape, before, True](res_grad, ug)
         return res_grad^
 
 
