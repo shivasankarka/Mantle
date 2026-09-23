@@ -12,7 +12,7 @@ Forward and backward implementations for activation and shape-modifying ops.
 from std.algorithm import vectorize, parallelize
 from std.math import exp, sqrt, abs
 from std.utils.numerics import min_finite, max_finite
-from std.memory import memcpy
+from std.memory import unsafe_memcpy
 from std.utils.index import IndexList
 
 from mantle import f32, nelts
@@ -67,7 +67,7 @@ struct SIGMOID(Copyable, Movable):
 
         def vec_sigmoid_bw[
             nelts: Int
-        ](idx: Int) {mut res_grad, read t1, read ug}:
+        ](idx: Int) {mut res_grad, imm t1, imm ug}:
             res_grad.store[nelts](
                 idx,
                 Self.sidmoid_bw(t1.load[nelts](idx)) * ug.load[nelts](idx),
@@ -117,7 +117,7 @@ struct RELU:
         # d(relu(x))/dx = 1 if x > 0 else 0. We also give 0 to x = 0 instead of undefined.
         var res_grad = Tensor[f32](ug_shape)
 
-        def vec_relu_bw[nelts: Int](idx: Int) {mut res_grad, read t1, read ug}:
+        def vec_relu_bw[nelts: Int](idx: Int) {mut res_grad, imm t1, imm ug}:
             res_grad.store[nelts](
                 idx, Self.relu_bw(t1.load[nelts](idx)) * ug.load[nelts](idx)
             )
@@ -177,7 +177,7 @@ struct LEAKYRELU:
 
         def vec_leaky_relu_bw[
             nelts: Int
-        ](idx: Int) {mut res_grad, read t1, read ug}:
+        ](idx: Int) {mut res_grad, imm t1, imm ug}:
             res_grad.store[nelts](
                 idx,
                 leaky_relu_bw(t1.load[nelts](idx)) * ug.load[nelts](idx),
@@ -227,7 +227,7 @@ struct TANH:
         # d(tanh(x))/dx = 1 - tanh(x) ** 2
         var res_grad = Tensor[f32](ug_shape)
 
-        def vec_tanh_bw[nelts: Int](idx: Int) {mut res_grad, read t1, read ug}:
+        def vec_tanh_bw[nelts: Int](idx: Int) {mut res_grad, imm t1, imm ug}:
             res_grad.store[nelts](
                 idx, Self.tanh_bw(t1.load[nelts](idx)) * ug.load[nelts](idx)
             )
@@ -286,7 +286,7 @@ struct GELU:
 
         def vec_gelu_bw[
             nelts: Int
-        ](idx: Int) {mut res_grad, read t1, read ug}:
+        ](idx: Int) {mut res_grad, imm t1, imm ug}:
             comptime c0 = SIMD[f32, nelts](Self.SQRT_2_OVER_PI)
             comptime c1 = SIMD[f32, nelts](Self.COEFF)
             var x = t1.load[nelts](idx)
@@ -327,7 +327,7 @@ struct NEG:
         """Backward: d(-x)/dx = -1."""
         var res_grad = Tensor[f32](ug_shape)
 
-        def vec_neg_bw[n: Int](i: Int) {mut res_grad, read ug}:
+        def vec_neg_bw[n: Int](i: Int) {mut res_grad, imm ug}:
             res_grad.store[n](i, -ug.load[n](i))
 
         vectorize[nelts](ug_shape.num_elements(), vec_neg_bw)
@@ -360,7 +360,7 @@ struct ABS:
         """Backward: d(abs(x))/dx = sign(x)."""
         var res_grad = Tensor[f32](ug_shape)
 
-        def vec_abs_bw[n: Int](i: Int) {mut res_grad, read t1, read ug}:
+        def vec_abs_bw[n: Int](i: Int) {mut res_grad, imm t1, imm ug}:
             var x = t1.load[n](i)
             # sign: +1 if x > 0, -1 if x < 0, 0 if x == 0
             var sign = x.gt(SIMD[f32, n](0)).select[f32](
@@ -401,7 +401,7 @@ struct SQRT:
         """Backward: d(sqrt(x))/dx = 1 / (2 * sqrt(x))."""
         var res_grad = Tensor[f32](ug_shape)
 
-        def vec_sqrt_bw[n: Int](i: Int) {mut res_grad, read t1, read ug}:
+        def vec_sqrt_bw[n: Int](i: Int) {mut res_grad, imm t1, imm ug}:
             var s = sqrt(t1.load[n](i))
             res_grad.store[n](i, ug.load[n](i) / (SIMD[f32, n](2) * s))
 
@@ -433,7 +433,7 @@ struct CLIP:
 
         def vec_clip[
             nelts: Int
-        ](i: Int) {mut res, read t, read min_val, read max_val}:
+        ](i: Int) {mut res, imm t, imm min_val, imm max_val}:
             res.store[nelts](i, max(min(t.load[nelts](i), max_val), min_val))
 
         vectorize[nelts](t_shape.num_elements(), vec_clip)
@@ -459,7 +459,7 @@ struct CLIP:
 
         def vec_clip_bw[
             nelts: Int
-        ](i: Int) {mut res_grad, read t, read ug, read min_val, read max_val}:
+        ](i: Int) {mut res_grad, imm t, imm ug, imm min_val, imm max_val}:
             var val = t.load[nelts](i)
             res_grad.store[nelts](
                 i,
@@ -496,7 +496,7 @@ struct SQUEEZE:
         t1_shape: TensorShape,
         attributes: AttributeVector,
     ](mut res: Tensor[f32], t1: Tensor[f32]):
-        memcpy(dest=res.mut_ptr(), src=t1.ptr(), count=t1.num_elements())
+        unsafe_memcpy(dest=res.mut_ptr(), src=t1.ptr(), count=t1.num_elements())
 
     @staticmethod
     def backward[
@@ -504,7 +504,7 @@ struct SQUEEZE:
         t1_shape: TensorShape,
     ](ug: Tensor[f32], t1: Tensor[f32]) -> Tensor[f32]:
         var res_grad = Tensor[f32](t1_shape)
-        memcpy(dest=res_grad.mut_ptr(), src=ug.ptr(), count=ug.num_elements())
+        unsafe_memcpy(dest=res_grad.mut_ptr(), src=ug.ptr(), count=ug.num_elements())
         return res_grad^
 
 
@@ -535,7 +535,7 @@ struct UNSQUEEZE:
         t1_shape: TensorShape,
         attributes: AttributeVector,
     ](mut res: Tensor[f32], t1: Tensor[f32]):
-        memcpy(dest=res.mut_ptr(), src=t1.ptr(), count=t1.num_elements())
+        unsafe_memcpy(dest=res.mut_ptr(), src=t1.ptr(), count=t1.num_elements())
 
     @staticmethod
     def backward[
@@ -543,7 +543,7 @@ struct UNSQUEEZE:
         t1_shape: TensorShape,
     ](ug: Tensor[f32], t1: Tensor[f32]) -> Tensor[f32]:
         var res_grad = Tensor[f32](t1_shape)
-        memcpy(dest=res_grad.mut_ptr(), src=ug.ptr(), count=ug.num_elements())
+        unsafe_memcpy(dest=res_grad.mut_ptr(), src=ug.ptr(), count=ug.num_elements())
         return res_grad^
 
 
@@ -680,7 +680,7 @@ struct SLICE:
 
             def v_slice[
                 nelts: Int
-            ](k: Int) {mut res, read t1, mut idx_original_temp, read idx_temp}:
+            ](k: Int) {mut res, imm t1, mut idx_original_temp, imm idx_temp}:
                 comptime if not backward_op:
                     comptime if steps[position] == 1:
                         res.store[nelts](
@@ -1306,7 +1306,7 @@ struct GATHER:
 
         for i in range(n):
             var row = Int(indices[i])
-            memcpy(
+            unsafe_memcpy(
                 dest=res.mut_ptr() + i * D,
                 src=table.ptr() + row * D,
                 count=D,

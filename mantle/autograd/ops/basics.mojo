@@ -11,7 +11,7 @@ This file provides forward and backward implementations for basic tensor operati
 division, dot product, exponentiation, logarithm, power, sum, mean, max, transpose, flatten, reshape and fused multiply-add (FMA).
 """
 from std.algorithm import vectorize
-from std.memory import memcpy
+from std.memory import unsafe_memcpy
 from std.utils.numerics import isinf
 
 from mantle import f32, nelts
@@ -180,7 +180,7 @@ struct DIV:
                 def vec_div_bw_scalar[
                     nelts: Int
                 ](i: Int) {
-                    mut res_grad, read ug, read t1, read t2, read factor
+                    mut res_grad, imm ug, imm t1, imm t2, imm factor
                 }:
                     res_grad.store[nelts](
                         i, factor * t1.load[nelts](i) * ug.load[nelts](i)
@@ -199,7 +199,7 @@ struct DIV:
 
                 def vec_div_bw_broadcast[
                     netls: Int
-                ](i: Int) {mut res_grad, read ug, read t1, read t2,}:
+                ](i: Int) {mut res_grad, imm ug, imm t1, imm t2,}:
                     var index1 = get_real_index[size, strides1, ug_shape](i)
                     var index2 = get_real_index[size, strides2, ug_shape](i)
                     res_grad.store[netls](
@@ -215,7 +215,7 @@ struct DIV:
 
                 def vec_div_bw[
                     nelts: Int
-                ](i: Int) {mut res_grad, read ug, read t1, read t2}:
+                ](i: Int) {mut res_grad, imm ug, imm t1, imm t2}:
                     res_grad.store[nelts](
                         i,
                         -t1.load[nelts](i)
@@ -343,7 +343,7 @@ struct EXP:
         # d(exp(x)) / dx = exp(x)
         var res_grad = Tensor[f32](ug_shape)
 
-        def vec_exp_bw[nelts: Int](i: Int) {mut res_grad, read t1, read ug}:
+        def vec_exp_bw[nelts: Int](i: Int) {mut res_grad, imm t1, imm ug}:
             res_grad.store[nelts](i, exp(t1.load[nelts](i)) * ug.load[nelts](i))
 
         vectorize[nelts](ug_shape.num_elements(), vec_exp_bw)
@@ -411,7 +411,7 @@ struct POW:
 
             def vec_pow_bw_x[
                 nelts: Int
-            ](i: Int) {mut res_grad, read t1, read ug, read a}:
+            ](i: Int) {mut res_grad, imm t1, imm ug, imm a}:
                 res_grad.store[nelts](
                     i,
                     a
@@ -427,7 +427,7 @@ struct POW:
 
             def vec_pow_bw_y[
                 nelts: Int
-            ](i: Int) {mut res_grad, read t1, read ug, read a}:
+            ](i: Int) {mut res_grad, imm t1, imm ug, imm a}:
                 # the case when the value passed to log is 0.0
                 var temp_log = log(t1.load[nelts](i))
                 var temp_log_is_inf = isinf(temp_log)
@@ -545,7 +545,7 @@ struct MEAN:
             grad * ug[0]
         )  # because ug is a tensor of size 1 when mean is used without an axis
 
-        def v_mean_d[nelts: Int](i: Int) {mut res_grad, read grad}:
+        def v_mean_d[nelts: Int](i: Int) {mut res_grad, imm grad}:
             res_grad.store[nelts](i, grad)
 
         vectorize[nelts](t_shape.num_elements(), v_mean_d)
@@ -776,7 +776,7 @@ struct FLATTEN:
         """
         Forward pass of the flatten operation.
         """
-        memcpy(dest=res.mut_ptr(), src=t.ptr(), count=t_shape.num_elements())
+        unsafe_memcpy(dest=res.mut_ptr(), src=t.ptr(), count=t_shape.num_elements())
 
     @staticmethod
     def backward[
@@ -784,7 +784,7 @@ struct FLATTEN:
     ](ug: Tensor[f32], t: Tensor[f32]) -> Tensor[f32]:
         """Backward operation of flatten."""
         var res_grad = Tensor[f32](t_shape)
-        memcpy(
+        unsafe_memcpy(
             dest=res_grad.mut_ptr(), src=ug.ptr(), count=ug_shape.num_elements()
         )
 
@@ -804,7 +804,7 @@ struct RESHAPE:
         """
         Forward pass of the reshape operation.
         """
-        memcpy(dest=res.mut_ptr(), src=t.ptr(), count=t_shape.num_elements())
+        unsafe_memcpy(dest=res.mut_ptr(), src=t.ptr(), count=t_shape.num_elements())
 
     @staticmethod
     def backward[
@@ -812,7 +812,7 @@ struct RESHAPE:
     ](ug: Tensor[f32], t: Tensor[f32]) -> Tensor[f32]:
         """Backward operation of reshape."""
         var res_grad = Tensor[f32](t_shape)
-        memcpy(
+        unsafe_memcpy(
             dest=res_grad.mut_ptr(), src=ug.ptr(), count=ug_shape.num_elements()
         )
 
@@ -838,7 +838,7 @@ struct FMA:
         Forward pass of the fma operation.
         """
 
-        def vec_fma[nelts: Int](i: Int) {mut res, read t1, read t2, read t3}:
+        def vec_fma[nelts: Int](i: Int) {mut res, imm t1, imm t2, imm t3}:
             res.store[nelts](
                 i, t1.load[nelts](i).fma(t2.load[nelts](i), t3.load[nelts](i))
             )

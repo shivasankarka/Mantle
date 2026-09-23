@@ -10,7 +10,7 @@
 Tiled, parallelized matrix multiplication with transpose variants.
 """
 from std.algorithm import vectorize, parallelize
-from std.memory import memset_zero, stack_allocation, UnsafePointer
+from std.memory import unsafe_memset_zero, stack_allocation, Pointer
 from std.sys.info import simd_width_of
 
 from mantle import f32
@@ -37,22 +37,22 @@ def calculate_block[
     BLOCK_N: Int,
     nelts: Int,
 ](
-    res: UnsafePointer[Scalar[f32], origin_res],
-    t1: UnsafePointer[Scalar[f32], origin_t1],
-    t2: UnsafePointer[Scalar[f32], origin_t2],
+    res: Pointer[Scalar[f32], origin_res],
+    t1: Pointer[Scalar[f32], origin_t1],
+    t2: Pointer[Scalar[f32], origin_t2],
     bm: Int,
     bn: Int,
 ):
     # Compute tile
     var acc = stack_allocation[BLOCK_M * BLOCK_N, f32]()
-    memset_zero(acc, BLOCK_M * BLOCK_N)
+    unsafe_memset_zero(acc, BLOCK_M * BLOCK_N)
 
     for k in range(K):
         comptime for m in range(BLOCK_M):
 
             def inner_n[
                 nelts: Int
-            ](n: Int) {mut acc, read t1, read t2, read bm, read bn, read k}:
+            ](n: Int) {mut acc, imm t1, imm t2, imm bm, imm bn, imm k}:
                 acc.store(
                     m * BLOCK_N + n,
                     SIMD[f32, nelts](t1[(bm + m) * K + k]).fma(
@@ -68,7 +68,7 @@ def calculate_block[
 
         def vec_store[
             nelts: Int
-        ](n: Int) {read res, read acc, read bm, read bn, read m}:
+        ](n: Int) {imm res, imm acc, imm bm, imm bn, imm m}:
             res.store(
                 (bm + m) * N + (bn + n), acc.load[width=nelts](m * BLOCK_N + n)
             )
@@ -93,9 +93,9 @@ def dot[
     t1_shape: TensorShape,
     t2_shape: TensorShape,
 ](
-    res: UnsafePointer[Scalar[f32], origin_res],
-    t1: UnsafePointer[Scalar[f32], origin_t1],
-    t2: UnsafePointer[Scalar[f32], origin_t2],
+    res: Pointer[Scalar[f32], origin_res],
+    t1: Pointer[Scalar[f32], origin_t1],
+    t2: Pointer[Scalar[f32], origin_t2],
 ):
     comptime M = t1_shape[0]  # t1[0]
     comptime K = t1_shape[1]  # t1[1], t2[0]
@@ -161,9 +161,9 @@ def dot_transpose_t2[
     A_shape: TensorShape,
     B_shape: TensorShape,
 ](
-    mut C: UnsafePointer[Scalar[f32], origin_res],
-    A: UnsafePointer[Scalar[f32], origin_t1],
-    B: UnsafePointer[Scalar[f32], origin_t2],
+    mut C: Pointer[Scalar[f32], origin_res],
+    A: Pointer[Scalar[f32], origin_t1],
+    B: Pointer[Scalar[f32], origin_t2],
 ):
     dot[A_shape, TensorShape(B_shape[1], B_shape[0])](
         C, A, transpose_2D[B_shape](B)
@@ -173,7 +173,7 @@ def dot_transpose_t2[
 def dot_transpose_t2[
     A_shape: TensorShape, B_shape: TensorShape
 ](mut C: Tensor[f32], A: Tensor[f32], B: Tensor[f32]):
-    memset_zero(C.mut_ptr(), C.num_elements())
+    unsafe_memset_zero(C.mut_ptr(), C.num_elements())
 
     dot[A_shape, TensorShape(B_shape[1], B_shape[0])](
         C, A, transpose_2D[B_shape](B)
@@ -256,7 +256,7 @@ def batched_dot_transpose_t2[
     comptime A_step = 0 if A_batches == 1 else M * K
     comptime B_step = 0 if B_batches == 1 else N * K
 
-    memset_zero(C.mut_ptr(), C.num_elements())
+    unsafe_memset_zero(C.mut_ptr(), C.num_elements())
 
     var C_ptr = C.mut_ptr()
     var A_ptr = A.ptr()
@@ -267,7 +267,7 @@ def batched_dot_transpose_t2[
         dot[TensorShape(M, K), TensorShape(K, N)](
             C_ptr + b * M * N, A_ptr + b * A_step, B_t
         )
-        B_t.free()
+        B_t.unsafe_free()
 
 
 def batched_dot_transpose_t1[
@@ -284,7 +284,7 @@ def batched_dot_transpose_t1[
     comptime A_step = 0 if A_batches == 1 else K * M
     comptime B_step = 0 if B_batches == 1 else K * N
 
-    memset_zero(C.mut_ptr(), C.num_elements())
+    unsafe_memset_zero(C.mut_ptr(), C.num_elements())
 
     var C_ptr = C.mut_ptr()
     var A_ptr = A.ptr()
@@ -295,13 +295,13 @@ def batched_dot_transpose_t1[
         dot[TensorShape(M, K), TensorShape(K, N)](
             C_ptr + b * M * N, A_t, B_ptr + b * B_step
         )
-        A_t.free()
+        A_t.unsafe_free()
 
 
 def dot_transpose_t1[
     A_shape: TensorShape, B_shape: TensorShape
 ](mut C: Tensor[f32], A: Tensor[f32], B: Tensor[f32]):
-    memset_zero(C.mut_ptr(), C.num_elements())
+    unsafe_memset_zero(C.mut_ptr(), C.num_elements())
 
     dot[TensorShape(A_shape[1], A_shape[0]), B_shape](
         C, transpose_2D[A_shape](A), B

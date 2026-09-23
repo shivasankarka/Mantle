@@ -10,7 +10,8 @@
 Per-node forward/backward timing utilities for profiling compute graph execution.
 """
 from std.time import perf_counter_ns as now
-from std.memory import UnsafePointer, memcpy, memset
+from std.memory import Pointer, unsafe_memcpy, unsafe_memset
+from std.memory.alloc import unsafe_alloc
 
 from mantle.autograd.node import Node
 from mantle.autograd.graph import Graph
@@ -23,11 +24,11 @@ from mantle.autograd.graph import Graph
 
 @always_inline("nodebug")
 def fit_string[num: Int](s: String) -> String:
-    var data = alloc[Byte](num + 1)
+    var data = unsafe_alloc[Byte](num + 1)
     var copy_len = min(num, s.byte_length())
 
-    memcpy(dest=data, src=s.unsafe_ptr(), count=copy_len)
-    memset(data + copy_len, UInt8(ord(" ")), num - copy_len)
+    unsafe_memcpy(dest=data, src=s.unsafe_ptr(), count=copy_len)
+    unsafe_memset(data + copy_len, UInt8(ord(" ")), num - copy_len)
     data[num] = 0
 
     return String(unsafe_from_utf8=Span[Byte, _](ptr=data, length=num + 1))
@@ -155,10 +156,10 @@ struct PerfMetrics:
         print(header)
 
         var header_length = header.byte_length()
-        # var seperator = UnsafePointer[UInt8]().alloc(header_length + 1)
-        var seperator = alloc[UInt8](header_length + 1)
+        # var seperator = Pointer[UInt8]().unsafe_alloc(header_length + 1)
+        var seperator = unsafe_alloc[UInt8](header_length + 1)
 
-        memset(seperator, UInt8(ord("-")), header_length)
+        unsafe_memset(seperator, UInt8(ord("-")), header_length)
         seperator[header_length] = 0
 
         # print(String(ptr=seperator, length=len(header) + 1))

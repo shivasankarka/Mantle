@@ -10,7 +10,7 @@
 Mini-batch iteration and row-slicing utilities.
 """
 from std.testing import assert_equal
-from std.memory import memcpy
+from std.memory import unsafe_memcpy
 
 from mantle import f32, nelts
 from mantle.core.tensor import Tensor, TensorShape
@@ -41,7 +41,7 @@ def slice_rows[
     out_shape[0] = num_rows
 
     var out = Tensor[dtype](out_shape)
-    memcpy(
+    unsafe_memcpy(
         dest=out.mut_ptr(),
         src=t.ptr() + start * row_stride,
         count=num_rows * row_stride,
@@ -72,7 +72,7 @@ def cycle_pad_rows[
     var out = Tensor[dtype](out_shape)
     for i in range(num_rows):
         var src_row = i % t.dim(0)
-        memcpy(
+        unsafe_memcpy(
             dest=out.mut_ptr() + i * row_stride,
             src=t.ptr() + src_row * row_stride,
             count=row_stride,
@@ -109,12 +109,12 @@ struct Batch[dtype: DType](Copyable, Movable):
         # Links to the copies of the input tensors in model.forward()
         self.data = Tensor[Self.dtype](batch_data_shape)
         self.labels = Tensor[Self.dtype](batch_labels_shape)
-        memcpy(
+        unsafe_memcpy(
             dest=self.data.mut_ptr(),
             src=df_data.ptr() + (start * batch_data_shape.strides()[0]),
             count=batch_data_shape.num_elements(),
         )
-        memcpy(
+        unsafe_memcpy(
             dest=self.labels.mut_ptr(),
             src=df_labels.ptr() + (start * batch_labels_shape.strides()[0]),
             count=batch_labels_shape.num_elements(),

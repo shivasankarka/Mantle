@@ -81,7 +81,7 @@ def clip_grad_norm[
         var param = tr[i]
         var n = param.shape.num_elements()
 
-        def v_norm[nelts: Int](j: Int) {mut total_norm, read param, read parameters}:
+        def v_norm[nelts: Int](j: Int) {mut total_norm, imm param, imm parameters}:
             var g_vec = parameters.grads[param].load[nelts](j)
             total_norm += (g_vec * g_vec).reduce_add()
 
@@ -97,7 +97,7 @@ def clip_grad_norm[
             var param = tr[i]
             var n = param.shape.num_elements()
 
-            def v_scale[nelts: Int](j: Int) {mut parameters, read param, read scale}:
+            def v_scale[nelts: Int](j: Int) {mut parameters, imm param, imm scale}:
                 var g_vec = parameters.grads[param].load[nelts](j)
                 parameters.grads[param].store[nelts](j, g_vec * scale)
 
@@ -115,7 +115,7 @@ struct Adam[
     g: Graph,
     trainable_parameters: List[Symbol] = get_trainable_parameters(g),
 ]:
-    var parameters: UnsafePointer[Parameters, MutUntrackedOrigin]
+    var parameters: Pointer[Parameters, MutUntrackedOrigin]
 
     var lr: Scalar[f32]
     var beta1: Scalar[f32]
@@ -134,7 +134,7 @@ struct Adam[
         beta2: Scalar[f32] = 0.999,
         epsilon: Scalar[f32] = 1e-8,
     ):
-        self.parameters = UnsafePointer(to=parameters).unsafe_origin_cast[
+        self.parameters = Pointer(to=parameters).unsafe_origin_cast[
             MutUntrackedOrigin
         ]()
 
@@ -149,7 +149,7 @@ struct Adam[
         self.rms_grads = Collection(capacity=len(tr))
         self.momentum_grads = Collection(capacity=len(tr))
 
-        self.allocate_rms_and_momentum()
+        self.unsafe_allocate_rms_and_momentum()
 
     def zero_grad(mut self):
         """Set all gradients to zero."""
@@ -165,7 +165,7 @@ struct Adam[
         def p_step(i: Int):
             var param = tr[i]
 
-            def v_step[nelts: Int](j: Int) {mut self, read param}:
+            def v_step[nelts: Int](j: Int) {mut self, imm param}:
                 var momentum_grads = self.momentum_grads[param].load[nelts](j)
                 var rms_grads = self.rms_grads[param].load[nelts](j)
                 var grads = self.parameters[].grads[param].load[nelts](j)
@@ -203,7 +203,7 @@ struct Adam[
 
         parallelize[p_step](len(tr))
 
-    def allocate_rms_and_momentum(mut self):
+    def unsafe_allocate_rms_and_momentum(mut self):
         # They are initialized to zero
         # Loop over all trainable parameters
         var tr = materialize[Self.trainable_parameters]()
@@ -232,7 +232,7 @@ struct AdamW[
     optimizer for training Transformers.
     """
 
-    var parameters: UnsafePointer[Parameters, MutUntrackedOrigin]
+    var parameters: Pointer[Parameters, MutUntrackedOrigin]
 
     var lr: Scalar[f32]
     var beta1: Scalar[f32]
@@ -253,7 +253,7 @@ struct AdamW[
         epsilon: Scalar[f32] = 1e-8,
         weight_decay: Scalar[f32] = 0.01,
     ):
-        self.parameters = UnsafePointer(to=parameters).unsafe_origin_cast[
+        self.parameters = Pointer(to=parameters).unsafe_origin_cast[
             MutUntrackedOrigin
         ]()
 
@@ -268,7 +268,7 @@ struct AdamW[
         self.rms_grads = Collection(capacity=len(tr))
         self.momentum_grads = Collection(capacity=len(tr))
 
-        self.allocate_rms_and_momentum()
+        self.unsafe_allocate_rms_and_momentum()
 
     def zero_grad(mut self):
         """Set all gradients to zero."""
@@ -283,7 +283,7 @@ struct AdamW[
         def p_step(i: Int):
             var param = tr[i]
 
-            def v_step[nelts: Int](j: Int) {mut self, read param}:
+            def v_step[nelts: Int](j: Int) {mut self, imm param}:
                 var momentum_grads = self.momentum_grads[param].load[nelts](j)
                 var rms_grads = self.rms_grads[param].load[nelts](j)
                 var grads = self.parameters[].grads[param].load[nelts](j)
@@ -317,7 +317,7 @@ struct AdamW[
 
         parallelize[p_step](len(tr))
 
-    def allocate_rms_and_momentum(mut self):
+    def unsafe_allocate_rms_and_momentum(mut self):
         var tr = materialize[Self.trainable_parameters]()
         for i in range(len(tr)):
             var param = tr[i]
@@ -345,7 +345,7 @@ struct SGD[
         param    = param + velocity
     """
 
-    var parameters: UnsafePointer[Parameters, MutUntrackedOrigin]
+    var parameters: Pointer[Parameters, MutUntrackedOrigin]
 
     var lr: Scalar[f32]
     var momentum: Scalar[f32]
@@ -360,7 +360,7 @@ struct SGD[
         momentum: Scalar[f32] = 0.0,
         weight_decay: Scalar[f32] = 0.0,
     ):
-        self.parameters = UnsafePointer(to=parameters).unsafe_origin_cast[
+        self.parameters = Pointer(to=parameters).unsafe_origin_cast[
             MutUntrackedOrigin
         ]()
         self.lr = lr
@@ -369,7 +369,7 @@ struct SGD[
 
         var tr = materialize[Self.trainable_parameters]()
         self.velocities = Collection(capacity=len(tr))
-        self.allocate_velocities()
+        self.unsafe_allocate_velocities()
 
     def zero_grad(mut self):
         """Set all gradients to zero."""
@@ -383,7 +383,7 @@ struct SGD[
         def p_step(i: Int):
             var param = tr[i]
 
-            def v_step[nelts: Int](j: Int) {mut self, read param}:
+            def v_step[nelts: Int](j: Int) {mut self, imm param}:
                 var grad = self.parameters[].grads[param].load[nelts](j)
                 var w = self.parameters[].tensors[param].load[nelts](j)
 
@@ -405,7 +405,7 @@ struct SGD[
 
         parallelize[p_step](len(tr))
 
-    def allocate_velocities(mut self):
+    def unsafe_allocate_velocities(mut self):
         var tr = materialize[Self.trainable_parameters]()
         for i in range(len(tr)):
             var param = tr[i]

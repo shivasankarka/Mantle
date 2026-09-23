@@ -15,7 +15,7 @@ from std.testing import assert_true
 from std.algorithm import vectorize
 from std.atomic import Atomic, Ordering, fence
 from std.utils.index import IndexList
-from std.memory import memset_zero, memcpy, UnsafePointer
+from std.memory import unsafe_memset_zero, unsafe_memcpy, Pointer
 
 comptime MAX_RANK = 8
 """Max rank of a tensor."""
@@ -244,9 +244,9 @@ struct Tensor[dtype: DType](Copyable, Movable, Writable):
         dtype: The data type of the tensor elements.
     """
 
-    var _data: UnsafePointer[Scalar[Self.dtype], MutUntrackedOrigin]
+    var _data: Pointer[Scalar[Self.dtype], MutUntrackedOrigin]
     """Pointer to the underlying data buffer."""
-    var _refcount: UnsafePointer[Atomic[DType.uint64], MutUntrackedOrigin]
+    var _refcount: Pointer[Atomic[UInt64], MutUntrackedOrigin]
     """Pointer to the atomic reference count."""
     var _shape: TensorShape
     """The shape of the tensor."""
@@ -259,15 +259,15 @@ struct Tensor[dtype: DType](Copyable, Movable, Writable):
             dims: The size of each dimension.
         """
         self._shape = TensorShape(dims)
-        self._refcount = alloc[Atomic[DType.uint64]](1)
-        self._refcount[] = Atomic[DType.uint64](1)
+        self._refcount = unsafe_alloc[Atomic[UInt64]](1)
+        self._refcount[] = Atomic[UInt64](1)
         if self._shape.num_elements() == 0:
-            self._data = UnsafePointer[
+            self._data = Pointer[
                 Scalar[Self.dtype], MutUntrackedOrigin
             ].unsafe_dangling()
         else:
-            self._data = alloc[Scalar[Self.dtype]](self._shape.num_elements())
-            memset_zero(self._data, self._shape.num_elements())
+            self._data = unsafe_alloc[Scalar[Self.dtype]](self._shape.num_elements())
+            unsafe_memset_zero(self._data, self._shape.num_elements())
 
     def __init__(out self, var shape: TensorShape):
         """
@@ -277,15 +277,15 @@ struct Tensor[dtype: DType](Copyable, Movable, Writable):
             shape: The shape of the tensor.
         """
         self._shape = shape
-        self._refcount = alloc[Atomic[DType.uint64]](1)
-        self._refcount[] = Atomic[DType.uint64](1)
+        self._refcount = unsafe_alloc[Atomic[UInt64]](1)
+        self._refcount[] = Atomic[UInt64](1)
         if shape.num_elements() == 0:
-            self._data = UnsafePointer[
+            self._data = Pointer[
                 Scalar[Self.dtype], MutUntrackedOrigin
             ].unsafe_dangling()
         else:
-            self._data = alloc[Scalar[Self.dtype]](shape.num_elements())
-            memset_zero(self._data, shape.num_elements())
+            self._data = unsafe_alloc[Scalar[Self.dtype]](shape.num_elements())
+            unsafe_memset_zero(self._data, shape.num_elements())
 
     def __init__(out self, shapes: VariadicList[Int, _]):
         """
@@ -295,21 +295,21 @@ struct Tensor[dtype: DType](Copyable, Movable, Writable):
             shapes: A variadic list of dimension sizes.
         """
         self._shape = TensorShape(shapes)
-        self._refcount = alloc[Atomic[DType.uint64]](1)
-        self._refcount[] = Atomic[DType.uint64](1)
+        self._refcount = unsafe_alloc[Atomic[UInt64]](1)
+        self._refcount[] = Atomic[UInt64](1)
         if self._shape.num_elements() == 0:
-            self._data = UnsafePointer[
+            self._data = Pointer[
                 Scalar[Self.dtype], MutUntrackedOrigin
             ].unsafe_dangling()
         else:
-            self._data = alloc[Scalar[Self.dtype]](self._shape.num_elements())
-            memset_zero(self._data, self._shape.num_elements())
+            self._data = unsafe_alloc[Scalar[Self.dtype]](self._shape.num_elements())
+            unsafe_memset_zero(self._data, self._shape.num_elements())
 
     def __init__[
         origin: MutOrigin
     ](
         out self,
-        var data: UnsafePointer[Scalar[Self.dtype], origin],
+        var data: Pointer[Scalar[Self.dtype], origin],
         var shape: TensorShape,
     ):
         """
@@ -323,19 +323,19 @@ struct Tensor[dtype: DType](Copyable, Movable, Writable):
             shape: The shape of the tensor.
         """
         self._shape = shape
-        self._refcount = alloc[Atomic[DType.uint64]](1)
-        self._refcount[] = Atomic[DType.uint64](1)
+        self._refcount = unsafe_alloc[Atomic[UInt64]](1)
+        self._refcount[] = Atomic[UInt64](1)
 
         if shape.num_elements() == 0:
-            self._data = UnsafePointer[
+            self._data = Pointer[
                 Scalar[Self.dtype], MutUntrackedOrigin
             ].unsafe_dangling()
         else:
-            self._data = alloc[Scalar[Self.dtype]](shape.num_elements())
-            memcpy(dest=self._data, src=data, count=self._shape.num_elements())
+            self._data = unsafe_alloc[Scalar[Self.dtype]](shape.num_elements())
+            unsafe_memcpy(dest=self._data, src=data, count=self._shape.num_elements())
         _ = data
 
-    def __init__(out self, *, deinit take: Tensor[Self.dtype]):
+    def __init__(out self, *, deinit move: Tensor[Self.dtype]):
         """
         Move constructor: take ownership of another tensor's data.
 
@@ -354,21 +354,21 @@ struct Tensor[dtype: DType](Copyable, Movable, Writable):
             copy: The tensor to copy.
         """
         self._shape = copy._shape
-        self._refcount = alloc[Atomic[DType.uint64]](1)
-        self._refcount[] = Atomic[DType.uint64](1)
+        self._refcount = unsafe_alloc[Atomic[UInt64]](1)
+        self._refcount[] = Atomic[UInt64](1)
         if copy.num_elements() == 0:
-            self._data = UnsafePointer[
+            self._data = Pointer[
                 Scalar[Self.dtype], MutUntrackedOrigin
             ].unsafe_dangling()
         else:
-            self._data = alloc[Scalar[Self.dtype]](copy.num_elements())
-            memcpy(dest=self._data, src=copy._data, count=copy.num_elements())
+            self._data = unsafe_alloc[Scalar[Self.dtype]](copy.num_elements())
+            unsafe_memcpy(dest=self._data, src=copy._data, count=copy.num_elements())
 
     def __init__(
         out self,
         *,
-        data: UnsafePointer[Scalar[Self.dtype], MutUntrackedOrigin],
-        refcount: UnsafePointer[Atomic[DType.uint64], MutUntrackedOrigin],
+        data: Pointer[Scalar[Self.dtype], MutUntrackedOrigin],
+        refcount: Pointer[Atomic[UInt64], MutUntrackedOrigin],
         shape: TensorShape,
     ):
         """
@@ -421,7 +421,7 @@ struct Tensor[dtype: DType](Copyable, Movable, Writable):
         self._data[index] = value
 
     @always_inline("nodebug")
-    def ptr(self) -> UnsafePointer[Scalar[Self.dtype], origin_of(self)]:
+    def ptr(self) -> Pointer[Scalar[Self.dtype], origin_of(self)]:
         """
         Returns a read-only pointer to the tensor's underlying buffer,
         with its origin tied to `self`.
@@ -434,7 +434,7 @@ struct Tensor[dtype: DType](Copyable, Movable, Writable):
         ]()
 
     @always_inline("nodebug")
-    def mut_ptr(mut self) -> UnsafePointer[Scalar[Self.dtype], origin_of(self)]:
+    def mut_ptr(mut self) -> Pointer[Scalar[Self.dtype], origin_of(self)]:
         """
         Returns a mutable pointer to the tensor's underlying buffer, with
         its origin tied to `self`.
@@ -524,7 +524,7 @@ struct Tensor[dtype: DType](Copyable, Movable, Writable):
     @always_inline("nodebug")
     def zero(self):
         """Set all elements to zero."""
-        memset_zero(self._data, self.num_elements())
+        unsafe_memset_zero(self._data, self.num_elements())
 
     @always_inline("nodebug")
     def ireshape(mut self, new_shape: TensorShape) raises:
@@ -548,7 +548,7 @@ struct Tensor[dtype: DType](Copyable, Movable, Writable):
         return s + "]"
 
     @always_inline("nodebug")
-    def __del__(deinit self):
+    def __deinit__(deinit self):
         """
         Decrement the reference count and free memory if it reaches zero.
         """
@@ -556,8 +556,8 @@ struct Tensor[dtype: DType](Copyable, Movable, Writable):
             return
         fence[ordering=Ordering.ACQUIRE]()
         if self.num_elements() > 0:
-            self._data.free()
-        self._refcount.free()
+            self._data.unsafe_free()
+        self._refcount.unsafe_free()
 
     def write_to(self, mut writer: Some[Writer]):
         """Writes the tensor to a writer.

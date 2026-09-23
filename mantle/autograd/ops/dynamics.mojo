@@ -15,7 +15,7 @@ from mantle.core.tensor import Tensor, TensorShape
 from mantle.nn.parameters import Parameters
 from mantle.autograd.attributes import AttributeVector
 
-from std.memory import memcpy
+from std.memory import unsafe_memcpy
 
 
 # ===----------------------------------------------------------------------===#
@@ -68,7 +68,7 @@ struct CONCAT:
         for i in range(n_chunks):
             for j in range(len(inputs)):
                 var in_tensor = parameters.tensors[inputs[j]]
-                memcpy(
+                unsafe_memcpy(
                     dest=out_tensor.mut_ptr()
                     + i * chunk_offsets[len(inputs)]
                     + chunk_offsets[j],
@@ -98,7 +98,7 @@ struct CONCAT:
         var res_grad = Tensor[f32](inputs[input_id].shape)
         var out_grad = parameters.grads[outputs[0]]
         for i in range(n_chunks):
-            memcpy(
+            unsafe_memcpy(
                 dest=res_grad.mut_ptr() + i * chunks[input_id],
                 src=out_grad.ptr()
                 + i * chunk_offsets[len(inputs)]
@@ -156,7 +156,7 @@ struct SPLIT:
         for i in range(n_chunks):
             for j in range(len(outputs)):
                 var out_tensor = parameters.tensors[outputs[j]]
-                memcpy(
+                unsafe_memcpy(
                     dest=out_tensor.mut_ptr() + i * chunks[j],
                     src=in_tensor.ptr()
                     + i * chunk_offsets[len(outputs)]
@@ -189,7 +189,7 @@ struct SPLIT:
         for i in range(n_chunks):
             for j in range(len(outputs)):
                 var out_grad = parameters.grads[outputs[j]]
-                memcpy(
+                unsafe_memcpy(
                     dest=res_grad.mut_ptr()
                     + i * chunk_offsets[len(outputs)]
                     + chunk_offsets[j],

@@ -10,7 +10,7 @@
 NumPy interoperability: convert between Mojo tensors and NumPy arrays.
 """
 from std.python import Python, PythonObject
-from std.memory import memcpy, UnsafePointer
+from std.memory import unsafe_memcpy, Pointer
 
 from mantle import f32
 from mantle.core.tensor import Tensor, TensorShape
@@ -41,7 +41,7 @@ def to_numpy[dtype: DType](tensor: Tensor[dtype]) -> PythonObject:
             0
         ].unsafe_get_as_pointer[DType.float32]()
         var d = tensor.ptr().bitcast[Float32]()
-        memcpy(dest=pointer_d, src=d, count=tensor.num_elements())
+        unsafe_memcpy(dest=pointer_d, src=d, count=tensor.num_elements())
 
         _ = tensor
 
@@ -61,7 +61,7 @@ def to_tensor(np_array: PythonObject) raises -> Tensor[f32]:
     for i in range(Int(py=np_array.ndim)):
         shape.append(Int(py=np_array.shape[i]))
     if np_array.ndim == 0:
-        # When the numpy array is a scalar, you need or the reshape to a size 1 ndarray or do this, if not the memcpy gets a memory error (Maybe because it is a register value?).
+        # When the numpy array is a scalar, you need or the reshape to a size 1 ndarray or do this, if not the unsafe_memcpy gets a memory error (Maybe because it is a register value?).
         var tensor = Tensor[f32](TensorShape(1))
         tensor[0] = Scalar[f32](py=np_array)
         return tensor^
@@ -80,7 +80,7 @@ def to_tensor(np_array: PythonObject) raises -> Tensor[f32]:
     var pointer_d = np_array_2.__array_interface__["data"][
         0
     ].unsafe_get_as_pointer[f32]()
-    memcpy(dest=tensor.mut_ptr(), src=pointer_d, count=tensor.num_elements())
+    unsafe_memcpy(dest=tensor.mut_ptr(), src=pointer_d, count=tensor.num_elements())
 
     _ = np_array_2
     _ = np_array
@@ -108,7 +108,7 @@ def copy_np_data[
     var pointer_d = np_array_2.__array_interface__["data"][
         0
     ].unsafe_get_as_pointer[dtype]()
-    memcpy(dest=tensor.mut_ptr(), src=pointer_d, count=tensor.num_elements())
+    unsafe_memcpy(dest=tensor.mut_ptr(), src=pointer_d, count=tensor.num_elements())
 
     # This shouldn't be necessary anymore, but I'm leaving it here for now.
     # _ = np_array_2

@@ -10,7 +10,7 @@
 Parameter storage for graph symbols, supporting literal data and initializer specs.
 """
 from std.collections.optional import Optional
-from std.memory import UnsafePointer
+from std.memory import Pointer
 
 from mantle import f32
 from mantle.core.tensor import Tensor, TensorShape
@@ -87,8 +87,8 @@ struct ParamDict(Copyable, Movable, Sized):
     def get_tensor(self, idx: Int) -> Tensor[f32]:
         # May only be called at runtime
         var num = self.symbols[idx].shape.num_elements()
-        # var t = UnsafePointer[Scalar[f32]].alloc(num)
-        var t = alloc[Scalar[f32]](num)
+        # var t = Pointer[Scalar[f32]].unsafe_alloc(num)
+        var t = unsafe_alloc[Scalar[f32]](num)
         for i in range(num):
             t[i] = self.values[idx][i].value()
         return Tensor[f32](t, self.symbols[idx].shape)

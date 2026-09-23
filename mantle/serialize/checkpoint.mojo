@@ -10,7 +10,7 @@
 Native binary checkpoint format for saving and restoring `Model`/`Adam`
 state, keyed by graph `Symbol` id.
 """
-from std.memory import UnsafePointer
+from std.memory import Pointer
 from std.sys.info import size_of
 
 from mantle import f32
@@ -55,7 +55,7 @@ def _write_u32(mut f: FileHandle, value: UInt32) raises:
         Any error raised by the underlying file write.
     """
     var v = value
-    var bytes = Span[UInt8](ptr=UnsafePointer(to=v).bitcast[UInt8](), length=4)
+    var bytes = Span[UInt8](ptr=Pointer(to=v).bitcast[UInt8](), length=4)
     f.write_bytes(bytes)
 
 
@@ -71,7 +71,7 @@ def _read_u32(data: List[UInt8], mut offset: Int) -> UInt32:
         The decoded value.
     """
     var v: UInt32 = 0
-    var bytes = Span[UInt8](ptr=UnsafePointer(to=v).bitcast[UInt8](), length=4)
+    var bytes = Span[UInt8](ptr=Pointer(to=v).bitcast[UInt8](), length=4)
     for i in range(4):
         bytes[i] = data[offset + i]
     offset += 4
@@ -97,7 +97,7 @@ def _write_tensor(
     _write_u32(f, symbol_id)
     var kind_byte = kind
     f.write_bytes(
-        Span[UInt8](ptr=UnsafePointer(to=kind_byte).bitcast[UInt8](), length=1)
+        Span[UInt8](ptr=Pointer(to=kind_byte).bitcast[UInt8](), length=1)
     )
     _write_u32(f, UInt32(tensor.rank()))
     for i in range(tensor.rank()):
@@ -314,7 +314,7 @@ def load_checkpoint(
 
     Notes:
         Tensors are matched by symbol id against the entries already
-        allocated in `parameters.tensors` (so the graph that allocated
+        unsafe_allocated in `parameters.tensors` (so the graph that unsafe_allocated
         them must match the one the checkpoint was saved from). Entries
         for symbol ids not present in `parameters.tensors` are skipped
         rather than erroring, so loading a checkpoint from a slightly

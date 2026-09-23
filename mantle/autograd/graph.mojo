@@ -47,7 +47,7 @@ struct Graph(Copyable, ImplicitlyCopyable, Movable):
         self.loss_out = None
         self.symbol_count = 0
 
-    def __init__(out self, *, deinit take: Self):
+    def __init__(out self, *, deinit move: Self):
         self.inputs = take.inputs^
         self.params = take.params^
         self.nodes = take.nodes^

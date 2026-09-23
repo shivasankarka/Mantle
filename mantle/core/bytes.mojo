@@ -220,5 +220,7 @@ def expand_type[dtype: DType]() -> DType:
         return DType.int64
     elif dtype.is_integral():
         return DType.uint64
+    else:
+        return DType.float64
     # comptime assert False, "Unsupported data type: ${dtype}"
-    return DType.invalid
+    # return DType.invalid

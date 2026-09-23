@@ -15,7 +15,7 @@ from mantle.autograd.attributes import AttributeVector
 
 from std.algorithm import parallelize, vectorize
 from std.utils.index import IndexList
-from std.memory import memset_zero, UnsafePointer
+from std.memory import unsafe_memset_zero, Pointer
 
 
 # ===----------------------------------------------------------------------===#
@@ -135,8 +135,8 @@ struct CONV2D:
         comptime outputs_strides = output_shape.strides()
         comptime col_strides = col_shape.strides()
 
-        var col_ptr = alloc[Scalar[f32]](col_shape.num_elements())
-        memset_zero(col_ptr, col_shape.num_elements())
+        var col_ptr = unsafe_alloc[Scalar[f32]](col_shape.num_elements())
+        unsafe_memset_zero(col_ptr, col_shape.num_elements())
 
         @parameter
         def im2col(batch: Int):
@@ -225,7 +225,7 @@ struct CONV2D:
 
         parallelize[conv](batch_size)
 
-        col_ptr.free()
+        col_ptr.unsafe_free()
 
     @staticmethod
     def backward[
@@ -415,7 +415,7 @@ struct CONV2D:
 
                     def vec_sum[
                         Nelts: Int
-                    ](ux_uy: Int) {mut sum, read ug, read batch_offset}:
+                    ](ux_uy: Int) {mut sum, imm ug, imm batch_offset}:
                         sum += ug.load[Nelts](batch_offset + ux_uy).reduce_add()
 
                     vectorize[nelts](ug_shape_2 * ug_shape_3, vec_sum)

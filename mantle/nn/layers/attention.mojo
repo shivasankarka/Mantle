@@ -73,7 +73,7 @@ def MultiHeadAttention(
     var v = Linear(g, inputs, d_model)
 
     # (B, T, D) -> (B, T, H, d) -> (B, H, T, d)
-    def split_heads(t: Symbol) {mut g, read batch, read seq_len, read num_heads, read head_dim} -> Symbol:
+    def split_heads(t: Symbol) {mut g, imm batch, imm seq_len, imm num_heads, imm head_dim} -> Symbol:
         var reshaped = g.op(
             OP.RESHAPE,
             t,

@@ -41,7 +41,7 @@ def rand_uniform[
 
     rand[dtype](res.mut_ptr(), res.num_elements())
 
-    def vecscale[nelts: Int](idx: Int) {mut res, read scale, read low}:
+    def vecscale[nelts: Int](idx: Int) {mut res, imm scale, imm low}:
         res.store[nelts](idx, res.load[nelts](idx).fma(scale, low))
 
     vectorize[nelts](res.num_elements(), vecscale)

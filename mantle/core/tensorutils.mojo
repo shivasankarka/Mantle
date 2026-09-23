@@ -10,12 +10,15 @@
 Vectorized element-wise operations, broadcasting, reductions, and gradient accumulation.
 """
 from std.sys.info import num_physical_cores
-from std.algorithm import vectorize, parallelize
-from std.memory import memset_zero, memset, stack_allocation, UnsafePointer
+from std.algorithm import vectorize
+from std.memory import unsafe_memset_zero, unsafe_memset, stack_allocation, Pointer
 from std.math import sqrt
 from std.random import rand
 from std.utils.numerics import min_finite, max_finite
 from std.utils.index import IndexList
+from std.memory.alloc import unsafe_alloc
+
+from max.algorithm.backend.cpu import parallelize
 
 from mantle import f32, nelts
 from mantle.core.tensor import Tensor, TensorShape, MAX_RANK
@@ -40,7 +43,7 @@ def fill[dtype: DType](mut t: Tensor[dtype], val: Scalar[dtype]):
         val: The value to fill with.
     """
 
-    def fill_vec[nelts: Int](idx: Int) {mut t, read val}:
+    def fill_vec[nelts: Int](idx: Int) {mut t, imm val}:
         t.store[nelts](idx, val)
 
     vectorize[nelts](t.num_elements(), fill_vec)
@@ -197,7 +200,7 @@ def elwise_transform[
         t: The input tensor.
     """
 
-    def vecmath[nelts: Int](idx: Int) {mut res, read t}:
+    def vecmath[nelts: Int](idx: Int) {mut res, imm t}:
         res.store[nelts](idx, func[f32, nelts](t.load[nelts](idx)))
 
     vectorize[nelts](t.num_elements(), vecmath)
@@ -238,7 +241,7 @@ def elwise_pow(mut res: Tensor[f32], t: Tensor[f32], x: Int):
         x: The exponent.
     """
 
-    def vecpow[nelts: Int](idx: Int) {mut res, read t, read x}:
+    def vecpow[nelts: Int](idx: Int) {mut res, imm t, imm x}:
         res.store[nelts](idx, pow(t.load[nelts](idx), x))
 
     vectorize[nelts](t.num_elements(), vecpow)
@@ -287,7 +290,7 @@ def elwise_op[
 ](mut res: Tensor[f32], t1: Tensor[f32], t2: Tensor[f32]):
     """Element-wise operation on two tensors of equal shape."""
 
-    def vecmath[nelts: Int](idx: Int) {mut res, read t1, read t2}:
+    def vecmath[nelts: Int](idx: Int) {mut res, imm t1, imm t2}:
         res.store[nelts](
             idx, func[f32, nelts](t1.load[nelts](idx), t2.load[nelts](idx))
         )
@@ -303,7 +306,7 @@ def elwise_op[
 ](mut res: Tensor[f32], t1: Tensor[f32], a: Scalar[f32]):
     """Element-wise operation on a tensor and a scalar."""
 
-    def vecmath[nelts: Int](idx: Int) {mut res, read t1, read a}:
+    def vecmath[nelts: Int](idx: Int) {mut res, imm t1, imm a}:
         res.store[nelts](idx, func[f32, nelts](t1.load[nelts](idx), a))
 
     vectorize[nelts](t1.num_elements(), vecmath)
@@ -317,7 +320,7 @@ def elwise_op[
 ](mut res: Tensor[f32], a: Scalar[f32], t1: Tensor[f32]):
     """Element-wise operation on a tensor and a scalar."""
 
-    def vecmath[nelts: Int](idx: Int) {mut res, read a, read t1}:
+    def vecmath[nelts: Int](idx: Int) {mut res, imm a, imm t1}:
         res.store[nelts](idx, func[f32, nelts](a, t1.load[nelts](idx)))
 
     vectorize[nelts](t1.num_elements(), vecmath)
@@ -349,7 +352,7 @@ def broadcast_elwise_op[
     comptime strides1 = broadcast_calculate_strides[size, t1_shape, res_shape]()
     comptime strides2 = broadcast_calculate_strides[size, t2_shape, res_shape]()
 
-    def vec_op[nelts: Int](i: Int) {mut res, read t1, read t2}:
+    def vec_op[nelts: Int](i: Int) {mut res, imm t1, imm t2}:
         var index1 = get_real_index[size, strides1, res_shape](i)
         var index2 = get_real_index[size, strides2, res_shape](i)
 
@@ -389,7 +392,7 @@ def accumulate_op[
     comptime size = res_shape.rank()
     comptime strides1 = broadcast_calculate_strides[size, t1_shape, res_shape]()
 
-    def vec_op[nelts: Int](i: Int) {mut res, read t1}:
+    def vec_op[nelts: Int](i: Int) {mut res, imm t1}:
         var index1 = get_real_index[size, strides1, res_shape](i)
 
         res.store[nelts](
@@ -416,7 +419,7 @@ def accumulate_op[
         t: The input tensor.
     """
 
-    def vecmath[nelts: Int](idx: Int) {mut res, read t}:
+    def vecmath[nelts: Int](idx: Int) {mut res, imm t}:
         res.store[nelts](
             idx, func[f32, nelts](res.load[nelts](idx), t.load[nelts](idx))
         )
@@ -441,7 +444,7 @@ def accumulate_op[
         a: The scalar value.
     """
 
-    def vecmath[nelts: Int](idx: Int) {mut res, read a}:
+    def vecmath[nelts: Int](idx: Int) {mut res, imm a}:
         res.store[nelts](idx, func[f32, nelts](res.load[nelts](idx), a))
 
     vectorize[nelts](res.num_elements(), vecmath)
@@ -487,7 +490,7 @@ def accumulate_grad[
             size, grad_shape, res_grad_shape
         ]()
 
-        def vec_op[nelts: Int](i: Int) {mut grad, read res_grad}:
+        def vec_op[nelts: Int](i: Int) {mut grad, imm res_grad}:
             var index = get_real_index[size, strides_grad, res_grad_shape](i)
             grad[index] += res_grad.load[nelts](i).reduce_add()
 
@@ -518,7 +521,7 @@ def transpose_2D[t_shape: TensorShape](t: Tensor[f32]) -> Tensor[f32]:
 
     @parameter
     def proc_row(i: Int):
-        def proc_column[nelts: Int](j: Int) {mut t_new, read t, read i}:
+        def proc_column[nelts: Int](j: Int) {mut t_new, imm t, imm i}:
             (t_new.mut_ptr() + (j * t_shape[0] + i)).strided_store[width=nelts](
                 t.load[nelts](i * t_shape[1] + j), stride
             )
@@ -533,7 +536,7 @@ def transpose_2D[t_shape: TensorShape](t: Tensor[f32]) -> Tensor[f32]:
 @always_inline
 def transpose_2D[
     t_shape: TensorShape
-](t: UnsafePointer[Scalar[f32], _]) -> UnsafePointer[
+](t: Pointer[Scalar[f32], _]) -> Pointer[
     Scalar[f32], MutUntrackedOrigin
 ]:
     """
@@ -548,13 +551,13 @@ def transpose_2D[
     Returns:
         Pointer to the transposed matrix data.
     """
-    var t_new = alloc[Scalar[f32]](t_shape[1] * t_shape[0])
+    var t_new = unsafe_alloc[Scalar[f32]](t_shape[1] * t_shape[0])
 
     comptime stride = t_shape[0]
 
     @parameter
     def proc_row(i: Int):
-        def proc_column[nelts: Int](j: Int) {read t_new, read t, read i}:
+        def proc_column[nelts: Int](j: Int) {imm t_new, imm t, imm i}:
             (t_new + (j * t_shape[0] + i)).strided_store[width=nelts](
                 t.load[width=nelts](i * t_shape[1] + j), stride
             )
@@ -594,7 +597,7 @@ def reduce[
     """
     var m: SIMD[f32, nelts] = starting_value
 
-    def vecreduce[_nelts: Int](idx: Int) {mut m, read t}:
+    def vecreduce[_nelts: Int](idx: Int) {mut m, imm t}:
         comptime if _nelts == 1:
             m[0] = op[f32, 1](
                 SIMD[f32, 1](m[0]), SIMD[f32, 1](t.load[_nelts](idx)[0])
@@ -666,7 +669,7 @@ def reduce[
 
         def axisreduce[
             _nelts: Int
-        ](j: Int) {mut m, read t, read index_base, read strides, read axis}:
+        ](j: Int) {mut m, imm t, imm index_base, imm strides, imm axis}:
             var index = index_base + j * strides[axis]
             comptime if _nelts == 1:
                 m[0] = op[f32, 1](
@@ -742,7 +745,7 @@ def tstd(t: Tensor[f32]) -> Scalar[f32]:
     var mu: Scalar[f32] = tmean(t)
     var variance: Scalar[f32] = 0.0
 
-    def vecvar[nelts: Int](idx: Int) {read t, read mu, mut variance}:
+    def vecvar[nelts: Int](idx: Int) {imm t, imm mu, mut variance}:
         var diff = t.load[nelts](idx) - mu
         variance += (diff * diff).reduce_add()
 
@@ -828,12 +831,12 @@ def tstd(mut res: Tensor[f32], t: Tensor[f32], axis: Int):
             nelts: Int
         ](j: Int) {
             mut res,
-            read t,
-            read mu,
-            read i,
-            read mu_index,
-            read strides,
-            read axis,
+            imm t,
+            imm mu,
+            imm i,
+            imm mu_index,
+            imm strides,
+            imm axis,
         }:
             var t_index = get_t_index(i, j, axis, t.shape(), strides)
             var diff = t.load[nelts](t_index) - mu[mu_index]
@@ -977,7 +980,7 @@ def transpose(t: Tensor[f32], axes: TensorShape) -> Tensor[f32]:
 @always_inline
 def transpose(mut res: Tensor[f32], t: Tensor[f32], axes: TensorShape):
     """
-    Permute dimensions into a pre-allocated result tensor.
+    Permute dimensions into a pre-unsafe_allocated result tensor.
 
     Args:
         res: The output tensor.
@@ -1003,8 +1006,8 @@ def transpose(mut res: Tensor[f32], t: Tensor[f32], axes: TensorShape):
             nelts: Int
         ](j: Int) {
             mut res,
-            read t,
-            read i,
+            imm t,
+            imm i,
             read original_strides,
             read transposed_strides,
             read axes,
