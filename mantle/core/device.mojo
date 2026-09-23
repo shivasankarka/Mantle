@@ -34,9 +34,11 @@ struct Device(TrivialRegisterPassable, Writable):
         self.id = id
         self.name = Bytes[8](name)
 
+    @always_inline("builtin")
     def __eq__(self, other: Device) -> Bool:
         return self.id == other.id
 
+    @always_inline("builtin")
     def __ne__(self, other: Device) -> Bool:
         return self.id != other.id
 
