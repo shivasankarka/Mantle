@@ -9,8 +9,7 @@
 ------------------------------------------------
 Compile-time device tag threaded through `Tensor`/`Collection`/`Model` as a
 parameter (not a runtime field), so a CPU-only build carries no overhead and
-picks its storage/dispatch statically. GPU storage and op kernels land in
-later phases; today `Device.gpu` exists only as a placeholder tag.
+picks its storage/dispatch statically.
 """
 from mantle.core.bytes import Bytes
 

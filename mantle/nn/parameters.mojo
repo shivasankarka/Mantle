@@ -21,11 +21,9 @@ from mantle.core.device import Device
 
 struct Parameters:
     """
-    CPU-resident tensor/gradient storage. Pinned to `Device.cpu`: `Model` and
-    the op dispatch layer (`forward_op`/`backward_op`) are not yet
-    device-generic, so making this generic too would only produce type
-    errors with no GPU implementation behind them. Revisit once GPU tensor
-    storage (and device-aware ops) land.
+    CPU-resident tensor/gradient storage. Pinned to `Device.cpu`: the op
+    dispatch layer (`forward_op`/`backward_op`) is CPU-only, so a generic
+    `device` parameter here would only produce type errors.
     """
 
     var tensors: Collection[Device.cpu]
