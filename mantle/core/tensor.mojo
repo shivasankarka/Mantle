@@ -13,10 +13,11 @@ operations such as indexing, reshaping, and zeroing out the data.
 """
 from std.testing import assert_true
 from std.algorithm import vectorize
-from std.atomic import Atomic, Ordering, fence
+from std.collections.optional import Optional
 from std.utils.index import IndexList
 from std.memory import unsafe_memset_zero, unsafe_memcpy, Pointer
-from std.memory.alloc import unsafe_alloc
+from std.os import abort
+from max.gpu.host import DeviceContext, DeviceBuffer, HostBuffer
 
 from mantle.core.device import Device
 
@@ -243,20 +244,22 @@ struct Tensor[dtype: DType, device: Device = Device.cpu](
     Copyable, Movable, Writable
 ):
     """
-    A reference-counted multi-dimensional array.
+    A multi-dimensional array.
 
     Parameters:
         dtype: The data type of the tensor elements.
-        device: The device the tensor's data lives on (compile-time tag;
-            only `Device.cpu` is implemented today).
+        device: The device the tensor's data lives on. Storage is a MAX
+            `HostBuffer` (CPU) or `DeviceBuffer` (GPU), each already
+            refcounted by the driver — `Tensor` does no refcounting of its
+            own.
     """
 
-    var _data: Pointer[Scalar[Self.dtype], MutUntrackedOrigin]
-    """Pointer to the underlying data buffer."""
-    var _refcount: Pointer[Atomic[UInt64], MutUntrackedOrigin]
-    """Pointer to the atomic reference count."""
     var _shape: TensorShape
     """The shape of the tensor."""
+    var _host_buffer: Optional[HostBuffer[Self.dtype]]
+    """The CPU data buffer. `None` for GPU tensors."""
+    var _device_buffer: Optional[DeviceBuffer[Self.dtype]]
+    """The GPU data buffer. `None` for CPU tensors."""
 
     def __init__(out self, *dims: Int):
         """
@@ -265,18 +268,7 @@ struct Tensor[dtype: DType, device: Device = Device.cpu](
         Args:
             dims: The size of each dimension.
         """
-        self._shape = TensorShape(dims)
-        self._refcount = unsafe_alloc[Atomic[UInt64]](1)
-        self._refcount[] = Atomic[UInt64](1)
-        if self._shape.num_elements() == 0:
-            self._data = Pointer[
-                Scalar[Self.dtype], MutUntrackedOrigin
-            ].unsafe_dangling()
-        else:
-            self._data = unsafe_alloc[Scalar[Self.dtype]](
-                self._shape.num_elements()
-            )
-            unsafe_memset_zero(self._data, self._shape.num_elements())
+        self = Self(TensorShape(dims))
 
     def __init__(out self, var shape: TensorShape):
         """
@@ -286,15 +278,26 @@ struct Tensor[dtype: DType, device: Device = Device.cpu](
             shape: The shape of the tensor.
         """
         self._shape = shape
-        self._refcount = unsafe_alloc[Atomic[UInt64]](1)
-        self._refcount[] = Atomic[UInt64](1)
-        if shape.num_elements() == 0:
-            self._data = Pointer[
-                Scalar[Self.dtype], MutUntrackedOrigin
-            ].unsafe_dangling()
-        else:
-            self._data = unsafe_alloc[Scalar[Self.dtype]](shape.num_elements())
-            unsafe_memset_zero(self._data, shape.num_elements())
+        self._host_buffer = None
+        self._device_buffer = None
+        # No `raises` on this constructor, so a failed allocation aborts
+        # instead of propagating.
+        try:
+            var ctx = DeviceContext()
+            comptime if Self.device.id == Device.cpu.id:
+                var buf = ctx.enqueue_create_host_buffer[Self.dtype](
+                    shape.num_elements()
+                )
+                buf.enqueue_fill(Scalar[Self.dtype](0))
+                self._host_buffer = buf
+            else:
+                var buf = ctx.enqueue_create_buffer[Self.dtype](
+                    shape.num_elements()
+                )
+                buf.enqueue_fill(Scalar[Self.dtype](0))
+                self._device_buffer = buf
+        except e:
+            abort("Tensor: allocation failed: " + String(e))
 
     def __init__(out self, shapes: VariadicList[Int, _]):
         """
@@ -303,18 +306,7 @@ struct Tensor[dtype: DType, device: Device = Device.cpu](
         Args:
             shapes: A variadic list of dimension sizes.
         """
-        self._shape = TensorShape(shapes)
-        self._refcount = unsafe_alloc[Atomic[UInt64]](1)
-        self._refcount[] = Atomic[UInt64](1)
-        if self._shape.num_elements() == 0:
-            self._data = Pointer[
-                Scalar[Self.dtype], MutUntrackedOrigin
-            ].unsafe_dangling()
-        else:
-            self._data = unsafe_alloc[Scalar[Self.dtype]](
-                self._shape.num_elements()
-            )
-            unsafe_memset_zero(self._data, self._shape.num_elements())
+        self = Self(TensorShape(shapes))
 
     def __init__[
         origin: MutOrigin
@@ -322,9 +314,9 @@ struct Tensor[dtype: DType, device: Device = Device.cpu](
         out self,
         var data: Pointer[Scalar[Self.dtype], origin],
         var shape: TensorShape,
-    ):
+    ) where (Self.device.id == Device.cpu.id):
         """
-        Create a tensor by copying data from an external pointer.
+        Create a tensor by copying data from an external CPU pointer.
 
         Parameters:
             origin: The mutability origin of the source pointer.
@@ -333,18 +325,12 @@ struct Tensor[dtype: DType, device: Device = Device.cpu](
             data: Pointer to the source data.
             shape: The shape of the tensor.
         """
-        self._shape = shape
-        self._refcount = unsafe_alloc[Atomic[UInt64]](1)
-        self._refcount[] = Atomic[UInt64](1)
-
-        if shape.num_elements() == 0:
-            self._data = Pointer[
-                Scalar[Self.dtype], MutUntrackedOrigin
-            ].unsafe_dangling()
-        else:
-            self._data = unsafe_alloc[Scalar[Self.dtype]](shape.num_elements())
+        self = Self(shape)
+        if shape.num_elements() > 0:
             unsafe_memcpy(
-                dest=self._data, src=data, count=self._shape.num_elements()
+                dest=self._host_buffer.value().unsafe_ptr(),
+                src=data,
+                count=shape.num_elements(),
             )
         _ = data
 
@@ -355,9 +341,9 @@ struct Tensor[dtype: DType, device: Device = Device.cpu](
         Args:
             move: The tensor to take ownership from.
         """
-        self._data = move._data
-        self._refcount = move._refcount
         self._shape = move._shape
+        self._host_buffer = move._host_buffer^
+        self._device_buffer = move._device_buffer^
 
     def __init__(out self, *, copy: Tensor[Self.dtype, Self.device]):
         """
@@ -366,53 +352,123 @@ struct Tensor[dtype: DType, device: Device = Device.cpu](
         Args:
             copy: The tensor to copy.
         """
-        self._shape = copy._shape
-        self._refcount = unsafe_alloc[Atomic[UInt64]](1)
-        self._refcount[] = Atomic[UInt64](1)
+        self = Self(copy._shape)
         if copy.num_elements() == 0:
-            self._data = Pointer[
-                Scalar[Self.dtype], MutUntrackedOrigin
-            ].unsafe_dangling()
-        else:
-            self._data = unsafe_alloc[Scalar[Self.dtype]](copy.num_elements())
-            unsafe_memcpy(
-                dest=self._data, src=copy._data, count=copy.num_elements()
-            )
+            return
+        # A copy constructor may not raise, so a failed device copy aborts
+        # instead of propagating — same convention as `HostBuffer`'s and
+        # `DeviceBuffer`'s own (non-raising) copy constructors.
+        try:
+            comptime if Self.device.id == Device.cpu.id:
+                unsafe_memcpy(
+                    dest=self._host_buffer.value().unsafe_ptr(),
+                    src=copy._host_buffer.value().unsafe_ptr(),
+                    count=copy.num_elements(),
+                )
+            else:
+                var src = copy._device_buffer.value()
+                src.enqueue_copy_to(self._device_buffer.value())
+                src.context().synchronize()
+        except e:
+            abort("Tensor: deep copy failed: " + String(e))
+
+    def __init__(
+        out self, *, var host_buffer: HostBuffer[Self.dtype], shape: TensorShape
+    ) where Self.device.id == Device.cpu.id:
+        """
+        Initialize a CPU tensor by wrapping an existing `HostBuffer`.
+
+        Args:
+            host_buffer: The CPU buffer backing this tensor.
+            shape: The shape of the tensor.
+        """
+        self._shape = shape
+        self._host_buffer = host_buffer^
+        self._device_buffer = None
 
     def __init__(
         out self,
         *,
-        data: Pointer[Scalar[Self.dtype], MutUntrackedOrigin],
-        refcount: Pointer[Atomic[UInt64], MutUntrackedOrigin],
+        var device_buffer: DeviceBuffer[Self.dtype],
         shape: TensorShape,
-    ):
+    ) where Self.device.id == Device.gpu.id:
         """
-        Initialize a tensor from raw components (unsafe).
+        Initialize a GPU tensor by wrapping an existing `DeviceBuffer`.
 
         Args:
-            data: Pointer to the data buffer.
-            refcount: Pointer to the reference count.
+            device_buffer: The GPU buffer backing this tensor.
             shape: The shape of the tensor.
         """
-        self._data = data
-        self._refcount = refcount
         self._shape = shape
+        self._host_buffer = None
+        self._device_buffer = device_buffer^
 
     def share(self) -> Self:
         """
-        Create a shallow copy with an incremented reference count.
+        Create a shallow copy sharing the same underlying data buffer — the
+        driver-native refcount on the `HostBuffer`/`DeviceBuffer` is
+        incremented, no data is copied.
 
         Returns:
             A new Tensor that shares the same underlying data buffer.
         """
-        _ = self._refcount[].fetch_add[ordering=Ordering.RELAXED](1)
-        var result = Self(
-            data=self._data, refcount=self._refcount, shape=self._shape
-        )
-        return result^
+        comptime if Self.device.id == Device.cpu.id:
+            comptime assert Self.device.id == Device.cpu.id
+            return Self(
+                host_buffer=self._host_buffer.value().copy(),
+                shape=self._shape,
+            )
+        else:
+            comptime assert Self.device.id == Device.gpu.id
+            return Self(
+                device_buffer=self._device_buffer.value().copy(),
+                shape=self._shape,
+            )
+
+    def to_host(self) raises -> Tensor[Self.dtype, Device.cpu]:
+        """
+        Copy this tensor's data to a new CPU-resident tensor.
+
+        Returns:
+            A new `Tensor[dtype, Device.cpu]` with the same data.
+        """
+        var out = Tensor[Self.dtype, Device.cpu](self._shape)
+        comptime if Self.device.id == Device.cpu.id:
+            comptime assert Self.device.id == Device.cpu.id
+            unsafe_memcpy(
+                dest=out._host_buffer.value().unsafe_ptr(),
+                src=self._host_buffer.value().unsafe_ptr(),
+                count=self.num_elements(),
+            )
+        else:
+            var buf = self._device_buffer.value()
+            buf.enqueue_copy_to(out._host_buffer.value())
+            buf.context().synchronize()
+        return out^
+
+    def to_gpu(self) raises -> Tensor[Self.dtype, Device.gpu]:
+        """
+        Copy this tensor's data to a new GPU-resident tensor.
+
+        Returns:
+            A new `Tensor[dtype, Device.gpu]` with the same data.
+        """
+        var out = Tensor[Self.dtype, Device.gpu](self._shape)
+        comptime if Self.device.id == Device.cpu.id:
+            comptime assert Self.device.id == Device.cpu.id
+            var buf = out._device_buffer.value()
+            buf.enqueue_copy_from(self._host_buffer.value())
+            buf.context().synchronize()
+        else:
+            var src = self._device_buffer.value()
+            src.enqueue_copy_to(out._device_buffer.value())
+            src.context().synchronize()
+        return out^
 
     @always_inline("nodebug")
-    def __getitem__(self, index: Int) -> Scalar[Self.dtype]:
+    def __getitem__(
+        self, index: Int
+    ) -> Scalar[Self.dtype] where Self.device.id == Device.cpu.id:
         """
         Access a single element by flat index.
 
@@ -422,10 +478,12 @@ struct Tensor[dtype: DType, device: Device = Device.cpu](
         Returns:
             The element at the given index.
         """
-        return self._data[unsafe_offset=index]
+        return self._host_buffer.value().unsafe_ptr()[unsafe_offset=index]
 
     @always_inline("nodebug")
-    def __setitem__(self, index: Int, value: Scalar[Self.dtype]):
+    def __setitem__(
+        self, index: Int, value: Scalar[Self.dtype]
+    ) where Self.device.id == Device.cpu.id:
         """
         Set a single element by flat index.
 
@@ -433,10 +491,14 @@ struct Tensor[dtype: DType, device: Device = Device.cpu](
             index: The flat index into the tensor data.
             value: The value to set.
         """
-        self._data[unsafe_offset=index] = value
+        self._host_buffer.value().unsafe_ptr()[unsafe_offset=index] = value
 
     @always_inline("nodebug")
-    def ptr(self) -> Pointer[Scalar[Self.dtype], origin_of(self)]:
+    def ptr(
+        self,
+    ) -> Pointer[Scalar[Self.dtype], origin_of(self)] where (
+        Self.device.id == Device.cpu.id
+    ):
         """
         Returns a read-only pointer to the tensor's underlying buffer,
         with its origin tied to `self`.
@@ -444,10 +506,19 @@ struct Tensor[dtype: DType, device: Device = Device.cpu](
         Returns:
             A pointer to the tensor's data, valid for the lifetime of `self`.
         """
-        return self._data.as_imm().unsafe_origin_cast[origin_of(self)]()
+        return (
+            self._host_buffer.value()
+            .unsafe_ptr()
+            .as_imm()
+            .unsafe_origin_cast[origin_of(self)]()
+        )
 
     @always_inline("nodebug")
-    def mut_ptr(mut self) -> Pointer[Scalar[Self.dtype], origin_of(self)]:
+    def mut_ptr(
+        mut self,
+    ) -> Pointer[Scalar[Self.dtype], origin_of(self)] where (
+        Self.device.id == Device.cpu.id
+    ):
         """
         Returns a mutable pointer to the tensor's underlying buffer, with
         its origin tied to `self`.
@@ -455,7 +526,11 @@ struct Tensor[dtype: DType, device: Device = Device.cpu](
         Returns:
             A pointer to the tensor's data, valid for the lifetime of `self`.
         """
-        return self._data.unsafe_origin_cast[origin_of(self)]()
+        return (
+            self._host_buffer.value()
+            .unsafe_ptr()
+            .unsafe_origin_cast[origin_of(self)]()
+        )
 
     @always_inline("nodebug")
     def shape(self) -> TensorShape:
@@ -466,7 +541,11 @@ struct Tensor[dtype: DType, device: Device = Device.cpu](
         return self._shape
 
     @always_inline("nodebug")
-    def load[simd_width: Int](self, index: Int) -> SIMD[Self.dtype, simd_width]:
+    def load[
+        simd_width: Int
+    ](self, index: Int) -> SIMD[Self.dtype, simd_width] where (
+        Self.device.id == Device.cpu.id
+    ):
         """
         Load a SIMD vector from the given flat index.
 
@@ -479,12 +558,18 @@ struct Tensor[dtype: DType, device: Device = Device.cpu](
         Returns:
             A SIMD vector of elements starting at the given index.
         """
-        return self._data.unsafe_load[width=simd_width](index)
+        return (
+            self._host_buffer.value()
+            .unsafe_ptr()
+            .unsafe_load[width=simd_width](index)
+        )
 
     @always_inline("nodebug")
     def store[
         simd_width: Int
-    ](self, index: Int, value: SIMD[Self.dtype, simd_width]):
+    ](self, index: Int, value: SIMD[Self.dtype, simd_width]) where (
+        Self.device.id == Device.cpu.id
+    ):
         """
         Store a SIMD vector at the given flat index.
 
@@ -495,7 +580,7 @@ struct Tensor[dtype: DType, device: Device = Device.cpu](
             index: The flat index to store at.
             value: The SIMD vector to store.
         """
-        self._data.unsafe_store(index, value)
+        self._host_buffer.value().unsafe_ptr().unsafe_store(index, value)
 
     @always_inline("nodebug")
     def strides(self) -> IndexList[MAX_RANK]:
@@ -535,9 +620,11 @@ struct Tensor[dtype: DType, device: Device = Device.cpu](
         return self._shape[index]
 
     @always_inline("nodebug")
-    def zero(self):
+    def zero(self) where Self.device.id == Device.cpu.id:
         """Set all elements to zero."""
-        unsafe_memset_zero(self._data, self.num_elements())
+        unsafe_memset_zero(
+            self._host_buffer.value().unsafe_ptr(), self.num_elements()
+        )
 
     @always_inline("nodebug")
     def ireshape(mut self, new_shape: TensorShape) raises:
@@ -552,25 +639,16 @@ struct Tensor[dtype: DType, device: Device = Device.cpu](
         self._shape = new_shape
 
     def __str__(self) -> String:
-        # temp fix
-        var s: String = "["
-        for i in range(self.num_elements()):
-            s += String(self[i])
-            if i < self.num_elements() - 1:
-                s += ", "
-        return s + "]"
-
-    @always_inline("nodebug")
-    def __deinit__(deinit self):
-        """
-        Decrement the reference count and free memory if it reaches zero.
-        """
-        if self._refcount[].fetch_sub[ordering=Ordering.RELEASE](1) != 1:
-            return
-        fence[ordering=Ordering.ACQUIRE]()
-        if self.num_elements() > 0:
-            self._data.unsafe_free()
-        self._refcount.unsafe_free()
+        comptime if Self.device.id == Device.cpu.id:
+            comptime assert Self.device.id == Device.cpu.id
+            var s: String = "["
+            for i in range(self.num_elements()):
+                s += String(self[i])
+                if i < self.num_elements() - 1:
+                    s += ", "
+            return s + "]"
+        else:
+            return "Tensor[gpu, " + String(self.num_elements()) + " elements]"
 
     def write_to(self, mut writer: Some[Writer]):
         """Writes the tensor to a writer.

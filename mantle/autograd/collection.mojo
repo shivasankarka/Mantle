@@ -184,11 +184,15 @@ struct Collection[device: Device = Device.cpu](Copyable, Movable, Sized):
         self.index_map_ref[unsafe_offset=id] = slot
 
     @always_inline("nodebug")
-    def append(mut self, value: Tensor[f32, Self.device], symbol: Symbol):
+    def append(
+        mut self, value: Tensor[f32, Self.device], symbol: Symbol
+    ) where Self.device.id == Device.cpu.id:
         self.append(value, symbol.name)
 
     @always_inline("nodebug")
-    def append(mut self, value: Tensor[f32, Self.device], symbol_name: UInt32):
+    def append(
+        mut self, value: Tensor[f32, Self.device], symbol_name: UInt32
+    ) where Self.device.id == Device.cpu.id:
         if self.size >= self.capacity:
             self._realloc(max(1, self.capacity * 2))
         (self.data_ref.unsafe_offset(self.size)).unsafe_write(value.copy())
@@ -211,7 +215,9 @@ struct Collection[device: Device = Device.cpu](Copyable, Movable, Sized):
         ref tensor = self.data_ref[unsafe_offset=index]
         return tensor.share()
 
-    def __setitem__(mut self, symbol: Symbol, value: Tensor[f32, Self.device]):
+    def __setitem__(
+        mut self, symbol: Symbol, value: Tensor[f32, Self.device]
+    ) where Self.device.id == Device.cpu.id:
         var index = self.get_index(symbol.name)
         ref tensor = self.data_ref[unsafe_offset=index]
         unsafe_memcpy(
@@ -231,6 +237,6 @@ struct Collection[device: Device = Device.cpu](Copyable, Movable, Sized):
         self.size = 0
 
     @always_inline("nodebug")
-    def set_zero(mut self):
+    def set_zero(mut self) where Self.device.id == Device.cpu.id:
         for i in range(self.size):
             self.data_ref[unsafe_offset=i].zero()
