@@ -39,7 +39,7 @@ def rand_uniform[
     """
     var scale = high - low
 
-    rand[dtype](res.mut_ptr(), res.num_elements())
+    rand[dtype](res.ptr(), res.num_elements())
 
     def vecscale[nelts: Int](idx: Int) {mut res, imm scale, imm low}:
         res.store[nelts](idx, res.load[nelts](idx).fma(scale, low))
@@ -62,7 +62,7 @@ def rand_normal[
         mean: The mean of the distribution.
         std: The standard deviation of the distribution.
     """
-    randn[dtype](res.mut_ptr(), res.num_elements(), mean, std**2)
+    randn[dtype](res.ptr(), res.num_elements(), mean, std**2)
 
 
 struct MersenneTwister(TrivialRegisterPassable):

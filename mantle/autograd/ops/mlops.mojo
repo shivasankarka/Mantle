@@ -495,7 +495,7 @@ struct SQUEEZE:
         t1_shape: TensorShape,
         attributes: AttributeVector,
     ](mut res: Tensor[f32], t1: Tensor[f32]):
-        unsafe_memcpy(dest=res.mut_ptr(), src=t1.ptr(), count=t1.num_elements())
+        unsafe_memcpy(dest=res.ptr(), src=t1.ptr(), count=t1.num_elements())
 
     @staticmethod
     def backward[
@@ -504,7 +504,7 @@ struct SQUEEZE:
     ](ug: Tensor[f32], t1: Tensor[f32]) -> Tensor[f32]:
         var res_grad = Tensor[f32](t1_shape)
         unsafe_memcpy(
-            dest=res_grad.mut_ptr(), src=ug.ptr(), count=ug.num_elements()
+            dest=res_grad.ptr(), src=ug.ptr(), count=ug.num_elements()
         )
         return res_grad^
 
@@ -536,7 +536,7 @@ struct UNSQUEEZE:
         t1_shape: TensorShape,
         attributes: AttributeVector,
     ](mut res: Tensor[f32], t1: Tensor[f32]):
-        unsafe_memcpy(dest=res.mut_ptr(), src=t1.ptr(), count=t1.num_elements())
+        unsafe_memcpy(dest=res.ptr(), src=t1.ptr(), count=t1.num_elements())
 
     @staticmethod
     def backward[
@@ -545,7 +545,7 @@ struct UNSQUEEZE:
     ](ug: Tensor[f32], t1: Tensor[f32]) -> Tensor[f32]:
         var res_grad = Tensor[f32](t1_shape)
         unsafe_memcpy(
-            dest=res_grad.mut_ptr(), src=ug.ptr(), count=ug.num_elements()
+            dest=res_grad.ptr(), src=ug.ptr(), count=ug.num_elements()
         )
         return res_grad^
 
@@ -703,7 +703,7 @@ struct SLICE:
                         )
                     else:
                         (
-                            res.mut_ptr().unsafe_offset(idx_original_temp)
+                            res.ptr().unsafe_offset(idx_original_temp)
                         ).unsafe_strided_store[width=nelts](
                             t1.load[nelts](idx_temp + k), stride
                         )
@@ -1322,7 +1322,7 @@ struct GATHER:
         for i in range(n):
             var row = Int(indices[i])
             unsafe_memcpy(
-                dest=res.mut_ptr().unsafe_offset(i * D),
+                dest=res.ptr().unsafe_offset(i * D),
                 src=table.ptr().unsafe_offset(row * D),
                 count=D,
             )

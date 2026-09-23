@@ -527,7 +527,7 @@ def transpose_2D[t_shape: TensorShape](t: Tensor[f32]) -> Tensor[f32]:
     def proc_row(i: Int) {mut t_new, imm t}:
         def proc_column[nelts: Int](j: Int) {mut t_new, imm t, imm i}:
             (
-                t_new.mut_ptr().unsafe_offset(j * t_shape[0] + i)
+                t_new.ptr().unsafe_offset(j * t_shape[0] + i)
             ).unsafe_strided_store[width=nelts](
                 t.load[nelts](i * t_shape[1] + j), stride
             )
@@ -1037,7 +1037,7 @@ def transpose(mut res: Tensor[f32], t: Tensor[f32], axes: TensorShape):
 
                 new_index += index * transposed_strides[k]
 
-            (res.mut_ptr().unsafe_offset(new_index)).unsafe_strided_store[
+            (res.ptr().unsafe_offset(new_index)).unsafe_strided_store[
                 width=nelts
             ](
                 t.load[nelts](original_index),

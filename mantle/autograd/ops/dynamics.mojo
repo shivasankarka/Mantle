@@ -69,7 +69,7 @@ struct CONCAT:
             for j in range(len(inputs)):
                 var in_tensor = parameters.tensors[inputs[j]]
                 unsafe_memcpy(
-                    dest=out_tensor.mut_ptr().unsafe_offset(
+                    dest=out_tensor.ptr().unsafe_offset(
                         i * chunk_offsets[len(inputs)] + chunk_offsets[j]
                     ),
                     src=in_tensor.ptr().unsafe_offset(i * chunks[j]),
@@ -99,7 +99,7 @@ struct CONCAT:
         var out_grad = parameters.grads[outputs[0]]
         for i in range(n_chunks):
             unsafe_memcpy(
-                dest=res_grad.mut_ptr().unsafe_offset(i * chunks[input_id]),
+                dest=res_grad.ptr().unsafe_offset(i * chunks[input_id]),
                 src=out_grad.ptr().unsafe_offset(
                     i * chunk_offsets[len(inputs)] + chunk_offsets[input_id]
                 ),
@@ -157,7 +157,7 @@ struct SPLIT:
             for j in range(len(outputs)):
                 var out_tensor = parameters.tensors[outputs[j]]
                 unsafe_memcpy(
-                    dest=out_tensor.mut_ptr().unsafe_offset(i * chunks[j]),
+                    dest=out_tensor.ptr().unsafe_offset(i * chunks[j]),
                     src=in_tensor.ptr().unsafe_offset(
                         i * chunk_offsets[len(outputs)] + chunk_offsets[j]
                     ),
@@ -190,7 +190,7 @@ struct SPLIT:
             for j in range(len(outputs)):
                 var out_grad = parameters.grads[outputs[j]]
                 unsafe_memcpy(
-                    dest=res_grad.mut_ptr().unsafe_offset(
+                    dest=res_grad.ptr().unsafe_offset(
                         i * chunk_offsets[len(outputs)] + chunk_offsets[j]
                     ),
                     src=out_grad.ptr().unsafe_offset(i * chunks[j]),

@@ -221,7 +221,7 @@ struct Collection[device: Device = Device.cpu](Copyable, Movable, Sized):
         var index = self.get_index(symbol.name)
         ref tensor = self.data_ref[unsafe_offset=index]
         unsafe_memcpy(
-            dest=tensor.mut_ptr(),
+            dest=tensor.ptr(),
             src=value.ptr(),
             count=tensor.num_elements(),
         )

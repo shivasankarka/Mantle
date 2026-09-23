@@ -81,7 +81,7 @@ def to_tensor(np_array: PythonObject) raises -> Tensor[f32]:
         0
     ].unsafe_get_as_pointer[f32]()
     unsafe_memcpy(
-        dest=tensor.mut_ptr(), src=pointer_d, count=tensor.num_elements()
+        dest=tensor.ptr(), src=pointer_d, count=tensor.num_elements()
     )
 
     _ = np_array_2
@@ -111,7 +111,7 @@ def copy_np_data[
         0
     ].unsafe_get_as_pointer[dtype]()
     unsafe_memcpy(
-        dest=tensor.mut_ptr(), src=pointer_d, count=tensor.num_elements()
+        dest=tensor.ptr(), src=pointer_d, count=tensor.num_elements()
     )
 
     # This shouldn't be necessary anymore, but I'm leaving it here for now.

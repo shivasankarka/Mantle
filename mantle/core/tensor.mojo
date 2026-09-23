@@ -19,6 +19,8 @@ from std.memory import unsafe_memset_zero, unsafe_memcpy, Pointer
 from std.os import abort
 from max.gpu.host import DeviceContext, DeviceBuffer, HostBuffer
 
+from std.sys.info import simd_width_of
+
 from mantle.core.device import Device
 
 comptime MAX_RANK = 8
@@ -478,7 +480,7 @@ struct Tensor[dtype: DType, device: Device = Device.cpu](
         Returns:
             The element at the given index.
         """
-        return self._host_buffer.value().unsafe_ptr()[unsafe_offset=index]
+        return self._host_buffer.value()[index]
 
     @always_inline("nodebug")
     def __setitem__(
@@ -491,46 +493,21 @@ struct Tensor[dtype: DType, device: Device = Device.cpu](
             index: The flat index into the tensor data.
             value: The value to set.
         """
-        self._host_buffer.value().unsafe_ptr()[unsafe_offset=index] = value
+        self._host_buffer.value()[index] = value
 
     @always_inline("nodebug")
-    def ptr(
-        self,
-    ) -> Pointer[Scalar[Self.dtype], origin_of(self)] where (
-        Self.device.id == Device.cpu.id
-    ):
+    def ptr[o: Origin](
+        ref[o] self,
+    ) -> Pointer[Scalar[Self.dtype], o] where (Self.device.id == Device.cpu.id):
         """
-        Returns a read-only pointer to the tensor's underlying buffer,
-        with its origin tied to `self`.
+        Returns a pointer to the tensor's underlying buffer, with its
+        mutability tied to how `self` is referenced — immutable for a
+        borrowed `self`, mutable for a `mut self`.
 
         Returns:
             A pointer to the tensor's data, valid for the lifetime of `self`.
         """
-        return (
-            self._host_buffer.value()
-            .unsafe_ptr()
-            .as_imm()
-            .unsafe_origin_cast[origin_of(self)]()
-        )
-
-    @always_inline("nodebug")
-    def mut_ptr(
-        mut self,
-    ) -> Pointer[Scalar[Self.dtype], origin_of(self)] where (
-        Self.device.id == Device.cpu.id
-    ):
-        """
-        Returns a mutable pointer to the tensor's underlying buffer, with
-        its origin tied to `self`.
-
-        Returns:
-            A pointer to the tensor's data, valid for the lifetime of `self`.
-        """
-        return (
-            self._host_buffer.value()
-            .unsafe_ptr()
-            .unsafe_origin_cast[origin_of(self)]()
-        )
+        return self._host_buffer.value().unsafe_ptr().unsafe_origin_cast[o]()
 
     @always_inline("nodebug")
     def shape(self) -> TensorShape:
@@ -625,6 +602,54 @@ struct Tensor[dtype: DType, device: Device = Device.cpu](
         unsafe_memset_zero(
             self._host_buffer.value().unsafe_ptr(), self.num_elements()
         )
+
+    @always_inline("nodebug")
+    def gpu_ptr[o: Origin](
+        ref[o] self,
+    ) -> Pointer[Scalar[Self.dtype], o] where (
+        Self.device.id == Device.gpu.id
+    ):
+        """
+        Returns a raw pointer to the tensor's GPU-resident buffer, suitable
+        for passing into a `DeviceContext.enqueue_function` kernel launch.
+
+        Returns:
+            A pointer to the tensor's device data.
+        """
+        return self._device_buffer.value().unsafe_ptr().unsafe_origin_cast[o]()
+
+    @always_inline("nodebug")
+    def gpu_context(self) raises -> DeviceContext where (
+        Self.device.id == Device.gpu.id
+    ):
+        """
+        Returns:
+            The `DeviceContext` that owns this tensor's GPU buffer, for
+            launching kernels against it or synchronizing.
+        """
+        return self._device_buffer.value().context()
+
+    def fill(mut self, value: Scalar[Self.dtype]):
+        """Set every element to `value` — works on both devices, unlike
+        `zero()` which is CPU-only (kept separate since `zero()` predates
+        this and its callers rely on it not raising)."""
+        try:
+            comptime if Self.device.id == Device.cpu.id:
+                comptime assert Self.device.id == Device.cpu.id
+
+                comptime nelts = 2 * simd_width_of[Self.dtype]()
+
+                def vec_fill[nelts: Int](i: Int) {mut self, imm value}:
+                    self.store[nelts](i, value)
+
+                vectorize[nelts](self.num_elements(), vec_fill)
+            else:
+                comptime assert Self.device.id == Device.gpu.id
+                var buf = self._device_buffer.value()
+                buf.enqueue_fill(value)
+                buf.context().synchronize()
+        except e:
+            abort("Tensor: fill failed: " + String(e))
 
     @always_inline("nodebug")
     def ireshape(mut self, new_shape: TensorShape) raises:

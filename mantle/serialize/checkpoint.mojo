@@ -171,7 +171,7 @@ def _read_tensor_into(
         return
 
     ref tensor = collection.data_ref[unsafe_offset=index]
-    var out_ptr = tensor.mut_ptr().unsafe_bitcast[UInt8]()
+    var out_ptr = tensor.ptr().unsafe_bitcast[UInt8]()
     for i in range(n_bytes):
         out_ptr[unsafe_offset=i] = data[offset + i]
     offset += n_bytes
@@ -417,7 +417,7 @@ def load_checkpoint_with_optim(
                 offset += n_bytes
                 continue
             ref tensor = momentum_grads.data_ref[unsafe_offset=index]
-            var out_ptr = tensor.mut_ptr().unsafe_bitcast[UInt8]()
+            var out_ptr = tensor.ptr().unsafe_bitcast[UInt8]()
             for i in range(n_bytes):
                 out_ptr[unsafe_offset=i] = data[offset + i]
             offset += n_bytes
@@ -427,7 +427,7 @@ def load_checkpoint_with_optim(
                 offset += n_bytes
                 continue
             ref tensor = rms_grads.data_ref[unsafe_offset=index]
-            var out_ptr = tensor.mut_ptr().unsafe_bitcast[UInt8]()
+            var out_ptr = tensor.ptr().unsafe_bitcast[UInt8]()
             for i in range(n_bytes):
                 out_ptr[unsafe_offset=i] = data[offset + i]
             offset += n_bytes

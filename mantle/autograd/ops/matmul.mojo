@@ -83,7 +83,7 @@ def calculate_block[
 def dot[
     t1_shape: TensorShape, t2_shape: TensorShape
 ](mut res: Tensor[f32], t1: Tensor[f32], t2: Tensor[f32]):
-    dot[t1_shape, t2_shape](res.mut_ptr(), t1.ptr(), t2.ptr())
+    dot[t1_shape, t2_shape](res.ptr(), t1.ptr(), t2.ptr())
 
 
 @always_inline
@@ -177,7 +177,7 @@ def dot_transpose_t2[
 def dot_transpose_t2[
     A_shape: TensorShape, B_shape: TensorShape
 ](mut C: Tensor[f32], A: Tensor[f32], B: Tensor[f32]):
-    unsafe_memset_zero(C.mut_ptr(), C.num_elements())
+    unsafe_memset_zero(C.ptr(), C.num_elements())
 
     dot[A_shape, TensorShape(B_shape[1], B_shape[0])](
         C, A, transpose_2D[B_shape](B)
@@ -234,7 +234,7 @@ def batched_dot[
     comptime t1_step = 0 if t1_batches == 1 else M * K
     comptime t2_step = 0 if t2_batches == 1 else K * N
 
-    var res_ptr = res.mut_ptr()
+    var res_ptr = res.ptr()
     var t1_ptr = t1.ptr()
     var t2_ptr = t2.ptr()
 
@@ -260,9 +260,9 @@ def batched_dot_transpose_t2[
     comptime A_step = 0 if A_batches == 1 else M * K
     comptime B_step = 0 if B_batches == 1 else N * K
 
-    unsafe_memset_zero(C.mut_ptr(), C.num_elements())
+    unsafe_memset_zero(C.ptr(), C.num_elements())
 
-    var C_ptr = C.mut_ptr()
+    var C_ptr = C.ptr()
     var A_ptr = A.ptr()
     var B_ptr = B.ptr()
 
@@ -290,9 +290,9 @@ def batched_dot_transpose_t1[
     comptime A_step = 0 if A_batches == 1 else K * M
     comptime B_step = 0 if B_batches == 1 else K * N
 
-    unsafe_memset_zero(C.mut_ptr(), C.num_elements())
+    unsafe_memset_zero(C.ptr(), C.num_elements())
 
-    var C_ptr = C.mut_ptr()
+    var C_ptr = C.ptr()
     var A_ptr = A.ptr()
     var B_ptr = B.ptr()
 
@@ -309,7 +309,7 @@ def batched_dot_transpose_t1[
 def dot_transpose_t1[
     A_shape: TensorShape, B_shape: TensorShape
 ](mut C: Tensor[f32], A: Tensor[f32], B: Tensor[f32]):
-    unsafe_memset_zero(C.mut_ptr(), C.num_elements())
+    unsafe_memset_zero(C.ptr(), C.num_elements())
 
     dot[TensorShape(A_shape[1], A_shape[0]), B_shape](
         C, transpose_2D[A_shape](A), B
