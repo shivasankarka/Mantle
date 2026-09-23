@@ -55,11 +55,11 @@ def calculate_block[
             def inner_n[
                 nelts: Int
             ](n: Int) {mut acc, imm t1, imm t2, imm bm, imm bn, imm k}:
-                acc.store(
+                acc.unsafe_store(
                     m * BLOCK_N + n,
-                    SIMD[f32, nelts](t1[(bm + m) * K + k]).fma(
-                        t2.load[width=nelts](k * N + (bn + n)),
-                        acc.load[width=nelts](m * BLOCK_N + n),
+                    SIMD[f32, nelts](t1[unsafe_offset=(bm + m) * K + k]).fma(
+                        t2.unsafe_load[width=nelts](k * N + (bn + n)),
+                        acc.unsafe_load[width=nelts](m * BLOCK_N + n),
                     ),
                 )
 
@@ -71,8 +71,9 @@ def calculate_block[
         def vec_store[
             nelts: Int
         ](n: Int) {imm res, imm acc, imm bm, imm bn, imm m}:
-            res.store(
-                (bm + m) * N + (bn + n), acc.load[width=nelts](m * BLOCK_N + n)
+            res.unsafe_store(
+                (bm + m) * N + (bn + n),
+                acc.unsafe_load[width=nelts](m * BLOCK_N + n),
             )
 
         vectorize[nelts](BLOCK_N, vec_store)
@@ -239,9 +240,9 @@ def batched_dot[
 
     for b in range(batches):
         dot[TensorShape(M, K), TensorShape(K, N)](
-            res_ptr + b * M * N,
-            t1_ptr + b * t1_step,
-            t2_ptr + b * t2_step,
+            res_ptr.unsafe_offset(b * M * N),
+            t1_ptr.unsafe_offset(b * t1_step),
+            t2_ptr.unsafe_offset(b * t2_step),
         )
 
 
@@ -266,9 +267,11 @@ def batched_dot_transpose_t2[
     var B_ptr = B.ptr()
 
     for b in range(batches):
-        var B_t = transpose_2D[TensorShape(N, K)](B_ptr + b * B_step)
+        var B_t = transpose_2D[TensorShape(N, K)](
+            B_ptr.unsafe_offset(b * B_step)
+        )
         dot[TensorShape(M, K), TensorShape(K, N)](
-            C_ptr + b * M * N, A_ptr + b * A_step, B_t
+            C_ptr.unsafe_offset(b * M * N), A_ptr.unsafe_offset(b * A_step), B_t
         )
         B_t.unsafe_free()
 
@@ -294,9 +297,11 @@ def batched_dot_transpose_t1[
     var B_ptr = B.ptr()
 
     for b in range(batches):
-        var A_t = transpose_2D[TensorShape(K, M)](A_ptr + b * A_step)
+        var A_t = transpose_2D[TensorShape(K, M)](
+            A_ptr.unsafe_offset(b * A_step)
+        )
         dot[TensorShape(M, K), TensorShape(K, N)](
-            C_ptr + b * M * N, A_t, B_ptr + b * B_step
+            C_ptr.unsafe_offset(b * M * N), A_t, B_ptr.unsafe_offset(b * B_step)
         )
         A_t.unsafe_free()
 

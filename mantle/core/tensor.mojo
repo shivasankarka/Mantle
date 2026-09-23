@@ -416,7 +416,7 @@ struct Tensor[dtype: DType](Copyable, Movable, Writable):
         Returns:
             The element at the given index.
         """
-        return self._data[index]
+        return self._data[unsafe_offset=index]
 
     @always_inline("nodebug")
     def __setitem__(self, index: Int, value: Scalar[Self.dtype]):
@@ -427,7 +427,7 @@ struct Tensor[dtype: DType](Copyable, Movable, Writable):
             index: The flat index into the tensor data.
             value: The value to set.
         """
-        self._data[index] = value
+        self._data[unsafe_offset=index] = value
 
     @always_inline("nodebug")
     def ptr(self) -> Pointer[Scalar[Self.dtype], origin_of(self)]:
@@ -438,9 +438,7 @@ struct Tensor[dtype: DType](Copyable, Movable, Writable):
         Returns:
             A pointer to the tensor's data, valid for the lifetime of `self`.
         """
-        return self._data.mut_cast[False]().unsafe_origin_cast[
-            origin_of(self)
-        ]()
+        return self._data.as_imm().unsafe_origin_cast[origin_of(self)]()
 
     @always_inline("nodebug")
     def mut_ptr(mut self) -> Pointer[Scalar[Self.dtype], origin_of(self)]:
@@ -475,7 +473,7 @@ struct Tensor[dtype: DType](Copyable, Movable, Writable):
         Returns:
             A SIMD vector of elements starting at the given index.
         """
-        return self._data.load[width=simd_width](index)
+        return self._data.unsafe_load[width=simd_width](index)
 
     @always_inline("nodebug")
     def store[
@@ -491,7 +489,7 @@ struct Tensor[dtype: DType](Copyable, Movable, Writable):
             index: The flat index to store at.
             value: The SIMD vector to store.
         """
-        self._data.store(index, value)
+        self._data.unsafe_store(index, value)
 
     @always_inline("nodebug")
     def strides(self) -> IndexList[MAX_RANK]:

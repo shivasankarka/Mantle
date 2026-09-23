@@ -28,8 +28,8 @@ def fit_string[num: Int](s: String) -> String:
     var copy_len = min(num, s.byte_length())
 
     unsafe_memcpy(dest=data, src=s.unsafe_ptr(), count=copy_len)
-    unsafe_memset(data + copy_len, UInt8(ord(" ")), num - copy_len)
-    data[num] = 0
+    unsafe_memset(data.unsafe_offset(copy_len), UInt8(ord(" ")), num - copy_len)
+    data[unsafe_offset=num] = 0
 
     return String(
         unsafe_from_utf8=Span[Byte, _](unsafe_ptr=data, length=num + 1)
@@ -162,7 +162,7 @@ struct PerfMetrics:
         var seperator = unsafe_alloc[UInt8](header_length + 1)
 
         unsafe_memset(seperator, UInt8(ord("-")), header_length)
-        seperator[header_length] = 0
+        seperator[unsafe_offset=header_length] = 0
 
         # print(String(unsafe_ptr=seperator, length=len(header) + 1))
 

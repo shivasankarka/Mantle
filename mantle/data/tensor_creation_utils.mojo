@@ -40,7 +40,7 @@ def to_numpy[dtype: DType](tensor: Tensor[dtype]) -> PythonObject:
         var pointer_d = pyarray.__array_interface__["data"][
             0
         ].unsafe_get_as_pointer[DType.float32]()
-        var d = tensor.ptr().bitcast[Float32]()
+        var d = tensor.ptr().unsafe_bitcast[Float32]()
         unsafe_memcpy(dest=pointer_d, src=d, count=tensor.num_elements())
 
         _ = tensor

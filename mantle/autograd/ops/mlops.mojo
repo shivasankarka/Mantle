@@ -692,9 +692,9 @@ struct SLICE:
                     else:
                         res.store[nelts](
                             idx_temp + k,
-                            (t1.ptr() + idx_original_temp).strided_load[
-                                width=nelts
-                            ](stride),
+                            (
+                                t1.ptr().unsafe_offset(idx_original_temp)
+                            ).unsafe_strided_load[width=nelts](stride),
                         )
                 else:
                     comptime if steps[position] == 1:
@@ -702,9 +702,11 @@ struct SLICE:
                             idx_original_temp, t1.load[nelts](idx_temp + k)
                         )
                     else:
-                        (res.mut_ptr() + idx_original_temp).strided_store[
-                            width=nelts
-                        ](t1.load[nelts](idx_temp + k), stride)
+                        (
+                            res.mut_ptr().unsafe_offset(idx_original_temp)
+                        ).unsafe_strided_store[width=nelts](
+                            t1.load[nelts](idx_temp + k), stride
+                        )
 
                 idx_original_temp += stride * nelts
 
@@ -1320,8 +1322,8 @@ struct GATHER:
         for i in range(n):
             var row = Int(indices[i])
             unsafe_memcpy(
-                dest=res.mut_ptr() + i * D,
-                src=table.ptr() + row * D,
+                dest=res.mut_ptr().unsafe_offset(i * D),
+                src=table.ptr().unsafe_offset(row * D),
                 count=D,
             )
 

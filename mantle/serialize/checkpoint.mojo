@@ -55,7 +55,9 @@ def _write_u32(mut f: FileHandle, value: UInt32) raises:
         Any error raised by the underlying file write.
     """
     var v = value
-    var bytes = Span[UInt8](unsafe_ptr=Pointer(to=v).bitcast[UInt8](), length=4)
+    var bytes = Span[UInt8](
+        unsafe_ptr=Pointer(to=v).unsafe_bitcast[UInt8](), length=4
+    )
     f.write_bytes(bytes)
 
 
@@ -71,7 +73,9 @@ def _read_u32(data: List[UInt8], mut offset: Int) -> UInt32:
         The decoded value.
     """
     var v: UInt32 = 0
-    var bytes = Span[UInt8](unsafe_ptr=Pointer(to=v).bitcast[UInt8](), length=4)
+    var bytes = Span[UInt8](
+        unsafe_ptr=Pointer(to=v).unsafe_bitcast[UInt8](), length=4
+    )
     for i in range(4):
         bytes[i] = data[offset + i]
     offset += 4
@@ -97,7 +101,9 @@ def _write_tensor(
     _write_u32(f, symbol_id)
     var kind_byte = kind
     f.write_bytes(
-        Span[UInt8](unsafe_ptr=Pointer(to=kind_byte).bitcast[UInt8](), length=1)
+        Span[UInt8](
+            unsafe_ptr=Pointer(to=kind_byte).unsafe_bitcast[UInt8](), length=1
+        )
     )
     _write_u32(f, UInt32(tensor.rank()))
     for i in range(tensor.rank()):
@@ -105,7 +111,7 @@ def _write_tensor(
 
     var n_bytes = tensor.num_elements() * size_of[f32]()
     var data_bytes = Span[UInt8](
-        unsafe_ptr=tensor.ptr().bitcast[UInt8](), length=n_bytes
+        unsafe_ptr=tensor.ptr().unsafe_bitcast[UInt8](), length=n_bytes
     )
     f.write_bytes(data_bytes)
 
@@ -163,10 +169,10 @@ def _read_tensor_into(
         offset += n_bytes
         return
 
-    ref tensor = collection.data_ref[index]
-    var out_ptr = tensor.mut_ptr().bitcast[UInt8]()
+    ref tensor = collection.data_ref[unsafe_offset=index]
+    var out_ptr = tensor.mut_ptr().unsafe_bitcast[UInt8]()
     for i in range(n_bytes):
-        out_ptr[i] = data[offset + i]
+        out_ptr[unsafe_offset=i] = data[offset + i]
     offset += n_bytes
 
 
@@ -227,9 +233,9 @@ def save_checkpoint(path: String, parameters: Parameters, iter: Int = 0) raises:
     for i in range(len(parameters.tensors)):
         _write_tensor(
             f,
-            parameters.tensors.symbols_ref[i],
+            parameters.tensors.symbols_ref[unsafe_offset=i],
             OPTIM_KIND_NONE,
-            parameters.tensors.data_ref[i],
+            parameters.tensors.data_ref[unsafe_offset=i],
         )
 
     f.close()
@@ -273,22 +279,25 @@ def save_checkpoint_with_optim(
     for i in range(len(parameters.tensors)):
         _write_tensor(
             f,
-            parameters.tensors.symbols_ref[i],
+            parameters.tensors.symbols_ref[unsafe_offset=i],
             OPTIM_KIND_NONE,
-            parameters.tensors.data_ref[i],
+            parameters.tensors.data_ref[unsafe_offset=i],
         )
 
     for i in range(num_momentum):
         _write_tensor(
             f,
-            momentum_grads.symbols_ref[i],
+            momentum_grads.symbols_ref[unsafe_offset=i],
             OPTIM_KIND_MOMENTUM,
-            momentum_grads.data_ref[i],
+            momentum_grads.data_ref[unsafe_offset=i],
         )
 
     for i in range(num_rms):
         _write_tensor(
-            f, rms_grads.symbols_ref[i], OPTIM_KIND_RMS, rms_grads.data_ref[i]
+            f,
+            rms_grads.symbols_ref[unsafe_offset=i],
+            OPTIM_KIND_RMS,
+            rms_grads.data_ref[unsafe_offset=i],
         )
 
     f.close()
@@ -406,20 +415,20 @@ def load_checkpoint_with_optim(
             if index == -1:
                 offset += n_bytes
                 continue
-            ref tensor = momentum_grads.data_ref[index]
-            var out_ptr = tensor.mut_ptr().bitcast[UInt8]()
+            ref tensor = momentum_grads.data_ref[unsafe_offset=index]
+            var out_ptr = tensor.mut_ptr().unsafe_bitcast[UInt8]()
             for i in range(n_bytes):
-                out_ptr[i] = data[offset + i]
+                out_ptr[unsafe_offset=i] = data[offset + i]
             offset += n_bytes
         else:
             var index = rms_grads.get_index(symbol_id)
             if index == -1:
                 offset += n_bytes
                 continue
-            ref tensor = rms_grads.data_ref[index]
-            var out_ptr = tensor.mut_ptr().bitcast[UInt8]()
+            ref tensor = rms_grads.data_ref[unsafe_offset=index]
+            var out_ptr = tensor.mut_ptr().unsafe_bitcast[UInt8]()
             for i in range(n_bytes):
-                out_ptr[i] = data[offset + i]
+                out_ptr[unsafe_offset=i] = data[offset + i]
             offset += n_bytes
 
     return CheckpointInfo(iter, num_optim > 0)

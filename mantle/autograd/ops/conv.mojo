@@ -169,7 +169,9 @@ struct CONV2D:
                                     + iy
                                 )
 
-                                col_ptr[col_index] = inputs[input_index]
+                                col_ptr[unsafe_offset=col_index] = inputs[
+                                    input_index
+                                ]
 
         parallelize(im2col, batch_size)
 
@@ -201,12 +203,12 @@ struct CONV2D:
                             )
 
                             comptime if _nelts == nelts:
-                                result += col_ptr.load[width=nelts](
+                                result += col_ptr.unsafe_load[width=nelts](
                                     col_index
                                 ) * kernel.load[nelts](kernel_index)
                             else:
                                 result[0] += (
-                                    col_ptr.load[width=_nelts](col_index)
+                                    col_ptr.unsafe_load[width=_nelts](col_index)
                                     * kernel.load[_nelts](kernel_index)
                                 ).reduce_add()
 

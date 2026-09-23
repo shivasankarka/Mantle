@@ -86,8 +86,12 @@ struct Collection(Copyable, Movable, Sized):
         self.symbols_ref = self.symbols_owner.value()
 
         for i in range(copy.size):
-            (self.data_ref + i).unsafe_write(copy.data_ref[i].copy())
-            self.symbols_ref[i] = copy.symbols_ref[i]
+            (self.data_ref.unsafe_offset(i)).unsafe_write(
+                copy.data_ref[unsafe_offset=i].copy()
+            )
+            self.symbols_ref[unsafe_offset=i] = copy.symbols_ref[
+                unsafe_offset=i
+            ]
 
         self.index_map_capacity = copy.index_map_capacity
         if copy.index_map_owner:
@@ -110,7 +114,7 @@ struct Collection(Copyable, Movable, Sized):
         if self.data_owner:
             var data = self.data_owner.value()
             for i in range(self.size):
-                (data + i).unsafe_deinit_pointee()
+                (data.unsafe_offset(i)).unsafe_deinit_pointee()
             data.unsafe_free()
         if self.symbols_owner:
             self.symbols_owner.value().unsafe_free()
@@ -127,8 +131,10 @@ struct Collection(Copyable, Movable, Sized):
         var new_symbols = unsafe_alloc[UInt32](new_capacity)
 
         for i in range(self.size):
-            (new_data + i).unsafe_write((self.data_ref + i).take_pointee())
-            new_symbols[i] = self.symbols_ref[i]
+            (new_data.unsafe_offset(i)).unsafe_write(
+                (self.data_ref.unsafe_offset(i)).unsafe_take_pointee()
+            )
+            new_symbols[unsafe_offset=i] = self.symbols_ref[unsafe_offset=i]
 
         if self.data_owner:
             self.data_owner.value().unsafe_free()
@@ -151,7 +157,7 @@ struct Collection(Copyable, Movable, Sized):
         )
         var new_map = unsafe_alloc[Int](new_capacity)
         for i in range(new_capacity):
-            new_map[i] = -1
+            new_map[unsafe_offset=i] = -1
         if self.index_map_owner:
             unsafe_memcpy(
                 dest=new_map,
@@ -168,7 +174,7 @@ struct Collection(Copyable, Movable, Sized):
     def _set_index(mut self, symbol_name: UInt32, slot: Int):
         var id = Int(symbol_name)
         self._ensure_index_map(id + 1)
-        self.index_map_ref[id] = slot
+        self.index_map_ref[unsafe_offset=id] = slot
 
     @always_inline("nodebug")
     def append(mut self, value: Tensor[f32], symbol: Symbol):
@@ -178,8 +184,8 @@ struct Collection(Copyable, Movable, Sized):
     def append(mut self, value: Tensor[f32], symbol_name: UInt32):
         if self.size >= self.capacity:
             self._realloc(max(1, self.capacity * 2))
-        (self.data_ref + self.size).unsafe_write(value.copy())
-        self.symbols_ref[self.size] = symbol_name
+        (self.data_ref.unsafe_offset(self.size)).unsafe_write(value.copy())
+        self.symbols_ref[unsafe_offset=self.size] = symbol_name
         self._set_index(symbol_name, self.size)
         self.size += 1
 
@@ -188,19 +194,19 @@ struct Collection(Copyable, Movable, Sized):
         var id = Int(symbol_name)
         if id >= self.index_map_capacity:
             return -1
-        return self.index_map_ref[id]
+        return self.index_map_ref[unsafe_offset=id]
 
     def __getitem__(
         self,
         symbol: Symbol,
     ) -> Tensor[f32]:
         var index = self.get_index(symbol.name)
-        ref tensor = self.data_ref[index]
+        ref tensor = self.data_ref[unsafe_offset=index]
         return tensor.share()
 
     def __setitem__(mut self, symbol: Symbol, value: Tensor[f32]):
         var index = self.get_index(symbol.name)
-        ref tensor = self.data_ref[index]
+        ref tensor = self.data_ref[unsafe_offset=index]
         unsafe_memcpy(
             dest=tensor.mut_ptr(),
             src=value.ptr(),
@@ -210,14 +216,14 @@ struct Collection(Copyable, Movable, Sized):
     @always_inline("nodebug")
     def clear(mut self):
         for i in range(self.size):
-            (self.data_ref + i).unsafe_deinit_pointee()
+            (self.data_ref.unsafe_offset(i)).unsafe_deinit_pointee()
         unsafe_memset_zero(self.symbols_ref, self.capacity)
         if self.index_map_owner:
             for i in range(self.index_map_capacity):
-                self.index_map_ref[i] = -1
+                self.index_map_ref[unsafe_offset=i] = -1
         self.size = 0
 
     @always_inline("nodebug")
     def set_zero(mut self):
         for i in range(self.size):
-            self.data_ref[i].zero()
+            self.data_ref[unsafe_offset=i].zero()

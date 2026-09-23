@@ -91,7 +91,7 @@ struct ParamDict(Copyable, Movable, Sized):
         # var t = Pointer[Scalar[f32]].unsafe_alloc(num)
         var t = unsafe_alloc[Scalar[f32]](num)
         for i in range(num):
-            t[i] = self.values[idx][i].value()
+            t[unsafe_offset=i] = self.values[idx][i].value()
         return Tensor[f32](t, self.symbols[idx].shape)
 
     def __len__(self) -> Int:

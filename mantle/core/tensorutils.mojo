@@ -526,7 +526,9 @@ def transpose_2D[t_shape: TensorShape](t: Tensor[f32]) -> Tensor[f32]:
 
     def proc_row(i: Int) {mut t_new, imm t}:
         def proc_column[nelts: Int](j: Int) {mut t_new, imm t, imm i}:
-            (t_new.mut_ptr() + (j * t_shape[0] + i)).strided_store[width=nelts](
+            (
+                t_new.mut_ptr().unsafe_offset(j * t_shape[0] + i)
+            ).unsafe_strided_store[width=nelts](
                 t.load[nelts](i * t_shape[1] + j), stride
             )
 
@@ -559,9 +561,9 @@ def transpose_2D[
 
     def proc_row(i: Int) {imm t_new, imm t}:
         def proc_column[nelts: Int](j: Int) {imm t_new, imm t, imm i}:
-            (t_new + (j * t_shape[0] + i)).strided_store[width=nelts](
-                t.load[width=nelts](i * t_shape[1] + j), stride
-            )
+            (t_new.unsafe_offset(j * t_shape[0] + i)).unsafe_strided_store[
+                width=nelts
+            ](t.unsafe_load[width=nelts](i * t_shape[1] + j), stride)
 
         vectorize[nelts](t_shape[1], proc_column)
 
@@ -677,15 +679,17 @@ def reduce[
                 m[0] = op[f32, 1](
                     SIMD[f32, 1](m[0]),
                     SIMD[f32, 1](
-                        (t.ptr() + index).strided_load[width=_nelts](
-                            strides[axis]
-                        )[0]
+                        (t.ptr().unsafe_offset(index)).unsafe_strided_load[
+                            width=_nelts
+                        ](strides[axis])[0]
                     ),
                 )[0]
             else:
                 m = op(
                     m,
-                    (t.ptr() + index).strided_load[width=nelts](strides[axis]),
+                    (t.ptr().unsafe_offset(index)).unsafe_strided_load[
+                        width=nelts
+                    ](strides[axis]),
                 )
 
         vectorize[nelts](t.dim(axis), axisreduce)
@@ -1033,7 +1037,9 @@ def transpose(mut res: Tensor[f32], t: Tensor[f32], axes: TensorShape):
 
                 new_index += index * transposed_strides[k]
 
-            (res.mut_ptr() + new_index).strided_store[width=nelts](
+            (res.mut_ptr().unsafe_offset(new_index)).unsafe_strided_store[
+                width=nelts
+            ](
                 t.load[nelts](original_index),
                 transposed_strides[position_of_last_rank_new_shape],
             )
