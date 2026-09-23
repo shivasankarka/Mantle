@@ -12,6 +12,7 @@ Variable-input/output operators (CONCAT, SPLIT) with forward and backward passes
 from mantle import f32
 from mantle.autograd.symbol import Symbol
 from mantle.core.tensor import Tensor, TensorShape
+from mantle.core.device import Device
 from mantle.nn.parameters import Parameters
 from mantle.autograd.attributes import AttributeVector
 
@@ -52,7 +53,7 @@ struct CONCAT:
     @staticmethod
     def forward[
         attributes: AttributeVector
-    ](inputs: List[Symbol], outputs: List[Symbol], mut parameters: Parameters,):
+    ](inputs: List[Symbol], outputs: List[Symbol], mut parameters: Parameters[Device.cpu],):
         comptime dim = attributes["dim"].value().to_int() if attributes[
             "dim"
         ] else 0
@@ -82,7 +83,7 @@ struct CONCAT:
     ](
         inputs: List[Symbol],
         outputs: List[Symbol],
-        mut parameters: Parameters,
+        mut parameters: Parameters[Device.cpu],
     ) -> Tensor[f32]:
         comptime dim = attributes["dim"].value().to_int() if attributes[
             "dim"
@@ -139,7 +140,7 @@ struct SPLIT:
     @staticmethod
     def forward[
         attributes: AttributeVector
-    ](inputs: List[Symbol], outputs: List[Symbol], mut parameters: Parameters,):
+    ](inputs: List[Symbol], outputs: List[Symbol], mut parameters: Parameters[Device.cpu],):
         comptime dim = attributes["dim"].value().to_int() if attributes[
             "dim"
         ] else 0
@@ -170,7 +171,7 @@ struct SPLIT:
     ](
         inputs: List[Symbol],
         outputs: List[Symbol],
-        mut parameters: Parameters,
+        mut parameters: Parameters[Device.cpu],
     ) -> Tensor[f32]:
         comptime dim = attributes["dim"].value().to_int() if attributes[
             "dim"

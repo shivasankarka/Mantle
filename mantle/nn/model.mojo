@@ -13,13 +13,15 @@ from std.collections.optional import Optional, OptionalReg
 from std.pathlib import Path
 from std.random import random_ui64
 
+from std.os import abort
+
 from mantle import f32
 from mantle.autograd.graph import Graph
 from mantle.autograd.symbol import Symbol
 from mantle.core.tensor import Tensor, TensorShape
+from mantle.core.device import Device
 from mantle.autograd.ops import forward_op, backward_op
 from mantle.nn.parameters import Parameters
-from mantle.core.tensorutils import fill
 from .initializers import initialize_tensor
 from mantle.serialize.onnx_utils import load_onnx_model, export_onnx_model
 
@@ -58,15 +60,16 @@ def n_inference_nodes(g: Graph) -> OptionalReg[Int]:
 struct Model[
     g: Graph,
     n_inference_nodes: OptionalReg[Int] = OptionalReg[Int](len(g.nodes)),
+    device: Device = Device.cpu,
 ]():
-    var parameters: Parameters
+    var parameters: Parameters[Self.device]
     var step_seed: UInt64
     """Seed drawn fresh on every `forward()` call and reused by the matching
     `backward()` call, so stochastic ops (e.g. Dropout) get a different mask
     per training step but backward reconstructs the same mask forward used."""
 
-    def __init__(out self, inference_only: Bool = False):
-        self.parameters = Parameters()
+    def __init__(out self, inference_only: Bool = False) raises:
+        self.parameters = Parameters[Self.device]()
         self.step_seed = 0
 
         self.allocate_tensor_memory()
@@ -87,7 +90,9 @@ struct Model[
 
     # TODO: remove when ability to concatenate graphs (modules)
     # Removes the need for splitting in forward and inference mode
-    def forward(mut self, *t_inputs: Tensor[f32]) -> Tensor[f32]:
+    def forward(
+        mut self, *t_inputs: Tensor[f32, Self.device]
+    ) raises -> Tensor[f32, Self.device]:
         # NOTE: Important detail here is that the order of the inputs must be the same as the order the inputs were defined in the graph.
         # Example: If you were te define the y_true before the x when creating the graph
         #
@@ -107,7 +112,9 @@ struct Model[
         # TODO: known copy (reference?)
         return self.parameters.tensors[Self.g.loss_out.value()]
 
-    def inference(mut self, *t_inputs: Tensor[f32]) -> List[Tensor[f32]]:
+    def inference(
+        mut self, *t_inputs: Tensor[f32, Self.device]
+    ) raises -> List[Tensor[f32, Self.device]]:
         # 1. Execute forward pass up to model out. training=False disables
         # stochastic ops (e.g. Dropout becomes the identity function), as
         # is standard for eval-mode inference.
@@ -117,7 +124,7 @@ struct Model[
 
         # 2. Return outputs from allocated output memory
         # TODO: known copies (reference?)
-        var outputs = List[Tensor[f32]]()
+        var outputs = List[Tensor[f32, Self.device]]()
         comptime for i in range(len(Self.g.outputs)):
             comptime sym = Self.g.outputs[i]
             outputs.append(self.parameters.tensors[sym].copy())
@@ -127,10 +134,10 @@ struct Model[
         num_nodes: Int
     ](
         mut self,
-        t_input: VariadicList[Tensor[f32], _],
+        t_input: VariadicList[Tensor[f32, Self.device], _],
         seed: UInt64 = 0,
         training: Bool = True,
-    ):
+    ) raises:
         # 1. Write inputs to allocated input memory
         comptime for i in range(len(Self.g.inputs)):
             comptime sym = Self.g.inputs[i]
@@ -152,7 +159,7 @@ struct Model[
                 comptime for j in range(num_outputs):
                     comptime sym = Self.g.nodes[i].outputs[j]
                     dyn_outputs.append(materialize[sym]())
-                forward_op[op, attrs](
+                forward_op[op, attrs, Self.device](
                     dyn_inputs,
                     dyn_outputs,
                     self.parameters,
@@ -165,7 +172,7 @@ struct Model[
 
                 comptime if num_operands == 1:
                     # Unary operator
-                    forward_op[op, t1.shape, attrs](
+                    forward_op[op, t1.shape, attrs, Self.device](
                         self.parameters.tensors[out],
                         self.parameters.tensors[t1],
                         seed,
@@ -174,7 +181,7 @@ struct Model[
                 elif num_operands == 2:
                     # Binary operator
                     comptime t2 = Self.g.nodes[i].inputs[1]
-                    forward_op[op, t1.shape, t2.shape, attrs](
+                    forward_op[op, t1.shape, t2.shape, attrs, Self.device](
                         self.parameters.tensors[out],
                         self.parameters.tensors[t1],
                         self.parameters.tensors[t2],
@@ -183,21 +190,23 @@ struct Model[
                     # Ternary operator
                     comptime t2 = Self.g.nodes[i].inputs[1]
                     comptime t3 = Self.g.nodes[i].inputs[2]
-                    forward_op[op, t1.shape, t2.shape, t3.shape, attrs](
+                    forward_op[
+                        op, t1.shape, t2.shape, t3.shape, attrs, Self.device
+                    ](
                         self.parameters.tensors[out],
                         self.parameters.tensors[t1],
                         self.parameters.tensors[t2],
                         self.parameters.tensors[t3],
                     )
 
-    def backward(mut self, *upper_grads: Tensor[f32]):
+    def backward(mut self, *upper_grads: Tensor[f32, Self.device]) raises:
         """
         Main entrypoint of backward pass.
         """
         # 1. Initialize output gradient at the beginning of the backward pass
         if len(upper_grads) == 0:
             # TODO remove loss_out tag
-            fill(self.parameters.grads[Self.g.loss_out.value()], 1.0)
+            self.parameters.grads[Self.g.loss_out.value()].fill(1.0)
         else:
             comptime last = len(Self.g.nodes) - 1
             comptime num_last_outputs = len(Self.g.nodes[last].outputs)
@@ -235,7 +244,7 @@ struct Model[
                             comptime sym = Self.g.nodes[reverse_i].outputs[k]
                             dyn_outputs.append(materialize[sym]())
                         comptime input_sym = Self.g.nodes[reverse_i].inputs[j]
-                        backward_op[j, op, attrs](
+                        backward_op[j, op, attrs, Self.device](
                             dyn_inputs,
                             dyn_outputs,
                             self.parameters.grads[input_sym],
@@ -251,7 +260,9 @@ struct Model[
                 comptime if num_operands == 1:
                     # Unary operator
                     comptime if t1.trainable:
-                        backward_op[0, op, out.shape, t1.shape, attrs](
+                        backward_op[
+                            0, op, out.shape, t1.shape, attrs, Self.device
+                        ](
                             self.parameters.grads[out],
                             self.parameters.tensors[t1],
                             self.parameters.grads[
@@ -267,7 +278,13 @@ struct Model[
 
                     comptime if t1.trainable:
                         backward_op[
-                            0, op, out.shape, t1.shape, t2.shape, attrs
+                            0,
+                            op,
+                            out.shape,
+                            t1.shape,
+                            t2.shape,
+                            attrs,
+                            Self.device,
                         ](
                             self.parameters.grads[out],
                             self.parameters.tensors[t1],
@@ -279,7 +296,13 @@ struct Model[
 
                     comptime if t2.trainable:
                         backward_op[
-                            1, op, out.shape, t1.shape, t2.shape, attrs
+                            1,
+                            op,
+                            out.shape,
+                            t1.shape,
+                            t2.shape,
+                            attrs,
+                            Self.device,
                         ](
                             self.parameters.grads[out],
                             self.parameters.tensors[t1],
@@ -303,6 +326,7 @@ struct Model[
                             t2.shape,
                             t3.shape,
                             attrs,
+                            Self.device,
                         ](
                             self.parameters.grads[out],
                             self.parameters.tensors[t1],
@@ -322,6 +346,7 @@ struct Model[
                             t2.shape,
                             t3.shape,
                             attrs,
+                            Self.device,
                         ](
                             self.parameters.grads[out],
                             self.parameters.tensors[t1],
@@ -341,6 +366,7 @@ struct Model[
                             t2.shape,
                             t3.shape,
                             attrs,
+                            Self.device,
                         ](
                             self.parameters.grads[out],
                             self.parameters.tensors[t1],
@@ -351,50 +377,69 @@ struct Model[
                             ],  # grad to be updated: inputs[2]
                         )
 
-    def allocate_tensor_memory(mut self):
+    def allocate_tensor_memory(mut self) raises:
         comptime for i in range(len(Self.g.inputs)):
             comptime sym = Self.g.inputs[i]
-            self.parameters.tensors.append(Tensor[f32](sym.shape), sym)
+            self.parameters.tensors.append(
+                Tensor[f32, Self.device](sym.shape), sym
+            )
 
         comptime for i in range(len(Self.g.params)):
             comptime p = Self.g.params.symbols[i]
             comptime p_init = Self.g.params.values[i]
 
-            var par: Tensor[f32]
             comptime if p_init.initializer:
                 # 1. Specific parameter initialization defined
-                comptime initializer_attr = p_init.initializer.value()
-                comptime init_type = initializer_attr.to_string()
-                comptime init_data = p_init.data.value()
-                comptime init_arg0 = init_data[0]
-                comptime init_arg1 = init_data[1]
-                var init_args = List[Scalar[f32]]()
-                init_args.append(materialize[init_arg0]())
-                init_args.append(materialize[init_arg1]())
-                par = initialize_tensor(
-                    shape=p.shape,
-                    type=init_type,
-                    data=init_args,
-                )
+                comptime if Self.device.id == Device.cpu.id:
+                    comptime assert Self.device.id == Device.cpu.id
+                    comptime initializer_attr = p_init.initializer.value()
+                    comptime init_type = initializer_attr.to_string()
+                    comptime init_data = p_init.data.value()
+                    comptime init_arg0 = init_data[0]
+                    comptime init_arg1 = init_data[1]
+                    var init_args = List[Scalar[f32]]()
+                    init_args.append(materialize[init_arg0]())
+                    init_args.append(materialize[init_arg1]())
+                    self.parameters.tensors.append(
+                        rebind[Tensor[f32, Self.device]](
+                            initialize_tensor(
+                                shape=p.shape,
+                                type=init_type,
+                                data=init_args,
+                            )
+                        ),
+                        p,
+                    )
+                else:
+                    abort(
+                        "Model: GPU parameter initializers are not supported"
+                    )
             elif p_init.data:
                 # 2. Parameter initialized with data only
-                par = Tensor[f32](p.shape)
-                comptime init_data = p_init.data.value()
-                comptime for j in range(len(init_data)):
-                    comptime value = init_data[j]
-                    par[j] = materialize[value]()
+                comptime if Self.device.id == Device.cpu.id:
+                    comptime assert Self.device.id == Device.cpu.id
+                    var par_cpu = Tensor[f32, Device.cpu](p.shape)
+                    comptime init_data = p_init.data.value()
+                    comptime for j in range(len(init_data)):
+                        comptime value = init_data[j]
+                        par_cpu[j] = materialize[value]()
+                    self.parameters.tensors.append(
+                        rebind[Tensor[f32, Self.device]](par_cpu), p
+                    )
+                else:
+                    abort("Model: GPU literal parameter data is not supported")
             else:
                 # Default parameter initialization to zero
-                par = Tensor[f32](p.shape)
-
-            self.parameters.tensors.append(par, p)
+                self.parameters.tensors.append(
+                    Tensor[f32, Self.device](p.shape), p
+                )
 
         comptime for i in range(len(Self.g.nodes)):
             # Assumption: An input or a param cannot be an output of a node
             comptime for j in range(len(Self.g.nodes[i].outputs)):
                 comptime sym = Self.g.nodes[i].outputs[j]
                 self.parameters.tensors.append(
-                    Tensor[f32](sym.shape),
+                    Tensor[f32, Self.device](sym.shape),
                     sym,
                 )
 
@@ -403,46 +448,60 @@ struct Model[
         comptime for i in range(len(Self.g.inputs)):
             comptime sym = Self.g.inputs[i]
             comptime if sym.trainable:
-                self.parameters.grads.append(Tensor[f32](sym.shape), sym)
+                self.parameters.grads.append(
+                    Tensor[f32, Self.device](sym.shape), sym
+                )
 
         comptime for i in range(len(Self.g.params)):
             comptime grad = Self.g.params.symbols[i]
             comptime if grad.trainable:
-                self.parameters.grads.append(Tensor[f32](grad.shape), grad)
+                self.parameters.grads.append(
+                    Tensor[f32, Self.device](grad.shape), grad
+                )
 
         comptime for i in range(len(Self.g.nodes)):
             comptime for j in range(len(Self.g.nodes[i].outputs)):
                 comptime out = Self.g.nodes[i].outputs[j]
                 comptime if out.trainable:
-                    self.parameters.grads.append(Tensor[f32](out.shape), out)
+                    self.parameters.grads.append(
+                        Tensor[f32, Self.device](out.shape), out
+                    )
 
     def print_perf_metrics(
         self, time_format: String = "ns", print_shape: Bool = False
     ):
         pass
 
-    def load_model_data(mut self, model_path: String):
+    def load_model_data(
+        mut self, model_path: String
+    ) where Self.device.id == Device.cpu.id:
         var path = Path(model_path)
         print("Loading model data from:", path)
 
         try:
             if path.suffix() == ".onnx":
                 load_onnx_model(
-                    model_path, self.parameters, materialize[Self.g]()
+                    model_path,
+                    rebind[Parameters[Device.cpu]](self.parameters),
+                    materialize[Self.g](),
                 )
             else:
                 print("Model file format not supported:", path.suffix())
         except e:
             print("Error loading model data:", e)
 
-    def export_model(mut self, model_path: String):
+    def export_model(
+        mut self, model_path: String
+    ) where Self.device.id == Device.cpu.id:
         var path = Path(model_path)
         print("Exporting model to:", path)
 
         try:
             if path.suffix() == ".onnx":
                 export_onnx_model(
-                    model_path, self.parameters, materialize[Self.g]()
+                    model_path,
+                    rebind[Parameters[Device.cpu]](self.parameters),
+                    materialize[Self.g](),
                 )
             else:
                 print("Model file format not supported:", path.suffix())

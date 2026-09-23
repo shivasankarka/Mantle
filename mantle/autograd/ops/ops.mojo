@@ -49,13 +49,29 @@ from .dynamics import CONCAT, SPLIT
 from .conv import CONV2D
 from .pool import MAXPOOL2D, AVGPOOL2D
 
+from std.os import abort
+
 from mantle import f32
 from mantle.autograd.symbol import Symbol
 from mantle.core.tensor import Tensor, TensorShape
+from mantle.core.device import Device
 from mantle.nn.parameters import Parameters
 from mantle.core.bytes import Bytes
 from mantle.core.tensorutils import broadcast_shapes, accumulate_grad
 from mantle.autograd.attributes import AttributeVector
+from .gpu_elementwise import (
+    gpu_add_forward,
+    gpu_sub_forward,
+    gpu_mul_forward,
+    gpu_div_forward,
+    gpu_relu_forward,
+    gpu_relu_backward,
+    gpu_sub_backward_t2,
+    gpu_mul_backward,
+    gpu_div_backward_t1,
+    gpu_div_backward_t2,
+    gpu_accumulate_grad,
+)
 
 
 # Define operators as named parameter expression
@@ -280,6 +296,37 @@ def dynamic_result_shape(
 
 
 def forward_op[
+    op: OP,
+    t1_shape: TensorShape,
+    attributes: AttributeVector,
+    device: Device = Device.cpu,
+](
+    mut res: Tensor[f32, device],
+    t1: Tensor[f32, device],
+    runtime_seed: UInt64 = 0,
+    training: Bool = True,
+) raises:
+    """
+    Forward pass for unary operators, dispatching by device.
+    """
+    comptime if device.id == Device.cpu.id:
+        comptime assert device.id == Device.cpu.id
+        _forward_op_cpu[op, t1_shape, attributes](
+            rebind[Tensor[f32, Device.cpu]](res),
+            rebind[Tensor[f32, Device.cpu]](t1),
+            runtime_seed,
+            training,
+        )
+    elif op == OP.RELU:
+        gpu_relu_forward(
+            rebind[Tensor[f32, Device.gpu]](res),
+            rebind[Tensor[f32, Device.gpu]](t1),
+        )
+    else:
+        abort("forward_op: unary operator " + String(op) + " is not supported on GPU")
+
+
+def _forward_op_cpu[
     op: OP, t1_shape: TensorShape, attributes: AttributeVector
 ](
     mut res: Tensor[f32],
@@ -288,7 +335,7 @@ def forward_op[
     training: Bool = True,
 ):
     """
-    Forward pass for unary operators.
+    Forward pass for unary operators (CPU implementations).
     """
 
     comptime if op == OP.EXP:
@@ -346,9 +393,58 @@ def forward_op[
     t1_shape: TensorShape,
     t2_shape: TensorShape,
     attributes: AttributeVector,
+    device: Device = Device.cpu,
+](
+    mut res: Tensor[f32, device], t1: Tensor[f32, device], t2: Tensor[f32, device]
+) raises:
+    """
+    Forward pass for binary operators, dispatching by device.
+    """
+    comptime if device.id == Device.cpu.id:
+        comptime assert device.id == Device.cpu.id
+        _forward_op_cpu[op, t1_shape, t2_shape, attributes](
+            rebind[Tensor[f32, Device.cpu]](res),
+            rebind[Tensor[f32, Device.cpu]](t1),
+            rebind[Tensor[f32, Device.cpu]](t2),
+        )
+    elif t1_shape != t2_shape:
+        abort("forward_op: GPU binary operators do not support broadcasting")
+    elif op == OP.ADD:
+        gpu_add_forward(
+            rebind[Tensor[f32, Device.gpu]](res),
+            rebind[Tensor[f32, Device.gpu]](t1),
+            rebind[Tensor[f32, Device.gpu]](t2),
+        )
+    elif op == OP.SUB:
+        gpu_sub_forward(
+            rebind[Tensor[f32, Device.gpu]](res),
+            rebind[Tensor[f32, Device.gpu]](t1),
+            rebind[Tensor[f32, Device.gpu]](t2),
+        )
+    elif op == OP.MUL:
+        gpu_mul_forward(
+            rebind[Tensor[f32, Device.gpu]](res),
+            rebind[Tensor[f32, Device.gpu]](t1),
+            rebind[Tensor[f32, Device.gpu]](t2),
+        )
+    elif op == OP.DIV:
+        gpu_div_forward(
+            rebind[Tensor[f32, Device.gpu]](res),
+            rebind[Tensor[f32, Device.gpu]](t1),
+            rebind[Tensor[f32, Device.gpu]](t2),
+        )
+    else:
+        abort("forward_op: binary operator " + String(op) + " is not supported on GPU")
+
+
+def _forward_op_cpu[
+    op: OP,
+    t1_shape: TensorShape,
+    t2_shape: TensorShape,
+    attributes: AttributeVector,
 ](mut res: Tensor[f32], t1: Tensor[f32], t2: Tensor[f32]):
     """
-    Forward pass for binary operators.
+    Forward pass for binary operators (CPU implementations).
     """
 
     comptime if op == OP.ADD:
@@ -375,9 +471,37 @@ def forward_op[
     t2_shape: TensorShape,
     t3_shape: TensorShape,
     attributes: AttributeVector,
+    device: Device = Device.cpu,
+](
+    mut res: Tensor[f32, device],
+    t1: Tensor[f32, device],
+    t2: Tensor[f32, device],
+    t3: Tensor[f32, device],
+):
+    """
+    Forward pass for ternary operators (CPU-only; every ternary op —
+    CONV2D/FMA/BATCHNORM2D — is out of scope for the GPU port).
+    """
+    comptime assert device.id == Device.cpu.id, (
+        "forward_op: ternary operators are CPU-only"
+    )
+    _forward_op_cpu[op, t1_shape, t2_shape, t3_shape, attributes](
+        rebind[Tensor[f32, Device.cpu]](res),
+        rebind[Tensor[f32, Device.cpu]](t1),
+        rebind[Tensor[f32, Device.cpu]](t2),
+        rebind[Tensor[f32, Device.cpu]](t3),
+    )
+
+
+def _forward_op_cpu[
+    op: OP,
+    t1_shape: TensorShape,
+    t2_shape: TensorShape,
+    t3_shape: TensorShape,
+    attributes: AttributeVector,
 ](mut res: Tensor[f32], t1: Tensor[f32], t2: Tensor[f32], t3: Tensor[f32],):
     """
-    Forward pass for ternary operators.
+    Forward pass for ternary operators (CPU implementations).
     """
 
     comptime if op == OP.CONV2D:
@@ -397,9 +521,26 @@ def forward_op[
 def forward_op[
     op: OP,
     attributes: AttributeVector,
-](inputs: List[Symbol], outputs: List[Symbol], mut parameters: Parameters,):
+    device: Device = Device.cpu,
+](inputs: List[Symbol], outputs: List[Symbol], mut parameters: Parameters[device]):
     """
-    Forward pass for dynamic operators.
+    Forward pass for dynamic operators (CPU-only; CONCAT/SPLIT are out of
+    scope for the GPU port).
+    """
+    comptime assert device.id == Device.cpu.id, (
+        "forward_op: dynamic operators (CONCAT/SPLIT) are CPU-only"
+    )
+    _forward_op_cpu[op, attributes](
+        inputs, outputs, rebind[Parameters[Device.cpu]](parameters)
+    )
+
+
+def _forward_op_cpu[
+    op: OP,
+    attributes: AttributeVector,
+](inputs: List[Symbol], outputs: List[Symbol], mut parameters: Parameters[Device.cpu],):
+    """
+    Forward pass for dynamic operators (CPU implementation).
     """
     if op == OP.CONCAT:
         CONCAT.forward[attributes](inputs, outputs, parameters)
@@ -415,6 +556,42 @@ def backward_op[
     ug_shape: TensorShape,
     t1_shape: TensorShape,
     attributes: AttributeVector,
+    device: Device = Device.cpu,
+](
+    ug: Tensor[f32, device],
+    t1: Tensor[f32, device],
+    mut grad: Tensor[f32, device],
+    runtime_seed: UInt64 = 0,
+    training: Bool = True,
+) raises:
+    """
+    Backward pass for unary operators, dispatching by device.
+    """
+    comptime if device.id == Device.cpu.id:
+        comptime assert device.id == Device.cpu.id
+        _backward_op_cpu[tensor_id, op, ug_shape, t1_shape, attributes](
+            rebind[Tensor[f32, Device.cpu]](ug),
+            rebind[Tensor[f32, Device.cpu]](t1),
+            rebind[Tensor[f32, Device.cpu]](grad),
+            runtime_seed,
+            training,
+        )
+    elif op == OP.RELU:
+        var res_grad = gpu_relu_backward(
+            rebind[Tensor[f32, Device.gpu]](ug),
+            rebind[Tensor[f32, Device.gpu]](t1),
+        )
+        gpu_accumulate_grad(rebind[Tensor[f32, Device.gpu]](grad), res_grad)
+    else:
+        abort("backward_op: unary operator " + String(op) + " is not supported on GPU")
+
+
+def _backward_op_cpu[
+    tensor_id: Int,
+    op: OP,
+    ug_shape: TensorShape,
+    t1_shape: TensorShape,
+    attributes: AttributeVector,
 ](
     ug: Tensor[f32],
     t1: Tensor[f32],
@@ -423,7 +600,7 @@ def backward_op[
     training: Bool = True,
 ):
     """
-    Backward pass for unary operators.
+    Backward pass for unary operators (CPU implementations).
     """
     var res_grad: Tensor[f32]
 
@@ -489,9 +666,75 @@ def backward_op[
     t1_shape: TensorShape,
     t2_shape: TensorShape,
     attributes: AttributeVector,
+    device: Device = Device.cpu,
+](
+    ug: Tensor[f32, device],
+    t1: Tensor[f32, device],
+    t2: Tensor[f32, device],
+    mut grad: Tensor[f32, device],
+) raises:
+    """
+    Backward pass for binary operators, dispatching by device.
+    """
+    comptime if device.id == Device.cpu.id:
+        comptime assert device.id == Device.cpu.id
+        _backward_op_cpu[tensor_id, op, ug_shape, t1_shape, t2_shape, attributes](
+            rebind[Tensor[f32, Device.cpu]](ug),
+            rebind[Tensor[f32, Device.cpu]](t1),
+            rebind[Tensor[f32, Device.cpu]](t2),
+            rebind[Tensor[f32, Device.cpu]](grad),
+        )
+    elif t1_shape != t2_shape:
+        abort("backward_op: GPU binary operators do not support broadcasting")
+    else:
+        var res_grad: Tensor[f32, Device.gpu]
+
+        comptime if op == OP.ADD:
+            res_grad = rebind[Tensor[f32, Device.gpu]](ug).copy()
+        elif op == OP.SUB:
+            comptime if tensor_id == 0:
+                res_grad = rebind[Tensor[f32, Device.gpu]](ug).copy()
+            else:
+                res_grad = gpu_sub_backward_t2(rebind[Tensor[f32, Device.gpu]](ug))
+        elif op == OP.MUL:
+            comptime if tensor_id == 0:
+                res_grad = gpu_mul_backward(
+                    rebind[Tensor[f32, Device.gpu]](ug),
+                    rebind[Tensor[f32, Device.gpu]](t2),
+                )
+            else:
+                res_grad = gpu_mul_backward(
+                    rebind[Tensor[f32, Device.gpu]](ug),
+                    rebind[Tensor[f32, Device.gpu]](t1),
+                )
+        elif op == OP.DIV:
+            comptime if tensor_id == 0:
+                res_grad = gpu_div_backward_t1(
+                    rebind[Tensor[f32, Device.gpu]](ug),
+                    rebind[Tensor[f32, Device.gpu]](t2),
+                )
+            else:
+                res_grad = gpu_div_backward_t2(
+                    rebind[Tensor[f32, Device.gpu]](ug),
+                    rebind[Tensor[f32, Device.gpu]](t1),
+                    rebind[Tensor[f32, Device.gpu]](t2),
+                )
+        else:
+            abort("backward_op: binary operator " + String(op) + " is not supported on GPU")
+
+        gpu_accumulate_grad(rebind[Tensor[f32, Device.gpu]](grad), res_grad)
+
+
+def _backward_op_cpu[
+    tensor_id: Int,
+    op: OP,
+    ug_shape: TensorShape,
+    t1_shape: TensorShape,
+    t2_shape: TensorShape,
+    attributes: AttributeVector,
 ](ug: Tensor[f32], t1: Tensor[f32], t2: Tensor[f32], mut grad: Tensor[f32],):
     """
-    Backward pass for binary operators.
+    Backward pass for binary operators (CPU implementations).
     """
     var res_grad: Tensor[f32]
 
@@ -562,6 +805,40 @@ def backward_op[
     t2_shape: TensorShape,
     t3_shape: TensorShape,
     attributes: AttributeVector,
+    device: Device = Device.cpu,
+](
+    ug: Tensor[f32, device],
+    t1: Tensor[f32, device],
+    t2: Tensor[f32, device],
+    t3: Tensor[f32, device],
+    mut grad: Tensor[f32, device],
+):
+    """
+    Backward pass for ternary operators (CPU-only; every ternary op —
+    CONV2D/FMA/BATCHNORM2D — is out of scope for the GPU port).
+    """
+    comptime assert device.id == Device.cpu.id, (
+        "backward_op: ternary operators are CPU-only"
+    )
+    _backward_op_cpu[
+        tensor_id, op, ug_shape, t1_shape, t2_shape, t3_shape, attributes
+    ](
+        rebind[Tensor[f32, Device.cpu]](ug),
+        rebind[Tensor[f32, Device.cpu]](t1),
+        rebind[Tensor[f32, Device.cpu]](t2),
+        rebind[Tensor[f32, Device.cpu]](t3),
+        rebind[Tensor[f32, Device.cpu]](grad),
+    )
+
+
+def _backward_op_cpu[
+    tensor_id: Int,
+    op: OP,
+    ug_shape: TensorShape,
+    t1_shape: TensorShape,
+    t2_shape: TensorShape,
+    t3_shape: TensorShape,
+    attributes: AttributeVector,
 ](
     ug: Tensor[f32],
     t1: Tensor[f32],
@@ -570,7 +847,7 @@ def backward_op[
     mut grad: Tensor[f32],
 ):
     """
-    Backward pass for ternary operators.
+    Backward pass for ternary operators (CPU implementations).
     """
     var res_grad: Tensor[f32]
 
@@ -597,14 +874,40 @@ def backward_op[
     input_id: Int,
     op: OP,
     attributes: AttributeVector,
+    device: Device = Device.cpu,
+](
+    inputs: List[Symbol],
+    outputs: List[Symbol],
+    mut grad: Tensor[f32, device],
+    mut parameters: Parameters[device],
+):
+    """
+    Backward pass for dynamic operators (CPU-only; CONCAT/SPLIT are out of
+    scope for the GPU port).
+    """
+    comptime assert device.id == Device.cpu.id, (
+        "backward_op: dynamic operators (CONCAT/SPLIT) are CPU-only"
+    )
+    _backward_op_cpu[input_id, op, attributes](
+        inputs,
+        outputs,
+        rebind[Tensor[f32, Device.cpu]](grad),
+        rebind[Parameters[Device.cpu]](parameters),
+    )
+
+
+def _backward_op_cpu[
+    input_id: Int,
+    op: OP,
+    attributes: AttributeVector,
 ](
     inputs: List[Symbol],
     outputs: List[Symbol],
     mut grad: Tensor[f32],
-    mut parameters: Parameters,
+    mut parameters: Parameters[Device.cpu],
 ):
     """
-    Backward pass for dynamic operators.
+    Backward pass for dynamic operators (CPU implementation).
     """
     var res_grad: Tensor[f32]
 

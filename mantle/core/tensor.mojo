@@ -507,7 +507,7 @@ struct Tensor[dtype: DType, device: Device = Device.cpu](
         Returns:
             A pointer to the tensor's data, valid for the lifetime of `self`.
         """
-        return self._host_buffer.value().unsafe_ptr().unsafe_origin_cast[o]()
+        return self._host_buffer.value().unsafe_ptr().unsafe_mut_cast[o.mut]().unsafe_origin_cast[o]()
 
     @always_inline("nodebug")
     def shape(self) -> TensorShape:

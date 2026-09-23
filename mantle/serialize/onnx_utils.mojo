@@ -14,6 +14,7 @@ from std.pathlib import Path
 from std.collections import Set
 
 from mantle.nn.parameters import Parameters
+from mantle.core.device import Device
 from mantle.core.tensor import Tensor, TensorShape
 from mantle.autograd.attributes import Attribute, AttributeType
 from mantle.autograd.ops import OP
@@ -138,7 +139,7 @@ def make_onnx_operator_type(op_type: OP) raises -> String:
 
 # --- Loader and exporter ---
 def load_onnx_model(
-    model_path: Path, mut model_parameters: Parameters, g: Graph
+    model_path: Path, mut model_parameters: Parameters[Device.cpu], g: Graph
 ) raises:
     # Simple onnx data loader where we load the data in order
     # (so we need to have the correct order of the weights and biases in the model.
@@ -296,7 +297,7 @@ def create_attributes_and_constant_inputs(
 
 
 def export_onnx_model(
-    model_path: Path, mut model_parameters: Parameters, g: Graph
+    model_path: Path, mut model_parameters: Parameters[Device.cpu], g: Graph
 ) raises:
     # Create onnx model with data and nodes
     var onnx = Python.import_module("onnx")

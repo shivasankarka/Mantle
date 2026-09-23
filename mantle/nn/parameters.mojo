@@ -19,16 +19,15 @@ from mantle.core.device import Device
 # ===----------------------------------------------------------------------===#
 
 
-struct Parameters:
+struct Parameters[device: Device = Device.cpu]:
     """
-    CPU-resident tensor/gradient storage. Pinned to `Device.cpu`: the op
-    dispatch layer (`forward_op`/`backward_op`) is CPU-only, so a generic
-    `device` parameter here would only produce type errors.
+    Tensor/gradient storage used by `Model` and read by every
+    `forward_op`/`backward_op`.
     """
 
-    var tensors: Collection[Device.cpu]
-    var grads: Collection[Device.cpu]
+    var tensors: Collection[Self.device]
+    var grads: Collection[Self.device]
 
     def __init__(out self):
-        self.tensors = Collection[Device.cpu]()
-        self.grads = Collection[Device.cpu]()
+        self.tensors = Collection[Self.device]()
+        self.grads = Collection[Self.device]()

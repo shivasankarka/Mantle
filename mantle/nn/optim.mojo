@@ -59,7 +59,7 @@ def get_trainable_parameters(g: Graph) -> List[Symbol]:
 def clip_grad_norm[
     g: Graph,
     trainable_parameters: List[Symbol] = get_trainable_parameters(g),
-](mut parameters: Parameters, max_norm: Scalar[f32]) -> Scalar[f32]:
+](mut parameters: Parameters[Device.cpu], max_norm: Scalar[f32]) -> Scalar[f32]:
     """
     Clip gradients by global L2 norm (in-place).
 
@@ -121,7 +121,7 @@ struct Adam[
     g: Graph,
     trainable_parameters: List[Symbol] = get_trainable_parameters(g),
 ]:
-    var parameters: Pointer[Parameters, MutUntrackedOrigin]
+    var parameters: Pointer[Parameters[Device.cpu], MutUntrackedOrigin]
 
     var lr: Scalar[f32]
     var beta1: Scalar[f32]
@@ -134,7 +134,7 @@ struct Adam[
 
     def __init__(
         out self,
-        ref[MutAnyOrigin] parameters: Parameters,
+        ref[MutAnyOrigin] parameters: Parameters[Device.cpu],
         lr: Scalar[f32] = 0.001,
         beta1: Scalar[f32] = 0.9,
         beta2: Scalar[f32] = 0.999,
@@ -237,7 +237,7 @@ struct AdamW[
     optimizer for training Transformers.
     """
 
-    var parameters: Pointer[Parameters, MutUntrackedOrigin]
+    var parameters: Pointer[Parameters[Device.cpu], MutUntrackedOrigin]
 
     var lr: Scalar[f32]
     var beta1: Scalar[f32]
@@ -251,7 +251,7 @@ struct AdamW[
 
     def __init__(
         out self,
-        ref[MutAnyOrigin] parameters: Parameters,
+        ref[MutAnyOrigin] parameters: Parameters[Device.cpu],
         lr: Scalar[f32] = 0.001,
         beta1: Scalar[f32] = 0.9,
         beta2: Scalar[f32] = 0.999,
@@ -349,7 +349,7 @@ struct SGD[
         param    = param + velocity
     """
 
-    var parameters: Pointer[Parameters, MutUntrackedOrigin]
+    var parameters: Pointer[Parameters[Device.cpu], MutUntrackedOrigin]
 
     var lr: Scalar[f32]
     var momentum: Scalar[f32]
@@ -359,7 +359,7 @@ struct SGD[
 
     def __init__(
         out self,
-        ref[MutAnyOrigin] parameters: Parameters,
+        ref[MutAnyOrigin] parameters: Parameters[Device.cpu],
         lr: Scalar[f32] = 0.01,
         momentum: Scalar[f32] = 0.0,
         weight_decay: Scalar[f32] = 0.0,

@@ -205,7 +205,7 @@ struct CheckpointInfo(Copyable, Movable):
         self.has_optim_state = has_optim_state
 
 
-def save_checkpoint(path: String, parameters: Parameters, iter: Int = 0) raises:
+def save_checkpoint(path: String, parameters: Parameters[Device.cpu], iter: Int = 0) raises:
     """
     Serializes model tensors to a flat native binary file, keyed by
     symbol id.
@@ -244,7 +244,7 @@ def save_checkpoint(path: String, parameters: Parameters, iter: Int = 0) raises:
 
 def save_checkpoint_with_optim(
     path: String,
-    parameters: Parameters,
+    parameters: Parameters[Device.cpu],
     momentum_grads: Collection[Device.cpu],
     rms_grads: Collection[Device.cpu],
     iter: Int = 0,
@@ -305,7 +305,7 @@ def save_checkpoint_with_optim(
 
 
 def load_checkpoint(
-    path: String, mut parameters: Parameters
+    path: String, mut parameters: Parameters[Device.cpu]
 ) raises -> CheckpointInfo:
     """
     Restores model tensors from a checkpoint written by
@@ -362,7 +362,7 @@ def load_checkpoint(
 
 def load_checkpoint_with_optim(
     path: String,
-    mut parameters: Parameters,
+    mut parameters: Parameters[Device.cpu],
     mut momentum_grads: Collection[Device.cpu],
     mut rms_grads: Collection[Device.cpu],
 ) raises -> CheckpointInfo:

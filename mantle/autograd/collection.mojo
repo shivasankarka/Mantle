@@ -184,15 +184,11 @@ struct Collection[device: Device = Device.cpu](Copyable, Movable, Sized):
         self.index_map_ref[unsafe_offset=id] = slot
 
     @always_inline("nodebug")
-    def append(
-        mut self, value: Tensor[f32, Self.device], symbol: Symbol
-    ) where Self.device.id == Device.cpu.id:
+    def append(mut self, value: Tensor[f32, Self.device], symbol: Symbol):
         self.append(value, symbol.name)
 
     @always_inline("nodebug")
-    def append(
-        mut self, value: Tensor[f32, Self.device], symbol_name: UInt32
-    ) where Self.device.id == Device.cpu.id:
+    def append(mut self, value: Tensor[f32, Self.device], symbol_name: UInt32):
         if self.size >= self.capacity:
             self._realloc(max(1, self.capacity * 2))
         (self.data_ref.unsafe_offset(self.size)).unsafe_write(value.copy())
@@ -215,16 +211,19 @@ struct Collection[device: Device = Device.cpu](Copyable, Movable, Sized):
         ref tensor = self.data_ref[unsafe_offset=index]
         return tensor.share()
 
-    def __setitem__(
-        mut self, symbol: Symbol, value: Tensor[f32, Self.device]
-    ) where Self.device.id == Device.cpu.id:
+    def __setitem__(mut self, symbol: Symbol, value: Tensor[f32, Self.device]):
         var index = self.get_index(symbol.name)
-        ref tensor = self.data_ref[unsafe_offset=index]
-        unsafe_memcpy(
-            dest=tensor.ptr(),
-            src=value.ptr(),
-            count=tensor.num_elements(),
-        )
+        comptime if Self.device.id == Device.cpu.id:
+            comptime assert Self.device.id == Device.cpu.id
+            ref tensor = self.data_ref[unsafe_offset=index]
+            unsafe_memcpy(
+                dest=tensor.ptr(),
+                src=value.ptr(),
+                count=tensor.num_elements(),
+            )
+        else:
+            (self.data_ref.unsafe_offset(index)).unsafe_deinit_pointee()
+            (self.data_ref.unsafe_offset(index)).unsafe_write(value.copy())
 
     @always_inline("nodebug")
     def clear(mut self):
@@ -237,6 +236,11 @@ struct Collection[device: Device = Device.cpu](Copyable, Movable, Sized):
         self.size = 0
 
     @always_inline("nodebug")
-    def set_zero(mut self) where Self.device.id == Device.cpu.id:
-        for i in range(self.size):
-            self.data_ref[unsafe_offset=i].zero()
+    def set_zero(mut self):
+        comptime if Self.device.id == Device.cpu.id:
+            comptime assert Self.device.id == Device.cpu.id
+            for i in range(self.size):
+                self.data_ref[unsafe_offset=i].zero()
+        else:
+            for i in range(self.size):
+                self.data_ref[unsafe_offset=i].fill(0)
