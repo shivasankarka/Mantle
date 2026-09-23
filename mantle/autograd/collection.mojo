@@ -16,6 +16,7 @@ from std.memory.alloc import unsafe_alloc
 
 from mantle import f32
 from mantle.autograd.symbol import Symbol
+from mantle.core.device import Device
 from mantle.core.tensor import Tensor
 
 
@@ -24,7 +25,7 @@ from mantle.core.tensor import Tensor
 # ===----------------------------------------------------------------------===#
 
 
-struct Collection(Copyable, Movable, Sized):
+struct Collection[device: Device = Device.cpu](Copyable, Movable, Sized):
     """
     Symbol-keyed tensor arena.
 
@@ -33,13 +34,19 @@ struct Collection(Copyable, Movable, Sized):
     memory). A separate `index_map` array, sized by the largest symbol id
     seen so far, maps `Symbol.name -> dense slot` for O(1) lookup without
     scanning.
+
+    Parameters:
+        device: The device the stored tensors' data lives on (compile-time
+            tag; only `Device.cpu` is implemented today).
     """
 
     var size: Int
     var capacity: Int
-    var data_owner: Optional[Pointer[Tensor[f32], MutUntrackedOrigin]]
+    var data_owner: Optional[
+        Pointer[Tensor[f32, Self.device], MutUntrackedOrigin]
+    ]
     var symbols_owner: Optional[Pointer[UInt32, MutUntrackedOrigin]]
-    var data_ref: Pointer[Tensor[f32], MutUntrackedOrigin]
+    var data_ref: Pointer[Tensor[f32, Self.device], MutUntrackedOrigin]
     var symbols_ref: Pointer[UInt32, MutUntrackedOrigin]
 
     var index_map_capacity: Int
@@ -50,7 +57,7 @@ struct Collection(Copyable, Movable, Sized):
     def __init__(out self, *, capacity: Int = 1):
         self.size = 0
         self.capacity = capacity
-        self.data_owner = unsafe_alloc[Tensor[f32]](capacity)
+        self.data_owner = unsafe_alloc[Tensor[f32, Self.device]](capacity)
         self.symbols_owner = unsafe_alloc[UInt32](capacity)
         self.data_ref = self.data_owner.value()
         self.symbols_ref = self.symbols_owner.value()
@@ -80,7 +87,7 @@ struct Collection(Copyable, Movable, Sized):
     def __init__(out self, *, copy: Self):
         self.size = copy.size
         self.capacity = copy.capacity
-        self.data_owner = unsafe_alloc[Tensor[f32]](copy.capacity)
+        self.data_owner = unsafe_alloc[Tensor[f32, Self.device]](copy.capacity)
         self.symbols_owner = unsafe_alloc[UInt32](copy.capacity)
         self.data_ref = self.data_owner.value()
         self.symbols_ref = self.symbols_owner.value()
@@ -127,7 +134,7 @@ struct Collection(Copyable, Movable, Sized):
 
     @always_inline("nodebug")
     def _realloc(mut self, new_capacity: Int):
-        var new_data = unsafe_alloc[Tensor[f32]](new_capacity)
+        var new_data = unsafe_alloc[Tensor[f32, Self.device]](new_capacity)
         var new_symbols = unsafe_alloc[UInt32](new_capacity)
 
         for i in range(self.size):
@@ -177,11 +184,11 @@ struct Collection(Copyable, Movable, Sized):
         self.index_map_ref[unsafe_offset=id] = slot
 
     @always_inline("nodebug")
-    def append(mut self, value: Tensor[f32], symbol: Symbol):
+    def append(mut self, value: Tensor[f32, Self.device], symbol: Symbol):
         self.append(value, symbol.name)
 
     @always_inline("nodebug")
-    def append(mut self, value: Tensor[f32], symbol_name: UInt32):
+    def append(mut self, value: Tensor[f32, Self.device], symbol_name: UInt32):
         if self.size >= self.capacity:
             self._realloc(max(1, self.capacity * 2))
         (self.data_ref.unsafe_offset(self.size)).unsafe_write(value.copy())
@@ -199,12 +206,12 @@ struct Collection(Copyable, Movable, Sized):
     def __getitem__(
         self,
         symbol: Symbol,
-    ) -> Tensor[f32]:
+    ) -> Tensor[f32, Self.device]:
         var index = self.get_index(symbol.name)
         ref tensor = self.data_ref[unsafe_offset=index]
         return tensor.share()
 
-    def __setitem__(mut self, symbol: Symbol, value: Tensor[f32]):
+    def __setitem__(mut self, symbol: Symbol, value: Tensor[f32, Self.device]):
         var index = self.get_index(symbol.name)
         ref tensor = self.data_ref[unsafe_offset=index]
         unsafe_memcpy(

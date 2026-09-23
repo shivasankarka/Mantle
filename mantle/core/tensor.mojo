@@ -18,6 +18,8 @@ from std.utils.index import IndexList
 from std.memory import unsafe_memset_zero, unsafe_memcpy, Pointer
 from std.memory.alloc import unsafe_alloc
 
+from mantle.core.device import Device
+
 comptime MAX_RANK = 8
 """Max rank of a tensor."""
 # TODO: make it an explicit input to Tensor
@@ -237,12 +239,16 @@ struct TensorShape(Equatable, TrivialRegisterPassable, Writable):
 # ===----------------------------------------------------------------------===#
 
 
-struct Tensor[dtype: DType](Copyable, Movable, Writable):
+struct Tensor[dtype: DType, device: Device = Device.cpu](
+    Copyable, Movable, Writable
+):
     """
     A reference-counted multi-dimensional array.
 
     Parameters:
         dtype: The data type of the tensor elements.
+        device: The device the tensor's data lives on (compile-time tag;
+            only `Device.cpu` is implemented today).
     """
 
     var _data: Pointer[Scalar[Self.dtype], MutUntrackedOrigin]
@@ -342,7 +348,7 @@ struct Tensor[dtype: DType](Copyable, Movable, Writable):
             )
         _ = data
 
-    def __init__(out self, *, deinit move: Tensor[Self.dtype]):
+    def __init__(out self, *, deinit move: Tensor[Self.dtype, Self.device]):
         """
         Move constructor: take ownership of another tensor's data.
 
@@ -353,7 +359,7 @@ struct Tensor[dtype: DType](Copyable, Movable, Writable):
         self._refcount = move._refcount
         self._shape = move._shape
 
-    def __init__(out self, *, copy: Tensor[Self.dtype]):
+    def __init__(out self, *, copy: Tensor[Self.dtype, Self.device]):
         """
         Copy constructor: deep copy of another tensor.
 

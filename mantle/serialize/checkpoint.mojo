@@ -18,6 +18,7 @@ from mantle.autograd.symbol import Symbol
 from mantle.core.tensor import Tensor, TensorShape
 from mantle.nn.parameters import Parameters
 from mantle.autograd.collection import Collection
+from mantle.core.device import Device
 
 # ===----------------------------------------------------------------------=== #
 # File format constants
@@ -143,7 +144,7 @@ def _read_entry_header(
 
 
 def _read_tensor_into(
-    data: List[UInt8], mut offset: Int, mut collection: Collection
+    data: List[UInt8], mut offset: Int, mut collection: Collection[Device.cpu]
 ):
     """
     Reads one tensor entry and copies its bytes into `collection`, keyed
@@ -244,8 +245,8 @@ def save_checkpoint(path: String, parameters: Parameters, iter: Int = 0) raises:
 def save_checkpoint_with_optim(
     path: String,
     parameters: Parameters,
-    momentum_grads: Collection,
-    rms_grads: Collection,
+    momentum_grads: Collection[Device.cpu],
+    rms_grads: Collection[Device.cpu],
     iter: Int = 0,
 ) raises:
     """
@@ -362,8 +363,8 @@ def load_checkpoint(
 def load_checkpoint_with_optim(
     path: String,
     mut parameters: Parameters,
-    mut momentum_grads: Collection,
-    mut rms_grads: Collection,
+    mut momentum_grads: Collection[Device.cpu],
+    mut rms_grads: Collection[Device.cpu],
 ) raises -> CheckpointInfo:
     """
     Like `load_checkpoint`, but also restores Adam's per-parameter

@@ -22,6 +22,7 @@ from mantle.autograd.graph import Graph
 from mantle.autograd.symbol import Symbol
 from mantle.core.tensor import Tensor, TensorShape
 from mantle.autograd.collection import Collection
+from mantle.core.device import Device
 from mantle.core.math_util import add, sub, mul, div
 
 
@@ -128,8 +129,8 @@ struct Adam[
     var epsilon: Scalar[f32]
     var iter: Int
 
-    var rms_grads: Collection
-    var momentum_grads: Collection
+    var rms_grads: Collection[Device.cpu]
+    var momentum_grads: Collection[Device.cpu]
 
     def __init__(
         out self,
@@ -151,8 +152,8 @@ struct Adam[
 
         var tr = materialize[Self.trainable_parameters]()
         # Capacity of the collections should be the n of trainable parameters
-        self.rms_grads = Collection(capacity=len(tr))
-        self.momentum_grads = Collection(capacity=len(tr))
+        self.rms_grads = Collection[Device.cpu](capacity=len(tr))
+        self.momentum_grads = Collection[Device.cpu](capacity=len(tr))
 
         self.allocate_rms_and_momentum()
 
@@ -245,8 +246,8 @@ struct AdamW[
     var weight_decay: Scalar[f32]
     var iter: Int
 
-    var rms_grads: Collection
-    var momentum_grads: Collection
+    var rms_grads: Collection[Device.cpu]
+    var momentum_grads: Collection[Device.cpu]
 
     def __init__(
         out self,
@@ -269,8 +270,8 @@ struct AdamW[
         self.iter = 0
 
         var tr = materialize[Self.trainable_parameters]()
-        self.rms_grads = Collection(capacity=len(tr))
-        self.momentum_grads = Collection(capacity=len(tr))
+        self.rms_grads = Collection[Device.cpu](capacity=len(tr))
+        self.momentum_grads = Collection[Device.cpu](capacity=len(tr))
 
         self.allocate_rms_and_momentum()
 
@@ -354,7 +355,7 @@ struct SGD[
     var momentum: Scalar[f32]
     var weight_decay: Scalar[f32]
 
-    var velocities: Collection
+    var velocities: Collection[Device.cpu]
 
     def __init__(
         out self,
@@ -371,7 +372,7 @@ struct SGD[
         self.weight_decay = weight_decay
 
         var tr = materialize[Self.trainable_parameters]()
-        self.velocities = Collection(capacity=len(tr))
+        self.velocities = Collection[Device.cpu](capacity=len(tr))
         self.allocate_velocities()
 
     def zero_grad(mut self):
