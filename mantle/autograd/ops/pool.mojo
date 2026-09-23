@@ -243,9 +243,7 @@ struct AVGPOOL2D:
                             + y
                         )
 
-                        outputs[out_idx] = sum_val / Scalar[f32](
-                            max(count, 1)
-                        )
+                        outputs[out_idx] = sum_val / Scalar[f32](max(count, 1))
 
     @staticmethod
     def backward[
@@ -296,9 +294,7 @@ struct AVGPOOL2D:
                             + x * ug_strides[2]
                             + y
                         )
-                        var grad_share = ug[ug_idx] / Scalar[f32](
-                            max(count, 1)
-                        )
+                        var grad_share = ug[ug_idx] / Scalar[f32](max(count, 1))
 
                         for kx in range(kernel_size[0]):
                             for ky in range(kernel_size[1]):

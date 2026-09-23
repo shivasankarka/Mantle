@@ -179,9 +179,7 @@ struct DIV:
 
                 def vec_div_bw_scalar[
                     nelts: Int
-                ](i: Int) {
-                    mut res_grad, imm ug, imm t1, imm t2, imm factor
-                }:
+                ](i: Int) {mut res_grad, imm ug, imm t1, imm t2, imm factor}:
                     res_grad.store[nelts](
                         i, factor * t1.load[nelts](i) * ug.load[nelts](i)
                     )
@@ -306,9 +304,7 @@ struct DOT:
                     ug_shape, TensorShape(t2_shape[-1], t2_shape[-2])
                 )
                 var res_grad = Tensor[f32](full_shape)
-                batched_dot_transpose_t2[ug_shape, t2_shape](
-                    res_grad, ug, t2
-                )
+                batched_dot_transpose_t2[ug_shape, t2_shape](res_grad, ug, t2)
                 return res_grad^
             else:
                 # dot(t1.T, ug), full batch shape (t2's batch dims broadcast)
@@ -316,9 +312,7 @@ struct DOT:
                     TensorShape(t1_shape[-1], t1_shape[-2]), ug_shape
                 )
                 var res_grad = Tensor[f32](full_shape)
-                batched_dot_transpose_t1[t1_shape, ug_shape](
-                    res_grad, t1, ug
-                )
+                batched_dot_transpose_t1[t1_shape, ug_shape](res_grad, t1, ug)
                 return res_grad^
 
 
@@ -776,7 +770,9 @@ struct FLATTEN:
         """
         Forward pass of the flatten operation.
         """
-        unsafe_memcpy(dest=res.mut_ptr(), src=t.ptr(), count=t_shape.num_elements())
+        unsafe_memcpy(
+            dest=res.mut_ptr(), src=t.ptr(), count=t_shape.num_elements()
+        )
 
     @staticmethod
     def backward[
@@ -804,7 +800,9 @@ struct RESHAPE:
         """
         Forward pass of the reshape operation.
         """
-        unsafe_memcpy(dest=res.mut_ptr(), src=t.ptr(), count=t_shape.num_elements())
+        unsafe_memcpy(
+            dest=res.mut_ptr(), src=t.ptr(), count=t_shape.num_elements()
+        )
 
     @staticmethod
     def backward[

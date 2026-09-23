@@ -11,7 +11,8 @@ Optimizer implementations (Adam, AdamW, SGD), LR schedulers, and gradient
 utilities.
 """
 from std.math import sqrt, cos
-from std.algorithm import vectorize, parallelize
+from std.algorithm import vectorize
+from max.algorithm import parallelize
 
 comptime PI = Float64(3.14159265358979323846)
 
@@ -81,7 +82,9 @@ def clip_grad_norm[
         var param = tr[i]
         var n = param.shape.num_elements()
 
-        def v_norm[nelts: Int](j: Int) {mut total_norm, imm param, imm parameters}:
+        def v_norm[
+            nelts: Int
+        ](j: Int) {mut total_norm, imm param, imm parameters}:
             var g_vec = parameters.grads[param].load[nelts](j)
             total_norm += (g_vec * g_vec).reduce_add()
 
@@ -97,7 +100,9 @@ def clip_grad_norm[
             var param = tr[i]
             var n = param.shape.num_elements()
 
-            def v_scale[nelts: Int](j: Int) {mut parameters, imm param, imm scale}:
+            def v_scale[
+                nelts: Int
+            ](j: Int) {mut parameters, imm param, imm scale}:
                 var g_vec = parameters.grads[param].load[nelts](j)
                 parameters.grads[param].store[nelts](j, g_vec * scale)
 
@@ -149,7 +154,7 @@ struct Adam[
         self.rms_grads = Collection(capacity=len(tr))
         self.momentum_grads = Collection(capacity=len(tr))
 
-        self.unsafe_allocate_rms_and_momentum()
+        self.allocate_rms_and_momentum()
 
     def zero_grad(mut self):
         """Set all gradients to zero."""
@@ -161,8 +166,7 @@ struct Adam[
         var tr = materialize[Self.trainable_parameters]()
 
         # Loop over all trainable parameters
-        @parameter
-        def p_step(i: Int):
+        def p_step(i: Int) {mut self, imm tr}:
             var param = tr[i]
 
             def v_step[nelts: Int](j: Int) {mut self, imm param}:
@@ -201,9 +205,9 @@ struct Adam[
 
             vectorize[1](param.shape.num_elements(), v_step)
 
-        parallelize[p_step](len(tr))
+        parallelize(p_step, len(tr))
 
-    def unsafe_allocate_rms_and_momentum(mut self):
+    def allocate_rms_and_momentum(mut self):
         # They are initialized to zero
         # Loop over all trainable parameters
         var tr = materialize[Self.trainable_parameters]()
@@ -268,7 +272,7 @@ struct AdamW[
         self.rms_grads = Collection(capacity=len(tr))
         self.momentum_grads = Collection(capacity=len(tr))
 
-        self.unsafe_allocate_rms_and_momentum()
+        self.allocate_rms_and_momentum()
 
     def zero_grad(mut self):
         """Set all gradients to zero."""
@@ -279,8 +283,7 @@ struct AdamW[
         self.iter += 1
         var tr = materialize[Self.trainable_parameters]()
 
-        @parameter
-        def p_step(i: Int):
+        def p_step(i: Int) {mut self, imm tr}:
             var param = tr[i]
 
             def v_step[nelts: Int](j: Int) {mut self, imm param}:
@@ -315,9 +318,9 @@ struct AdamW[
 
             vectorize[1](param.shape.num_elements(), v_step)
 
-        parallelize[p_step](len(tr))
+        parallelize(p_step, len(tr))
 
-    def unsafe_allocate_rms_and_momentum(mut self):
+    def allocate_rms_and_momentum(mut self):
         var tr = materialize[Self.trainable_parameters]()
         for i in range(len(tr)):
             var param = tr[i]
@@ -369,7 +372,7 @@ struct SGD[
 
         var tr = materialize[Self.trainable_parameters]()
         self.velocities = Collection(capacity=len(tr))
-        self.unsafe_allocate_velocities()
+        self.allocate_velocities()
 
     def zero_grad(mut self):
         """Set all gradients to zero."""
@@ -379,8 +382,7 @@ struct SGD[
         """Update model parameters."""
         var tr = materialize[Self.trainable_parameters]()
 
-        @parameter
-        def p_step(i: Int):
+        def p_step(i: Int) {mut self, imm tr}:
             var param = tr[i]
 
             def v_step[nelts: Int](j: Int) {mut self, imm param}:
@@ -403,9 +405,9 @@ struct SGD[
 
             vectorize[1](param.shape.num_elements(), v_step)
 
-        parallelize[p_step](len(tr))
+        parallelize(p_step, len(tr))
 
-    def unsafe_allocate_velocities(mut self):
+    def allocate_velocities(mut self):
         var tr = materialize[Self.trainable_parameters]()
         for i in range(len(tr)):
             var param = tr[i]
@@ -450,8 +452,10 @@ struct WarmupCosineSchedule(Copyable, Movable):
     def get_lr(self, step: Int) -> Scalar[f32]:
         """Learning rate for `step` (0-indexed)."""
         if self.warmup_steps > 0 and step < self.warmup_steps:
-            return self.base_lr * Scalar[f32](step + 1) / Scalar[f32](
-                self.warmup_steps
+            return (
+                self.base_lr
+                * Scalar[f32](step + 1)
+                / Scalar[f32](self.warmup_steps)
             )
 
         var decay_steps = self.total_steps - self.warmup_steps

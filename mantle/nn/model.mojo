@@ -69,8 +69,8 @@ struct Model[
         self.parameters = Parameters()
         self.step_seed = 0
 
-        self.unsafe_allocate_tensor_memory()
-        self.unsafe_allocate_grad_memory()
+        self.allocate_tensor_memory()
+        self.allocate_grad_memory()
 
         # TODO: remove this when ability to concatenate graphs (modules)
         # NOTE: inference_only only used for surpressing the warning.
@@ -103,7 +103,7 @@ struct Model[
         self.step_seed = random_ui64(0, UInt64.MAX)
         self.execute[len(Self.g.nodes)](t_inputs, self.step_seed, training=True)
 
-        # 2. Return loss from unsafe_allocated output memory
+        # 2. Return loss from allocated output memory
         # TODO: known copy (reference?)
         return self.parameters.tensors[Self.g.loss_out.value()]
 
@@ -115,7 +115,7 @@ struct Model[
             t_inputs, seed=0, training=False
         )
 
-        # 2. Return outputs from unsafe_allocated output memory
+        # 2. Return outputs from allocated output memory
         # TODO: known copies (reference?)
         var outputs = List[Tensor[f32]]()
         comptime for i in range(len(Self.g.outputs)):
@@ -131,7 +131,7 @@ struct Model[
         seed: UInt64 = 0,
         training: Bool = True,
     ):
-        # 1. Write inputs to unsafe_allocated input memory
+        # 1. Write inputs to allocated input memory
         comptime for i in range(len(Self.g.inputs)):
             comptime sym = Self.g.inputs[i]
             self.parameters.tensors[sym] = t_input[i].copy()
@@ -351,7 +351,7 @@ struct Model[
                             ],  # grad to be updated: inputs[2]
                         )
 
-    def unsafe_allocate_tensor_memory(mut self):
+    def allocate_tensor_memory(mut self):
         comptime for i in range(len(Self.g.inputs)):
             comptime sym = Self.g.inputs[i]
             self.parameters.tensors.append(Tensor[f32](sym.shape), sym)
@@ -398,7 +398,7 @@ struct Model[
                     sym,
                 )
 
-    def unsafe_allocate_grad_memory(mut self):
+    def allocate_grad_memory(mut self):
         # Gradient have same shape as the tensor
         comptime for i in range(len(Self.g.inputs)):
             comptime sym = Self.g.inputs[i]

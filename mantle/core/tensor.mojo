@@ -16,6 +16,7 @@ from std.algorithm import vectorize
 from std.atomic import Atomic, Ordering, fence
 from std.utils.index import IndexList
 from std.memory import unsafe_memset_zero, unsafe_memcpy, Pointer
+from std.memory.alloc import unsafe_alloc
 
 comptime MAX_RANK = 8
 """Max rank of a tensor."""
@@ -266,7 +267,9 @@ struct Tensor[dtype: DType](Copyable, Movable, Writable):
                 Scalar[Self.dtype], MutUntrackedOrigin
             ].unsafe_dangling()
         else:
-            self._data = unsafe_alloc[Scalar[Self.dtype]](self._shape.num_elements())
+            self._data = unsafe_alloc[Scalar[Self.dtype]](
+                self._shape.num_elements()
+            )
             unsafe_memset_zero(self._data, self._shape.num_elements())
 
     def __init__(out self, var shape: TensorShape):
@@ -302,7 +305,9 @@ struct Tensor[dtype: DType](Copyable, Movable, Writable):
                 Scalar[Self.dtype], MutUntrackedOrigin
             ].unsafe_dangling()
         else:
-            self._data = unsafe_alloc[Scalar[Self.dtype]](self._shape.num_elements())
+            self._data = unsafe_alloc[Scalar[Self.dtype]](
+                self._shape.num_elements()
+            )
             unsafe_memset_zero(self._data, self._shape.num_elements())
 
     def __init__[
@@ -332,7 +337,9 @@ struct Tensor[dtype: DType](Copyable, Movable, Writable):
             ].unsafe_dangling()
         else:
             self._data = unsafe_alloc[Scalar[Self.dtype]](shape.num_elements())
-            unsafe_memcpy(dest=self._data, src=data, count=self._shape.num_elements())
+            unsafe_memcpy(
+                dest=self._data, src=data, count=self._shape.num_elements()
+            )
         _ = data
 
     def __init__(out self, *, deinit move: Tensor[Self.dtype]):
@@ -340,11 +347,11 @@ struct Tensor[dtype: DType](Copyable, Movable, Writable):
         Move constructor: take ownership of another tensor's data.
 
         Args:
-            take: The tensor to take ownership from.
+            move: The tensor to take ownership from.
         """
-        self._data = take._data
-        self._refcount = take._refcount
-        self._shape = take._shape
+        self._data = move._data
+        self._refcount = move._refcount
+        self._shape = move._shape
 
     def __init__(out self, *, copy: Tensor[Self.dtype]):
         """
@@ -362,7 +369,9 @@ struct Tensor[dtype: DType](Copyable, Movable, Writable):
             ].unsafe_dangling()
         else:
             self._data = unsafe_alloc[Scalar[Self.dtype]](copy.num_elements())
-            unsafe_memcpy(dest=self._data, src=copy._data, count=copy.num_elements())
+            unsafe_memcpy(
+                dest=self._data, src=copy._data, count=copy.num_elements()
+            )
 
     def __init__(
         out self,

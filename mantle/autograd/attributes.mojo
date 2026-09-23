@@ -203,7 +203,7 @@ struct Attribute(Copyable, Movable, TrivialRegisterPassable, Writable):
 
     @always_inline("nodebug")
     def to_string(self) -> String:
-        return String.write(self.data)
+        return String(self.data)
 
     @always_inline("nodebug")
     def to_list(self) -> List[Int]:

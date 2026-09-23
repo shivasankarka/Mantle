@@ -11,6 +11,7 @@ Parameter storage for graph symbols, supporting literal data and initializer spe
 """
 from std.collections.optional import Optional
 from std.memory import Pointer
+from std.memory.alloc import unsafe_alloc
 
 from mantle import f32
 from mantle.core.tensor import Tensor, TensorShape

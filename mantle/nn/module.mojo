@@ -93,7 +93,7 @@ def build_graph[
 # ===----------------------------------------------------------------------===#
 
 
-struct Sequential[*Ts: Layer & Movable](Layer, Movable):
+struct Sequential[*Ts: Layer & Movable & Deinitable](Layer, Movable):
     """
     A plain ordered list of heterogeneous `Layer`s, chained in the order
     given to the constructor: `Sequential(LinearLayer(32), ReLULayer())`.

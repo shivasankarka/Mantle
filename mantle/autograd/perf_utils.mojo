@@ -31,7 +31,9 @@ def fit_string[num: Int](s: String) -> String:
     unsafe_memset(data + copy_len, UInt8(ord(" ")), num - copy_len)
     data[num] = 0
 
-    return String(unsafe_from_utf8=Span[Byte, _](ptr=data, length=num + 1))
+    return String(
+        unsafe_from_utf8=Span[Byte, _](unsafe_ptr=data, length=num + 1)
+    )
 
 
 @always_inline("nodebug")
@@ -94,7 +96,7 @@ struct PerfMetrics:
         self.start = 0
 
     def start_forward_pass(mut self):
-        self.start = now()
+        self.start = UInt(now())
 
     def end_forward_pass(mut self, pos: Int):
         self.forward_perf_metrics[pos].ns += Float64(
@@ -103,7 +105,7 @@ struct PerfMetrics:
         self.epochs_forward += 1
 
     def start_backward_pass(mut self):
-        self.start = now()
+        self.start = UInt(now())
 
     def end_backward_pass(mut self, pos: Int):
         self.backward_perf_metrics[pos].ns += Float64(
@@ -162,7 +164,7 @@ struct PerfMetrics:
         unsafe_memset(seperator, UInt8(ord("-")), header_length)
         seperator[header_length] = 0
 
-        # print(String(ptr=seperator, length=len(header) + 1))
+        # print(String(unsafe_ptr=seperator, length=len(header) + 1))
 
         for i in range(size):
             var value = metrics[i].copy()

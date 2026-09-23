@@ -48,12 +48,12 @@ struct Graph(Copyable, ImplicitlyCopyable, Movable):
         self.symbol_count = 0
 
     def __init__(out self, *, deinit move: Self):
-        self.inputs = take.inputs^
-        self.params = take.params^
-        self.nodes = take.nodes^
-        self.outputs = take.outputs^
-        self.loss_out = take.loss_out
-        self.symbol_count = take.symbol_count
+        self.inputs = move.inputs^
+        self.params = move.params^
+        self.nodes = move.nodes^
+        self.outputs = move.outputs^
+        self.loss_out = move.loss_out
+        self.symbol_count = move.symbol_count
 
     def __init__(out self, *, copy: Self):
         self.inputs = copy.inputs.copy()

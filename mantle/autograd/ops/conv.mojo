@@ -13,9 +13,11 @@ from mantle import f32, nelts
 from mantle.core.tensor import Tensor, TensorShape
 from mantle.autograd.attributes import AttributeVector
 
-from std.algorithm import parallelize, vectorize
+from std.algorithm import vectorize
+from max.algorithm import parallelize
 from std.utils.index import IndexList
 from std.memory import unsafe_memset_zero, Pointer
+from std.memory.alloc import unsafe_alloc
 
 
 # ===----------------------------------------------------------------------===#
@@ -138,8 +140,7 @@ struct CONV2D:
         var col_ptr = unsafe_alloc[Scalar[f32]](col_shape.num_elements())
         unsafe_memset_zero(col_ptr, col_shape.num_elements())
 
-        @parameter
-        def im2col(batch: Int):
+        def im2col(batch: Int) {imm col_ptr, imm inputs}:
             for ux in range(out_x):
                 for uy in range(out_y):
                     for in_ch in range(in_channels):
@@ -170,10 +171,9 @@ struct CONV2D:
 
                                 col_ptr[col_index] = inputs[input_index]
 
-        parallelize[im2col](batch_size)
+        parallelize(im2col, batch_size)
 
-        @parameter
-        def conv(batch: Int):
+        def conv(batch: Int) {mut outputs, imm col_ptr, imm kernel, imm bias}:
             for out_ch in range(out_channels):
                 for ux in range(out_x):
                     for uy in range(out_y):
@@ -183,12 +183,12 @@ struct CONV2D:
                             _nelts: Int
                         ](in_ch_kx_ky: Int) {
                             mut result,
-                            read col_ptr,
-                            read kernel,
-                            read batch,
-                            read out_ch,
-                            read ux,
-                            read uy,
+                            imm col_ptr,
+                            imm kernel,
+                            imm batch,
+                            imm out_ch,
+                            imm ux,
+                            imm uy,
                         }:
                             var col_index = (
                                 batch * col_strides[0]
@@ -223,7 +223,7 @@ struct CONV2D:
                             result.reduce_add() + bias[out_ch]
                         )
 
-        parallelize[conv](batch_size)
+        parallelize(conv, batch_size)
 
         col_ptr.unsafe_free()
 
@@ -289,8 +289,7 @@ struct CONV2D:
 
             res = Tensor[f32](input_shape)
 
-            @parameter
-            def input_grad(batch: Int):
+            def input_grad(batch: Int) {mut res, imm ug, imm kernel}:
                 for out_ch in range(ug_shape_1):
                     for ux in range(ug_shape_2):
                         for uy in range(
@@ -337,15 +336,14 @@ struct CONV2D:
                                             kernel[kernel_index] * ug_val
                                         )
 
-            parallelize[input_grad](input_shape_0)
+            parallelize(input_grad, input_shape_0)
 
         elif tensor_id == 1:
             # Kernel
             # Sum of upper gradient over batch and X, Y dimensions
             res = Tensor[f32](kernel_shape)
 
-            @parameter
-            def kernel_grad(out_ch: Int):
+            def kernel_grad(out_ch: Int) {mut res, imm inputs, imm ug}:
                 var channel_offset = out_ch * kernel_strides_0
                 for k in range(input_shape_1 * kernel_shape_2 * kernel_shape_3):
                     var in_ch_kx_ky = divmod(k, kernel_shape_3)
@@ -392,7 +390,7 @@ struct CONV2D:
                     var kernel_index = channel_offset + k
                     res[kernel_index] = result
 
-            parallelize[kernel_grad](ug_shape_1)
+            parallelize(kernel_grad, ug_shape_1)
 
         else:
             # Bias
@@ -406,8 +404,7 @@ struct CONV2D:
             # For each batch, sum the upper gradient across X, Y dimensions
             # Add the sum to the bias tensor
 
-            @parameter
-            def bias_grad(out_ch: Int):
+            def bias_grad(out_ch: Int) {mut res, imm ug}:
                 var channel_offset = out_ch * ug_strides_1
                 var sum: Scalar[f32] = 0
                 for batch in range(ug_shape_0):
@@ -422,6 +419,6 @@ struct CONV2D:
 
                 res[out_ch] = sum
 
-            parallelize[bias_grad](ug_shape_1)
+            parallelize(bias_grad, ug_shape_1)
 
         return res^

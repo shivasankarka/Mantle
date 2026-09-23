@@ -12,6 +12,7 @@ Symbol-keyed tensor arena for dense O(1) tensor storage and lookup by symbol id.
 from std.collections.optional import Optional
 from std.memory.unsafe_pointer import Pointer
 from std.memory import unsafe_memset_zero, unsafe_memcpy
+from std.memory.alloc import unsafe_alloc
 
 from mantle import f32
 from mantle.autograd.symbol import Symbol
@@ -56,24 +57,24 @@ struct Collection(Copyable, Movable, Sized):
 
         self.index_map_capacity = 0
         self.index_map_owner = None
-        self.index_map_ref = Pointer[
-            Int, MutUntrackedOrigin
-        ].unsafe_dangling()
+        self.index_map_ref = Pointer[Int, MutUntrackedOrigin].unsafe_dangling()
 
     @always_inline("nodebug")
     def __init__(out self, *, deinit move: Self):
-        self.size = take.size
-        self.capacity = take.capacity
-        self.data_owner = take.data_owner^
-        self.symbols_owner = take.symbols_owner^
+        self.size = move.size
+        self.capacity = move.capacity
+        self.data_owner = move.data_owner^
+        self.symbols_owner = move.symbols_owner^
         self.data_ref = self.data_owner.value()
         self.symbols_ref = self.symbols_owner.value()
 
-        self.index_map_capacity = take.index_map_capacity
-        self.index_map_owner = take.index_map_owner^
-        self.index_map_ref = self.index_map_owner.value() if self.index_map_owner else Pointer[
-            Int, MutUntrackedOrigin
-        ].unsafe_dangling()
+        self.index_map_capacity = move.index_map_capacity
+        self.index_map_owner = move.index_map_owner^
+        self.index_map_ref = (
+            self.index_map_owner.value() if self.index_map_owner else Pointer[
+                Int, MutUntrackedOrigin
+            ].unsafe_dangling()
+        )
 
     @always_inline("nodebug")
     def __init__(out self, *, copy: Self):
@@ -85,9 +86,7 @@ struct Collection(Copyable, Movable, Sized):
         self.symbols_ref = self.symbols_owner.value()
 
         for i in range(copy.size):
-            Pointer.init_pointee_move(
-                self.data_ref + i, copy.data_ref[i].copy()
-            )
+            (self.data_ref + i).unsafe_write(copy.data_ref[i].copy())
             self.symbols_ref[i] = copy.symbols_ref[i]
 
         self.index_map_capacity = copy.index_map_capacity
@@ -111,7 +110,7 @@ struct Collection(Copyable, Movable, Sized):
         if self.data_owner:
             var data = self.data_owner.value()
             for i in range(self.size):
-                Pointer.destroy_pointee(data + i)
+                (data + i).unsafe_deinit_pointee()
             data.unsafe_free()
         if self.symbols_owner:
             self.symbols_owner.value().unsafe_free()
@@ -123,14 +122,12 @@ struct Collection(Copyable, Movable, Sized):
         return self.size
 
     @always_inline("nodebug")
-    def _reunsafe_alloc(mut self, new_capacity: Int):
+    def _realloc(mut self, new_capacity: Int):
         var new_data = unsafe_alloc[Tensor[f32]](new_capacity)
         var new_symbols = unsafe_alloc[UInt32](new_capacity)
 
         for i in range(self.size):
-            Pointer.init_pointee_move(
-                new_data + i, (self.data_ref + i).take_pointee()
-            )
+            (new_data + i).unsafe_write((self.data_ref + i).take_pointee())
             new_symbols[i] = self.symbols_ref[i]
 
         if self.data_owner:
@@ -180,8 +177,8 @@ struct Collection(Copyable, Movable, Sized):
     @always_inline("nodebug")
     def append(mut self, value: Tensor[f32], symbol_name: UInt32):
         if self.size >= self.capacity:
-            self._reunsafe_alloc(max(1, self.capacity * 2))
-        Pointer.init_pointee_move(self.data_ref + self.size, value.copy())
+            self._realloc(max(1, self.capacity * 2))
+        (self.data_ref + self.size).unsafe_write(value.copy())
         self.symbols_ref[self.size] = symbol_name
         self._set_index(symbol_name, self.size)
         self.size += 1
@@ -213,7 +210,7 @@ struct Collection(Copyable, Movable, Sized):
     @always_inline("nodebug")
     def clear(mut self):
         for i in range(self.size):
-            Pointer.destroy_pointee(self.data_ref + i)
+            (self.data_ref + i).unsafe_deinit_pointee()
         unsafe_memset_zero(self.symbols_ref, self.capacity)
         if self.index_map_owner:
             for i in range(self.index_map_capacity):

@@ -140,7 +140,7 @@ struct Bytes[capacity: Int](
 
     @always_inline("nodebug")
     def __str__(self) -> String:
-        return String.write(self)
+        return String(self)
 
 
 # ===----------------------------------------------------------------------===#

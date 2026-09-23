@@ -9,7 +9,8 @@
 ------------------------------------------------
 Tiled, parallelized matrix multiplication with transpose variants.
 """
-from std.algorithm import vectorize, parallelize
+from std.algorithm import vectorize
+from max.algorithm import parallelize
 from std.memory import unsafe_memset_zero, stack_allocation, Pointer
 from std.sys.info import simd_width_of
 
@@ -29,7 +30,8 @@ def calculate_block[
     mut2: Bool,
     origin_res: MutOrigin,
     origin_t1: Origin[mut=mut1],
-    origin_t2: Origin[mut=mut2], //,
+    origin_t2: Origin[mut=mut2],
+    //,
     M: Int,
     N: Int,
     K: Int,
@@ -89,7 +91,8 @@ def dot[
     mut2: Bool,
     origin_res: MutOrigin,
     origin_t1: Origin[mut=mut1],
-    origin_t2: Origin[mut=mut2], //,
+    origin_t2: Origin[mut=mut2],
+    //,
     t1_shape: TensorShape,
     t2_shape: TensorShape,
 ](
@@ -110,8 +113,7 @@ def dot[
     comptime BLOCK_N_REMAINDER = N % BLOCK_N
     comptime BLOCK_M_REMAINDER = M % BLOCK_M
 
-    @parameter
-    def bm_par(m_outer: Int):
+    def bm_par(m_outer: Int) {imm res, imm t1, imm t2}:
         var bm = m_outer * BLOCK_M
 
         for n_outer in range(0, N // BLOCK_N):
@@ -129,7 +131,7 @@ def dot[
                 res, t1, t2, bm, bn
             )
 
-    parallelize[bm_par](M // BLOCK_M, M // BLOCK_M)
+    parallelize(bm_par, M // BLOCK_M, M // BLOCK_M)
 
     # Handle the remainder of M
     comptime if BLOCK_M_REMAINDER > 0:
@@ -157,7 +159,8 @@ def dot_transpose_t2[
     mut2: Bool,
     origin_res: MutOrigin,
     origin_t1: Origin[mut=mut1],
-    origin_t2: Origin[mut=mut2], //,
+    origin_t2: Origin[mut=mut2],
+    //,
     A_shape: TensorShape,
     B_shape: TensorShape,
 ](

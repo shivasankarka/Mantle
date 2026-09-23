@@ -9,7 +9,8 @@
 ------------------------------------------------
 Forward and backward implementations for activation and shape-modifying ops.
 """
-from std.algorithm import vectorize, parallelize
+from std.algorithm import vectorize
+from max.algorithm import parallelize
 from std.math import exp, sqrt, abs
 from std.utils.numerics import min_finite, max_finite
 from std.memory import unsafe_memcpy
@@ -65,9 +66,7 @@ struct SIGMOID(Copyable, Movable):
         # d(sigmod(x))/dx = sigmoid(x) * (1 - sigmoid(x))
         var res_grad = Tensor[f32](ug_shape)
 
-        def vec_sigmoid_bw[
-            nelts: Int
-        ](idx: Int) {mut res_grad, imm t1, imm ug}:
+        def vec_sigmoid_bw[nelts: Int](idx: Int) {mut res_grad, imm t1, imm ug}:
             res_grad.store[nelts](
                 idx,
                 Self.sidmoid_bw(t1.load[nelts](idx)) * ug.load[nelts](idx),
@@ -284,9 +283,7 @@ struct GELU:
         """
         var res_grad = Tensor[f32](ug_shape)
 
-        def vec_gelu_bw[
-            nelts: Int
-        ](idx: Int) {mut res_grad, imm t1, imm ug}:
+        def vec_gelu_bw[nelts: Int](idx: Int) {mut res_grad, imm t1, imm ug}:
             comptime c0 = SIMD[f32, nelts](Self.SQRT_2_OVER_PI)
             comptime c1 = SIMD[f32, nelts](Self.COEFF)
             var x = t1.load[nelts](idx)
@@ -365,7 +362,9 @@ struct ABS:
             # sign: +1 if x > 0, -1 if x < 0, 0 if x == 0
             var sign = x.gt(SIMD[f32, n](0)).select[f32](
                 SIMD[f32, n](1),
-                x.lt(SIMD[f32, n](0)).select[f32](SIMD[f32, n](-1), SIMD[f32, n](0)),
+                x.lt(SIMD[f32, n](0)).select[f32](
+                    SIMD[f32, n](-1), SIMD[f32, n](0)
+                ),
             )
             res_grad.store[n](i, sign * ug.load[n](i))
 
@@ -504,7 +503,9 @@ struct SQUEEZE:
         t1_shape: TensorShape,
     ](ug: Tensor[f32], t1: Tensor[f32]) -> Tensor[f32]:
         var res_grad = Tensor[f32](t1_shape)
-        unsafe_memcpy(dest=res_grad.mut_ptr(), src=ug.ptr(), count=ug.num_elements())
+        unsafe_memcpy(
+            dest=res_grad.mut_ptr(), src=ug.ptr(), count=ug.num_elements()
+        )
         return res_grad^
 
 
@@ -543,7 +544,9 @@ struct UNSQUEEZE:
         t1_shape: TensorShape,
     ](ug: Tensor[f32], t1: Tensor[f32]) -> Tensor[f32]:
         var res_grad = Tensor[f32](t1_shape)
-        unsafe_memcpy(dest=res_grad.mut_ptr(), src=ug.ptr(), count=ug.num_elements())
+        unsafe_memcpy(
+            dest=res_grad.mut_ptr(), src=ug.ptr(), count=ug.num_elements()
+        )
         return res_grad^
 
 
@@ -758,8 +761,16 @@ struct SLICE:
 
         var middle_dims = res_shape.num_elements() // last_dims // first_dims
 
-        @parameter
-        def p_slice(i: Int):
+        def p_slice(
+            i: Int,
+        ) {
+            mut res,
+            imm t1,
+            imm last_dims,
+            imm start_position,
+            imm positions_to_skip,
+            imm middle_dims,
+        }:
             Self.recursive_iters_slice[
                 res_shape, original_shape, steps, starts, ends, backward_op
             ](
@@ -772,7 +783,7 @@ struct SLICE:
                 i * strides[start_position - 1],
             )
 
-        parallelize[p_slice](first_dims)
+        parallelize(p_slice, first_dims)
 
     @staticmethod
     def forward[
@@ -908,7 +919,9 @@ struct PAD:
 
     @staticmethod
     def backward[
-        ug_shape: TensorShape, t1_shape: TensorShape, attributes: AttributeVector
+        ug_shape: TensorShape,
+        t1_shape: TensorShape,
+        attributes: AttributeVector,
     ](ug: Tensor[f32], t1: Tensor[f32]) -> Tensor[f32]:
         comptime before_list = attributes["before"].value().to_list()
         comptime before = Self.to_index_list(before_list)
@@ -1318,9 +1331,7 @@ struct GATHER:
         ug_shape: TensorShape,
         table_shape: TensorShape,
         indices_shape: TensorShape,
-    ](
-        ug: Tensor[f32], table: Tensor[f32], indices: Tensor[f32]
-    ) -> Tensor[f32]:
+    ](ug: Tensor[f32], table: Tensor[f32], indices: Tensor[f32]) -> Tensor[f32]:
         comptime if tensor_id == 0:
             comptime D = table_shape[-1]
             var n = indices_shape.num_elements()

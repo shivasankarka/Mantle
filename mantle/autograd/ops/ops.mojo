@@ -117,7 +117,7 @@ struct OP(TrivialRegisterPassable, Writable):
         writer.write(String(self.name))
 
     def __str__(self) -> String:
-        return String.write(self)
+        return String(self)
 
 
 def static_result_shape(
@@ -539,14 +539,14 @@ def backward_op[
         comptime if tensor_id == 0:
             accumulate_grad[
                 grad_shape=t1_shape,
-                res_grad_shape = dot_batch_broadcast_shape(
+                res_grad_shape=dot_batch_broadcast_shape(
                     ug_shape, TensorShape(t2_shape[-1], t2_shape[-2])
                 ),
             ](grad, res_grad)
         else:
             accumulate_grad[
                 grad_shape=t2_shape,
-                res_grad_shape = dot_batch_broadcast_shape(
+                res_grad_shape=dot_batch_broadcast_shape(
                     TensorShape(t1_shape[-1], t1_shape[-2]), ug_shape
                 ),
             ](grad, res_grad)

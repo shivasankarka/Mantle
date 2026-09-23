@@ -11,7 +11,12 @@ Vectorized element-wise operations, broadcasting, reductions, and gradient accum
 """
 from std.sys.info import num_physical_cores
 from std.algorithm import vectorize
-from std.memory import unsafe_memset_zero, unsafe_memset, stack_allocation, Pointer
+from std.memory import (
+    unsafe_memset_zero,
+    unsafe_memset,
+    stack_allocation,
+    Pointer,
+)
 from std.math import sqrt
 from std.random import rand
 from std.utils.numerics import min_finite, max_finite
@@ -187,7 +192,7 @@ def broadcast_calculate_strides[
 def elwise_transform[
     func: def[dtype: DType, nelts: Int](x: SIMD[dtype, nelts]) thin -> SIMD[
         dtype, nelts
-    ],
+    ] where dtype.is_floating_point(),
 ](mut res: Tensor[f32], t: Tensor[f32]):
     """
     Apply a SIMD unary function element-wise.
@@ -209,7 +214,7 @@ def elwise_transform[
 def elwise_transform[
     func: def[dtype: DType, nelts: Int](x: SIMD[dtype, nelts]) thin -> SIMD[
         dtype, nelts
-    ],
+    ] where dtype.is_floating_point(),
 ](mut t: Tensor[f32]):
     """
     Apply a SIMD unary function in-place.
@@ -519,8 +524,7 @@ def transpose_2D[t_shape: TensorShape](t: Tensor[f32]) -> Tensor[f32]:
 
     comptime stride = t_shape[0]
 
-    @parameter
-    def proc_row(i: Int):
+    def proc_row(i: Int) {mut t_new, imm t}:
         def proc_column[nelts: Int](j: Int) {mut t_new, imm t, imm i}:
             (t_new.mut_ptr() + (j * t_shape[0] + i)).strided_store[width=nelts](
                 t.load[nelts](i * t_shape[1] + j), stride
@@ -528,7 +532,7 @@ def transpose_2D[t_shape: TensorShape](t: Tensor[f32]) -> Tensor[f32]:
 
         vectorize[nelts](t.dim(1), proc_column)
 
-    parallelize[proc_row](t_shape[0])
+    parallelize(proc_row, t_shape[0])
 
     return t_new^
 
@@ -536,9 +540,7 @@ def transpose_2D[t_shape: TensorShape](t: Tensor[f32]) -> Tensor[f32]:
 @always_inline
 def transpose_2D[
     t_shape: TensorShape
-](t: Pointer[Scalar[f32], _]) -> Pointer[
-    Scalar[f32], MutUntrackedOrigin
-]:
+](t: Pointer[Scalar[f32], _]) -> Pointer[Scalar[f32], MutUntrackedOrigin]:
     """
     Transpose a 2D matrix stored as a flat pointer.
 
@@ -555,8 +557,7 @@ def transpose_2D[
 
     comptime stride = t_shape[0]
 
-    @parameter
-    def proc_row(i: Int):
+    def proc_row(i: Int) {imm t_new, imm t}:
         def proc_column[nelts: Int](j: Int) {imm t_new, imm t, imm i}:
             (t_new + (j * t_shape[0] + i)).strided_store[width=nelts](
                 t.load[width=nelts](i * t_shape[1] + j), stride
@@ -564,7 +565,7 @@ def transpose_2D[
 
         vectorize[nelts](t_shape[1], proc_column)
 
-    parallelize[proc_row](t_shape[0])
+    parallelize(proc_row, t_shape[0])
 
     return t_new
 
@@ -659,8 +660,9 @@ def reduce[
     """
     var strides = t.strides()
 
-    @parameter
-    def parallel_reduce(i: Int):
+    def parallel_reduce(
+        i: Int,
+    ) {mut res, imm t, imm axis, imm strides, imm starting_value}:
         var m: SIMD[f32, nelts] = starting_value
 
         var index_base = (i % strides[axis]) + (i // strides[axis]) * (
@@ -690,7 +692,7 @@ def reduce[
 
         res[i] = reduce_op(m)
 
-    parallelize[parallel_reduce](t.num_elements() // t.dim(axis))
+    parallelize(parallel_reduce, t.num_elements() // t.dim(axis))
 
     _ = strides
 
@@ -980,7 +982,7 @@ def transpose(t: Tensor[f32], axes: TensorShape) -> Tensor[f32]:
 @always_inline
 def transpose(mut res: Tensor[f32], t: Tensor[f32], axes: TensorShape):
     """
-    Permute dimensions into a pre-unsafe_allocated result tensor.
+    Permute dimensions into a pre-allocated result tensor.
 
     Args:
         res: The output tensor.
@@ -1000,18 +1002,26 @@ def transpose(mut res: Tensor[f32], t: Tensor[f32], axes: TensorShape):
         if t.rank() - 1 == axes[i]:
             position_of_last_rank_new_shape = i
 
-    @parameter
-    def p_transpose(i: Int):
+    def p_transpose(
+        i: Int,
+    ) {
+        mut res,
+        imm t,
+        imm original_strides,
+        imm transposed_strides,
+        imm axes,
+        imm position_of_last_rank_new_shape,
+    }:
         def v_transpose[
             nelts: Int
         ](j: Int) {
             mut res,
             imm t,
             imm i,
-            read original_strides,
-            read transposed_strides,
-            read axes,
-            read position_of_last_rank_new_shape,
+            imm original_strides,
+            imm transposed_strides,
+            imm axes,
+            imm position_of_last_rank_new_shape,
         }:
             var new_index = 0
             var original_index = i * t.dim(t.rank() - 1) + j
@@ -1030,7 +1040,7 @@ def transpose(mut res: Tensor[f32], t: Tensor[f32], axes: TensorShape):
 
         vectorize[nelts](t.dim(t.rank() - 1), v_transpose)
 
-    parallelize[p_transpose](t.num_elements() // t.dim(t.rank() - 1))
+    parallelize(p_transpose, t.num_elements() // t.dim(t.rank() - 1))
 
     _ = (original_strides, transposed_strides)
 
