@@ -17,7 +17,7 @@ from mantle.autograd.graph import Graph
 from mantle.autograd.symbol import Symbol
 from mantle.autograd.ops import OP
 from mantle.autograd.attributes import AttributeVector, Attribute
-from mantle.nn.module import Layer
+from mantle.nn.module import Expr, Layer, Module
 
 
 # ===----------------------------------------------------------------------===#
@@ -113,7 +113,7 @@ def MaxPool2d(
 # ===----------------------------------------------------------------------===#
 
 
-struct MaxPool2dLayer(Copyable, Layer, Movable):
+struct MaxPool2dLayer(Copyable, Layer, Module, Movable):
     """
     `Layer`-conforming wrapper around `MaxPool2d`, for use in a
     reflection-based Module struct.
@@ -140,6 +140,22 @@ struct MaxPool2dLayer(Copyable, Layer, Movable):
         return MaxPool2d(
             g, input, self.kernel_size, self.stride, self.padding, self.dilation
         )
+
+    def forward(mut self, input: Expr) -> Expr:
+        return Expr(
+            input.graph,
+            MaxPool2d(
+                input.graph[],
+                input.symbol,
+                self.kernel_size,
+                self.stride,
+                self.padding,
+                self.dilation,
+            ),
+        )
+
+    def __call__(mut self, input: Expr) -> Expr:
+        return self.forward(input)
 
 
 # # TODO

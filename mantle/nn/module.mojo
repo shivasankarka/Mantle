@@ -80,7 +80,7 @@ trait Layer:
 
 
 @fieldwise_init
-struct FlattenLayer(Copyable, Layer, Movable):
+struct FlattenLayer(Copyable, Layer, Module, Movable):
     """
     Flattens every dim except the batch dim (dim 0). Equivalent to PyTorch's
     `x.view(x.size(0), -1)`, e.g. after Conv2d/MaxPool2d before a Linear layer.
@@ -96,6 +96,15 @@ struct FlattenLayer(Copyable, Layer, Movable):
                 Attribute("shape", TensorShape(batch, rest))
             ),
         )
+
+    def forward(mut self, input: Expr) -> Expr:
+        return Expr(
+            input.graph,
+            self.forward(input.graph[], input.symbol),
+        )
+
+    def __call__(mut self, input: Expr) -> Expr:
+        return self.forward(input)
 
 
 def Flatten() -> FlattenLayer:

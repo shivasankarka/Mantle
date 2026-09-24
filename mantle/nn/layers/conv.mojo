@@ -17,7 +17,7 @@ from mantle.core.tensor import Tensor, TensorShape
 from mantle.core.math_util import q_sqrt
 from mantle.autograd.params import Param
 from mantle.autograd.attributes import AttributeVector, Attribute
-from mantle.nn.module import Layer
+from mantle.nn.module import Expr, Layer, Module
 
 from std.utils.index import IndexList
 
@@ -99,7 +99,7 @@ def Conv2d(
 # ===----------------------------------------------------------------------===#
 
 
-struct Conv2dLayer(Copyable, Layer, Movable):
+struct Conv2dLayer(Copyable, Layer, Module, Movable):
     """
     `Layer`-conforming wrapper around `Conv2d`, for use in a reflection-based
     Module struct.
@@ -135,3 +135,20 @@ struct Conv2dLayer(Copyable, Layer, Movable):
             self.stride,
             self.dilation,
         )
+
+    def forward(mut self, input: Expr) -> Expr:
+        return Expr(
+            input.graph,
+            Conv2d(
+                input.graph[],
+                input.symbol,
+                self.out_channels,
+                self.kernel_size,
+                self.padding,
+                self.stride,
+                self.dilation,
+            ),
+        )
+
+    def __call__(mut self, input: Expr) -> Expr:
+        return self.forward(input)
