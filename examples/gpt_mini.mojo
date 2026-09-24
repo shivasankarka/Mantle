@@ -297,19 +297,19 @@ def main() raises:
     comptime seq_len = 256  # block_size
     comptime batch_size = 64
     comptime d_model = 384  # n_embd
-    comptime num_heads = 6  # n_head
+    comptime num_heads = 4  # n_head
     comptime d_ff = 4 * d_model
-    comptime num_blocks = 6  # n_layer
+    comptime num_blocks = 3  # n_layer
     comptime dropout_p = 0.2
     comptime learning_rate = 1e-3
     comptime weight_decay = 0.1
     comptime beta2 = 0.99
     comptime warmup_steps = 100  # warmup_iters
     comptime min_lr = 1e-4
-    comptime num_steps = 5000  # max_iters
+    comptime num_steps = 500  # max_iters
     comptime eval_interval = 250
     comptime eval_iters = 20
-    comptime sample_every = 2500
+    comptime sample_every = 50
 
     print("Loading data from", DATA_PATH, "...")
     var text = open(String(DATA_PATH), "r").read()
