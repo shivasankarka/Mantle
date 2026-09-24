@@ -18,6 +18,7 @@ from std.utils.index import IndexList
 from std.memory import unsafe_memset_zero, unsafe_memcpy, Pointer
 from std.os import abort
 from max.gpu.host import DeviceContext, DeviceBuffer, HostBuffer
+from std.ffi import _Global
 
 from std.sys.info import simd_width_of
 
@@ -26,6 +27,30 @@ from mantle.core.device import Device
 comptime MAX_RANK = 8
 """Max rank of a tensor."""
 # TODO: make it an explicit input to Tensor
+
+
+def _make_shared_device_context() -> DeviceContext:
+    try:
+        return DeviceContext()
+    except e:
+        abort("Tensor: shared DeviceContext creation failed: " + String(e))
+
+
+comptime _shared_device_context_global = _Global[
+    "mantle_tensor_shared_device_context", _make_shared_device_context
+]
+"""Every `Tensor` construction needs a `DeviceContext` to allocate its
+buffer, but `DeviceContext()` creates a brand-new native context (a Metal
+command queue on Apple GPUs) on every call, cheap to *copy* (refcounted)
+but not to create. So we use a global `_Global` to ensure that the
+process keeps exactly one, created lazily on first use, and every `Tensor`
+just takes a cheap refcounted copy of it."""
+
+
+def _shared_device_context() raises -> DeviceContext:
+    return _shared_device_context_global.get_or_create_ptr()[
+        unsafe_offset=0
+    ].copy()
 
 # ===----------------------------------------------------------------------===#
 # TensorShape
@@ -285,7 +310,7 @@ struct Tensor[dtype: DType, device: Device = Device.cpu](
         # No `raises` on this constructor, so a failed allocation aborts
         # instead of propagating.
         try:
-            var ctx = DeviceContext()
+            var ctx = _shared_device_context()
             comptime if Self.device.id == Device.cpu.id:
                 var buf = ctx.enqueue_create_host_buffer[Self.dtype](
                     shape.num_elements()
