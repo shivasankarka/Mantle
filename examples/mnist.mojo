@@ -28,10 +28,22 @@ def create_CNN(batch_size: Int) -> Graph:
     var g = Graph()
     var x = g.input(TensorShape(batch_size, 1, 28, 28))
 
-    var x1 = nn.Conv2d(g, x, out_channels=16, kernel_size=IndexList[2](5, 5), padding=IndexList[2](2, 2))
+    var x1 = nn.Conv2d(
+        g,
+        x,
+        out_channels=16,
+        kernel_size=IndexList[2](5, 5),
+        padding=IndexList[2](2, 2),
+    )
     var x2 = nn.ReLU(g, x1)
     var x3 = nn.MaxPool2d(g, x2, kernel_size=IndexList[2](2, 2))
-    var x4 = nn.Conv2d(g, x3, out_channels=32, kernel_size=IndexList[2](5, 5), padding=IndexList[2](2, 2))
+    var x4 = nn.Conv2d(
+        g,
+        x3,
+        out_channels=32,
+        kernel_size=IndexList[2](5, 5),
+        padding=IndexList[2](2, 2),
+    )
     var x5 = nn.ReLU(g, x4)
     var x6 = nn.MaxPool2d(g, x5, kernel_size=IndexList[2](2, 2))
     var x7 = g.op(
@@ -40,7 +52,9 @@ def create_CNN(batch_size: Int) -> Graph:
         attributes=AttributeVector(
             Attribute(
                 "shape",
-                TensorShape(x6.shape[0], x6.shape[1] * x6.shape[2] * x6.shape[3]),
+                TensorShape(
+                    x6.shape[0], x6.shape[1] * x6.shape[2] * x6.shape[3]
+                ),
             )
         ),
     )
@@ -52,10 +66,10 @@ def create_CNN(batch_size: Int) -> Graph:
     # var loss = nn.MSELoss(g, out, y_true)
     g.loss(loss)
 
-    return g ^
+    return g^
 
 
-def main():
+def main() raises:
     comptime num_epochs = 20
     comptime batch_size = 4
     comptime learning_rate = 1e-3
@@ -106,21 +120,45 @@ def main():
             epoch_loss += loss[0]
             num_batches += 1
 
-            print(
-                "Epoch [",
-                epoch + 1,
-                "/",
-                num_epochs,
-                "],\t Step [",
-                num_batches,
-                "/",
-                train_data.data.dim(0) // batch_size,
-                "],\t Loss:",
-                epoch_loss / Float32(num_batches),
-            )
-
-        print("Epoch time: ", Float64(now() - epoch_start) / 1e9, "seconds")
+        print(
+            "Epoch ",
+            epoch + 1,
+            "/",
+            num_epochs,
+            " — loss: ",
+            epoch_loss / Float32(num_batches),
+            " — time: ",
+            Float64(now() - epoch_start) / 1e9,
+            " seconds",
+        )
 
     print("Training finished: ", Float64(now() - start) / 1e9, "seconds")
+
+    # This bundled CSV is the training sample, not a held-out test split.
+    # Running inference over it still verifies the complete prediction path
+    # and makes overfitting/regressions visible in the example output.
+    var correct: Scalar[f32] = 0.0
+    var total = 0
+    var inference_start = now()
+    for batch in training_loader:
+        var labels_one_hot = Tensor[f32](batch.labels.dim(0), 10)
+        for bb in range(batch.labels.dim(0)):
+            labels_one_hot[bb * 10 + Int(batch.labels[bb])] = 1.0
+
+        var logits = model.inference(batch.data, labels_one_hot)[0].copy()
+        correct += nn.accuracy(logits, labels_one_hot) * Float32(
+            batch.labels.dim(0)
+        )
+        total += batch.labels.dim(0)
+
+    print(
+        "Training-set inference accuracy: ",
+        100.0 * correct / Float32(total),
+        "% (",
+        total,
+        " images, ",
+        Float64(now() - inference_start) / 1e9,
+        " seconds)",
+    )
 
     model.print_perf_metrics("ms", True)

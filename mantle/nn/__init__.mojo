@@ -29,6 +29,7 @@ from .layers.feedforward import FeedForward, FeedForwardLayer
 from .layers.transformer_block import TransformerBlock, TransformerBlockLayer
 
 from .loss import MSELoss, CrossEntropyLoss, L1Loss
+from .metrics import accuracy
 import mantle.nn.optim as optim
 from .activations import (
     Softmax,

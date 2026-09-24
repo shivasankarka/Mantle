@@ -77,9 +77,12 @@ if __name__ == "__main__":
     # plt.show()
 
     # Batchwise data loader
+    # Match Mantle's example: sequential batches and no worker-process
+    # overhead. Shuffle is useful for real training, but it should not hide
+    # framework execution time in this like-for-like benchmark.
     loaders = {
         "train": DataLoader(
-            train_data, batch_size=batch_size, shuffle=True, num_workers=1
+            train_data, batch_size=batch_size, shuffle=False, num_workers=0
         ),
     }
 
@@ -91,8 +94,11 @@ if __name__ == "__main__":
     # Train the model
     cnn.train()
     total_step = len(loaders["train"])
-    start = time.time()
+    start = time.perf_counter()
     for epoch in range(num_epochs):
+        epoch_start = time.perf_counter()
+        epoch_loss = 0.0
+        num_batches = 0
         for i, (images, labels) in enumerate(loaders["train"]):
             b_x = Variable(images)
             b_y = Variable(labels)
@@ -104,13 +110,33 @@ if __name__ == "__main__":
             loss.backward()
             optimizer.step()
 
-            print(
-                "Epoch [{}/{}],\t Step [{}/{}],\t Loss: {:.6f}".format(
-                    epoch + 1, num_epochs, i + 1, total_step, loss.item()
-                )
-            )
+            epoch_loss += loss.item()
+            num_batches += 1
 
-    print(f"Training time: {time.time() - start:.2f} seconds")
+        print(
+            f"Epoch {epoch + 1} / {num_epochs} — "
+            f"loss: {epoch_loss / num_batches:.7f} — "
+            f"time: {time.perf_counter() - epoch_start:.6f} seconds"
+        )
+
+    print(f"Training finished: {time.perf_counter() - start:.6f} seconds")
+
+    # The bundled CSV is the same sample used for training, not a held-out
+    # test set. This checks prediction/inference parity with the Mantle
+    # example; a real benchmark should provide a separate test split.
+    cnn.eval()
+    correct = 0
+    total = 0
+    inference_start = time.perf_counter()
+    with torch.no_grad():
+        for images, labels in loaders["train"]:
+            logits = cnn(images)
+            correct += (logits.argmax(dim=1) == labels).sum().item()
+            total += labels.numel()
+    print(
+        f"Training-set inference accuracy: {100.0 * correct / total:.1f}% "
+        f"({total} images, {time.perf_counter() - inference_start:.6f} seconds)"
+    )
 
     # Export to ONNX
     export_onnx = os.environ.get("export_onnx", 0)

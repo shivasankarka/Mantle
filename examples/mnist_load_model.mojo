@@ -1,5 +1,6 @@
-from std.time import now
+from std.time import perf_counter_ns as now
 from std.pathlib import Path
+from std.utils.index import IndexList
 
 import mantle.nn as nn
 from mantle import Tensor, TensorShape
@@ -28,29 +29,43 @@ def create_CNN(batch_size: Int) -> Graph:
     var g = Graph()
     var x = g.input(TensorShape(batch_size, 1, 28, 28))
 
-    var x1 = nn.Conv2d(g, x, out_channels=16, kernel_size=5, padding=2)
+    var x1 = nn.Conv2d(
+        g,
+        x,
+        out_channels=16,
+        kernel_size=IndexList[2](5, 5),
+        padding=IndexList[2](2, 2),
+    )
     var x2 = nn.ReLU(g, x1)
-    var x3 = nn.MaxPool2d(g, x2, kernel_size=2)
-    var x4 = nn.Conv2d(g, x3, out_channels=32, kernel_size=5, padding=2)
+    var x3 = nn.MaxPool2d(g, x2, kernel_size=IndexList[2](2, 2))
+    var x4 = nn.Conv2d(
+        g,
+        x3,
+        out_channels=32,
+        kernel_size=IndexList[2](5, 5),
+        padding=IndexList[2](2, 2),
+    )
     var x5 = nn.ReLU(g, x4)
-    var x6 = nn.MaxPool2d(g, x5, kernel_size=2)
+    var x6 = nn.MaxPool2d(g, x5, kernel_size=IndexList[2](2, 2))
     var x7 = g.op(
         OP.RESHAPE,
         x6,
         attributes=AttributeVector(
             Attribute(
                 "shape",
-                TensorShape(x6.shape[0], x6.shape[1] * x6.shape[2] * x6.shape[3]),
+                TensorShape(
+                    x6.shape[0], x6.shape[1] * x6.shape[2] * x6.shape[3]
+                ),
             )
         ),
     )
     var out = nn.Linear(g, x7, n_outputs=10)
     g.out(out)
 
-    return g ^
+    return g^
 
 
-def main():
+def main() raises:
     comptime num_epochs = 1
     comptime batch_size = 4
     comptime learning_rate = 1e-3
@@ -60,7 +75,7 @@ def main():
     # try: graph.render("operator")
     # except: print("Could not render graph")
 
-    var model = nn.Model[graph]()
+    var model = nn.Model[graph](inference_only=True)
     model.load_model_data("./examples/data/mnist_torch.onnx")
 
     print("Loading data ...")
@@ -76,41 +91,28 @@ def main():
     var training_loader = DataLoader(
         data=train_data.data, labels=train_data.labels, batch_size=batch_size
     )
-    
+
     # Testing
     print("Testing started")
     var start = now()
 
-    var correct = 0
+    var correct: Scalar[f32] = 0.0
+    var total = 0
     for batch in training_loader:
         var labels_one_hot = Tensor[f32](batch.labels.dim(0), 10)
         for bb in range(batch.labels.dim(0)):
-            labels_one_hot[int(bb * 10 + batch.labels[bb])] = 1.0
+            labels_one_hot[bb * 10 + Int(batch.labels[bb])] = 1.0
 
-        var output = model.inference(batch.data, labels_one_hot)[0]
-        
-        def argmax(tensor: Tensor[f32], dim: Int) -> Tensor[f32]:
-            var result = Tensor[f32](tensor.dim(0))
-            for i in range(tensor.dim(0)):
-                var max_val = tensor[i * 10]
-                var max_idx = 0
-                for j in range(1, 10):
-                    if tensor[i * 10 + j] > max_val:
-                        max_val = tensor[i * 10 + j]
-                        max_idx = j
-                result[i] = max_idx
-            
-            return result
+        var output = model.inference(batch.data)[0].copy()
+        correct += nn.accuracy(output, labels_one_hot) * Float32(
+            batch.labels.dim(0)
+        )
+        total += batch.labels.dim(0)
 
-        var pred = argmax(output, dim=1)
-
-        for i in range(batch.labels.dim(0)):
-            if pred[i] == batch.labels[i]:
-                correct += 1
-
-    print("Accuracy: ", correct / train_data.data.dim(0) * 100, "%")
+    print("Inference accuracy: ", 100.0 * correct / Float32(total), "%")
     print("Testing finished: ", Float64(now() - start) / 1e9, "seconds")
 
     # model.print_perf_metrics("ms", True)
 
-    model.export_model("./output_model.onnx")
+    # Keep this example read-only: it evaluates an imported model and must not
+    # overwrite an ONNX artifact as a side effect.
