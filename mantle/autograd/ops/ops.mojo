@@ -58,6 +58,7 @@ from .pool import MAXPOOL2D, AVGPOOL2D
 from .matmul import dot_transpose_t1, dot_transpose_t2
 
 from std.os import abort
+from std.math import sqrt
 
 from mantle import f32
 from mantle.autograd.symbol import Symbol
@@ -71,6 +72,7 @@ from .gpu_elementwise import (
     gpu_add_forward,
     gpu_add_bias_forward,
     gpu_bias_grad,
+    gpu_bias_grad_into,
     gpu_sub_forward,
     gpu_mul_forward,
     gpu_div_forward,
@@ -103,6 +105,9 @@ from .gpu_elementwise import (
     gpu_dropout_backward,
     gpu_accumulate_grad,
     gpu_write_from_host,
+    gpu_layernorm_forward,
+    gpu_layernorm_input_backward,
+    gpu_layernorm_affine_backward,
 )
 from .gpu_matmul import (
     gpu_matmul,
@@ -161,6 +166,7 @@ struct OP(TrivialRegisterPassable, Writable):
     comptime LINEAR = OP(37, "LINEAR")
     comptime MIN = OP(38, "MIN")
     comptime ARGMAX = OP(39, "ARGMAX")
+    comptime LAYERNORM = OP(40, "LAYERNORM")
 
     var id: UInt8
     var name: Bytes[16]
@@ -242,6 +248,111 @@ def cpu_bias_grad_overwrite[
         grad.store[w](j, acc)
 
     vectorize[nelts](n, vec)
+
+
+def cpu_layernorm_forward[
+    outer: Int, width: Int
+](
+    mut res: Tensor[f32],
+    src: Tensor[f32],
+    gamma: Tensor[f32],
+    beta: Tensor[f32],
+    epsilon: Scalar[f32],
+):
+    def row(i: Int) {mut res, imm src, imm gamma, imm beta, imm epsilon}:
+        var mean: Scalar[f32] = 0.0
+        for j in range(width):
+            mean += src.load[1](i * width + j)
+        mean /= Scalar[f32](width)
+        var variance: Scalar[f32] = 0.0
+        for j in range(width):
+            var delta = src.load[1](i * width + j) - mean
+            variance += delta * delta
+        var inv_std = 1.0 / sqrt(variance / Scalar[f32](width) + epsilon)
+        for j in range(width):
+            var xhat = (src.load[1](i * width + j) - mean) * inv_std
+            res.store[1](
+                i * width + j, xhat * gamma.load[1](j) + beta.load[1](j)
+            )
+
+    parallelize(row, outer)
+
+
+def cpu_layernorm_input_backward[
+    outer: Int, width: Int
+](
+    ug: Tensor[f32],
+    src: Tensor[f32],
+    gamma: Tensor[f32],
+    mut grad: Tensor[f32],
+    epsilon: Scalar[f32],
+):
+    def row(i: Int) {mut grad, imm ug, imm src, imm gamma, imm epsilon}:
+        var mean: Scalar[f32] = 0.0
+        for j in range(width):
+            mean += src.load[1](i * width + j)
+        mean /= Scalar[f32](width)
+        var variance: Scalar[f32] = 0.0
+        for j in range(width):
+            var delta = src.load[1](i * width + j) - mean
+            variance += delta * delta
+        var inv_std = 1.0 / sqrt(variance / Scalar[f32](width) + epsilon)
+        var sum_dy: Scalar[f32] = 0.0
+        var sum_dy_xhat: Scalar[f32] = 0.0
+        for j in range(width):
+            var dy = ug.load[1](i * width + j) * gamma.load[1](j)
+            var xhat = (src.load[1](i * width + j) - mean) * inv_std
+            sum_dy += dy
+            sum_dy_xhat += dy * xhat
+        for j in range(width):
+            var dy = ug.load[1](i * width + j) * gamma.load[1](j)
+            var xhat = (src.load[1](i * width + j) - mean) * inv_std
+            var index = i * width + j
+            grad.store[1](
+                index,
+                grad.load[1](index)
+                + inv_std
+                * (
+                    dy
+                    - sum_dy / Scalar[f32](width)
+                    - xhat * sum_dy_xhat / Scalar[f32](width)
+                ),
+            )
+
+    parallelize(row, outer)
+
+
+def cpu_layernorm_affine_backward[
+    outer: Int, width: Int, affine_id: Int
+](
+    ug: Tensor[f32],
+    src: Tensor[f32],
+    mut grad: Tensor[f32],
+    epsilon: Scalar[f32],
+):
+    def feature(j: Int) {mut grad, imm ug, imm src, imm epsilon}:
+        var total: Scalar[f32] = 0.0
+        for i in range(outer):
+            var mean: Scalar[f32] = 0.0
+            for k in range(width):
+                mean += src.load[1](i * width + k)
+            mean /= Scalar[f32](width)
+            var variance: Scalar[f32] = 0.0
+            for k in range(width):
+                var delta = src.load[1](i * width + k) - mean
+                variance += delta * delta
+            var upper = ug.load[1](i * width + j)
+            comptime if affine_id == 0:
+                total += (
+                    upper
+                    * (src.load[1](i * width + j) - mean)
+                    / sqrt(variance / Scalar[f32](width) + epsilon)
+                )
+            else:
+                total += upper
+        grad.store[1](j, grad.load[1](j) + total)
+
+    parallelize(feature, width)
 
 
 def static_result_shape(
@@ -367,7 +478,10 @@ def leading_broadcast_compatible(
     if input_shape.rank() >= output_shape.rank():
         return False
     for i in range(input_shape.rank()):
-        if input_shape[i] != output_shape[output_shape.rank() - input_shape.rank() + i]:
+        if (
+            input_shape[i]
+            != output_shape[output_shape.rank() - input_shape.rank() + i]
+        ):
             return False
     return True
 
@@ -422,6 +536,8 @@ def static_result_shape(
         )
     elif op == OP.LINEAR:
         return DOT.result_shape(t1_shape, t2_shape)
+    elif op == OP.LAYERNORM:
+        return t1_shape
     else:
         print("[ERROR] Operator not found.")
         return TensorShape(-1, -1)
@@ -701,7 +817,9 @@ def forward_op[
         comptime vector_mode = (
             t2_shape.rank() == 1 and t2_shape[0] == t1_shape[-1]
         )
-        comptime leading_broadcast = leading_broadcast_compatible(t1_shape, t2_shape)
+        comptime leading_broadcast = leading_broadcast_compatible(
+            t1_shape, t2_shape
+        )
         comptime repeat = 1 if vector_mode or leading_broadcast else (
             t1_shape.num_elements() // t2_shape.num_elements()
         )
@@ -825,6 +943,15 @@ def forward_op[
             rebind[Tensor[f32, Device.gpu]](t2),
             rebind[Tensor[f32, Device.gpu]](t3),
         )
+    elif op == OP.LAYERNORM and t2_shape.rank() == 1 and t3_shape == t2_shape:
+        comptime epsilon = attributes["epsilon"].value().to_scalar[f32]()
+        gpu_layernorm_forward(
+            rebind[Tensor[f32, Device.gpu]](res),
+            rebind[Tensor[f32, Device.gpu]](t1),
+            rebind[Tensor[f32, Device.gpu]](t2),
+            rebind[Tensor[f32, Device.gpu]](t3),
+            epsilon,
+        )
     else:
         comptime assert False, "forward_op: ternary GPU support is LINEAR-only"
 
@@ -864,6 +991,11 @@ def _forward_op_cpu[
         var dot_res = Tensor[f32](dot_shape, uninitialized=True)
         DOT.forward[t1_shape, t2_shape](dot_res, t1, t2)
         cpu_add_bias_forward[outer, n](res, dot_res, t3)
+    elif op == OP.LAYERNORM:
+        comptime width = t1_shape[-1]
+        comptime outer = t1_shape.num_elements() // width
+        comptime epsilon = attributes["epsilon"].value().to_scalar[f32]()
+        cpu_layernorm_forward[outer, width](res, t1, t2, t3, epsilon)
     else:
         print("[ERROR] Operator not found.")
 
@@ -915,6 +1047,7 @@ def backward_op[
     t1_shape: TensorShape,
     attributes: AttributeVector,
     device: Device = Device.cpu,
+    overwrite_grad: Bool = False,
 ](
     ug: Tensor[f32, device],
     t1: Tensor[f32, device],
@@ -994,10 +1127,18 @@ def backward_op[
         )
         gpu_accumulate_grad(rebind[Tensor[f32, Device.gpu]](grad), res_grad)
     elif op == OP.RESHAPE or op == OP.FLATTEN:
-        gpu_accumulate_grad(
-            rebind[Tensor[f32, Device.gpu]](grad),
-            rebind[Tensor[f32, Device.gpu]](ug),
-        )
+        # Shape-only operations preserve element order. A value with one
+        # backward contributor can receive the upper gradient directly;
+        # shared values still need the normal accumulation path.
+        comptime if overwrite_grad:
+            rebind[Tensor[f32, Device.gpu]](grad).copy_from(
+                rebind[Tensor[f32, Device.gpu]](ug)
+            )
+        else:
+            gpu_accumulate_grad(
+                rebind[Tensor[f32, Device.gpu]](grad),
+                rebind[Tensor[f32, Device.gpu]](ug),
+            )
     elif op == OP.TRANSPOSE and t1_shape.rank() == 4:
         var res_grad = Tensor[f32, Device.gpu](t1_shape, uninitialized=True)
         comptime axes_attribute = attributes["axes"]
@@ -1112,6 +1253,7 @@ def backward_op[
     t2_shape: TensorShape,
     attributes: AttributeVector,
     device: Device = Device.cpu,
+    overwrite_grad: Bool = False,
 ](
     ug: Tensor[f32, device],
     t1: Tensor[f32, device],
@@ -1134,43 +1276,46 @@ def backward_op[
     elif t1_shape == t2_shape and (
         op == OP.ADD or op == OP.SUB or op == OP.MUL or op == OP.DIV
     ):
-        var res_grad: Tensor[f32, Device.gpu]
-
-        comptime if op == OP.ADD:
-            res_grad = rebind[Tensor[f32, Device.gpu]](ug).copy()
-        elif op == OP.SUB:
-            comptime if tensor_id == 0:
-                res_grad = rebind[Tensor[f32, Device.gpu]](ug).copy()
-            else:
-                res_grad = gpu_sub_backward_t2(
-                    rebind[Tensor[f32, Device.gpu]](ug)
-                )
-        elif op == OP.MUL:
-            comptime if tensor_id == 0:
-                res_grad = gpu_mul_backward(
-                    rebind[Tensor[f32, Device.gpu]](ug),
-                    rebind[Tensor[f32, Device.gpu]](t2),
-                )
-            else:
-                res_grad = gpu_mul_backward(
-                    rebind[Tensor[f32, Device.gpu]](ug),
-                    rebind[Tensor[f32, Device.gpu]](t1),
-                )
+        comptime if overwrite_grad and op == OP.ADD:
+            rebind[Tensor[f32, Device.gpu]](grad).copy_from(
+                rebind[Tensor[f32, Device.gpu]](ug)
+            )
         else:
-            comptime assert op == OP.DIV
-            comptime if tensor_id == 0:
-                res_grad = gpu_div_backward_t1(
-                    rebind[Tensor[f32, Device.gpu]](ug),
-                    rebind[Tensor[f32, Device.gpu]](t2),
-                )
+            var res_grad: Tensor[f32, Device.gpu]
+            comptime if op == OP.ADD:
+                res_grad = rebind[Tensor[f32, Device.gpu]](ug).copy()
+            elif op == OP.SUB:
+                comptime if tensor_id == 0:
+                    res_grad = rebind[Tensor[f32, Device.gpu]](ug).copy()
+                else:
+                    res_grad = gpu_sub_backward_t2(
+                        rebind[Tensor[f32, Device.gpu]](ug)
+                    )
+            elif op == OP.MUL:
+                comptime if tensor_id == 0:
+                    res_grad = gpu_mul_backward(
+                        rebind[Tensor[f32, Device.gpu]](ug),
+                        rebind[Tensor[f32, Device.gpu]](t2),
+                    )
+                else:
+                    res_grad = gpu_mul_backward(
+                        rebind[Tensor[f32, Device.gpu]](ug),
+                        rebind[Tensor[f32, Device.gpu]](t1),
+                    )
             else:
-                res_grad = gpu_div_backward_t2(
-                    rebind[Tensor[f32, Device.gpu]](ug),
-                    rebind[Tensor[f32, Device.gpu]](t1),
-                    rebind[Tensor[f32, Device.gpu]](t2),
-                )
-
-        gpu_accumulate_grad(rebind[Tensor[f32, Device.gpu]](grad), res_grad)
+                comptime assert op == OP.DIV
+                comptime if tensor_id == 0:
+                    res_grad = gpu_div_backward_t1(
+                        rebind[Tensor[f32, Device.gpu]](ug),
+                        rebind[Tensor[f32, Device.gpu]](t2),
+                    )
+                else:
+                    res_grad = gpu_div_backward_t2(
+                        rebind[Tensor[f32, Device.gpu]](ug),
+                        rebind[Tensor[f32, Device.gpu]](t1),
+                        rebind[Tensor[f32, Device.gpu]](t2),
+                    )
+            gpu_accumulate_grad(rebind[Tensor[f32, Device.gpu]](grad), res_grad)
     elif (
         op == OP.ADD
         and t1_shape.rank() >= 2
@@ -1178,8 +1323,15 @@ def backward_op[
         and t2_shape[0] == t1_shape[-1]
     ):
         comptime if tensor_id == 0:
-            var res_grad = rebind[Tensor[f32, Device.gpu]](ug).copy()
-            gpu_accumulate_grad(rebind[Tensor[f32, Device.gpu]](grad), res_grad)
+            comptime if overwrite_grad:
+                rebind[Tensor[f32, Device.gpu]](grad).copy_from(
+                    rebind[Tensor[f32, Device.gpu]](ug)
+                )
+            else:
+                var res_grad = rebind[Tensor[f32, Device.gpu]](ug).copy()
+                gpu_accumulate_grad(
+                    rebind[Tensor[f32, Device.gpu]](grad), res_grad
+                )
         else:
             var res_grad = gpu_bias_grad(
                 rebind[Tensor[f32, Device.gpu]](ug), t2_shape[0]
@@ -1203,20 +1355,29 @@ def backward_op[
         comptime vector_mode = (
             t2_shape.rank() == 1 and t2_shape[0] == t1_shape[-1]
         )
-        comptime leading_broadcast = leading_broadcast_compatible(t1_shape, t2_shape)
+        comptime leading_broadcast = leading_broadcast_compatible(
+            t1_shape, t2_shape
+        )
         comptime repeat = 1 if vector_mode or leading_broadcast else (
             t1_shape.num_elements() // t2_shape.num_elements()
         )
         comptime if tensor_id == 0:
-            var res_grad = gpu_broadcast_binary_backward_t1(
-                rebind[Tensor[f32, Device.gpu]](ug),
-                rebind[Tensor[f32, Device.gpu]](t1),
-                rebind[Tensor[f32, Device.gpu]](t2),
-                repeat,
-                0 if vector_mode else (2 if leading_broadcast else 1),
-                gpu_binary_op_code(op),
-            )
-            gpu_accumulate_grad(rebind[Tensor[f32, Device.gpu]](grad), res_grad)
+            comptime if overwrite_grad and op == OP.ADD:
+                rebind[Tensor[f32, Device.gpu]](grad).copy_from(
+                    rebind[Tensor[f32, Device.gpu]](ug)
+                )
+            else:
+                var res_grad = gpu_broadcast_binary_backward_t1(
+                    rebind[Tensor[f32, Device.gpu]](ug),
+                    rebind[Tensor[f32, Device.gpu]](t1),
+                    rebind[Tensor[f32, Device.gpu]](t2),
+                    repeat,
+                    0 if vector_mode else (2 if leading_broadcast else 1),
+                    gpu_binary_op_code(op),
+                )
+                gpu_accumulate_grad(
+                    rebind[Tensor[f32, Device.gpu]](grad), res_grad
+                )
         else:
             var res_grad = gpu_broadcast_binary_backward_t2(
                 rebind[Tensor[f32, Device.gpu]](ug),
@@ -1490,10 +1651,68 @@ def backward_op[
                 )
         else:
             comptime assert tensor_id == 2
-            var res_grad = gpu_bias_grad(
-                rebind[Tensor[f32, Device.gpu]](ug), t3_shape[0]
-            )
-            gpu_accumulate_grad(rebind[Tensor[f32, Device.gpu]](grad), res_grad)
+            comptime if overwrite_grad:
+                gpu_bias_grad_into(
+                    rebind[Tensor[f32, Device.gpu]](grad),
+                    rebind[Tensor[f32, Device.gpu]](ug),
+                )
+            else:
+                var res_grad = gpu_bias_grad(
+                    rebind[Tensor[f32, Device.gpu]](ug), t3_shape[0]
+                )
+                gpu_accumulate_grad(
+                    rebind[Tensor[f32, Device.gpu]](grad), res_grad
+                )
+    elif op == OP.LAYERNORM:
+        comptime epsilon = attributes["epsilon"].value().to_scalar[f32]()
+        comptime if tensor_id == 0:
+            comptime if overwrite_grad:
+                gpu_layernorm_input_backward(
+                    rebind[Tensor[f32, Device.gpu]](grad),
+                    rebind[Tensor[f32, Device.gpu]](ug),
+                    rebind[Tensor[f32, Device.gpu]](t1),
+                    rebind[Tensor[f32, Device.gpu]](t2),
+                    epsilon,
+                )
+            else:
+                var res_grad = Tensor[f32, Device.gpu](
+                    t1_shape, uninitialized=True
+                )
+                gpu_layernorm_input_backward(
+                    res_grad,
+                    rebind[Tensor[f32, Device.gpu]](ug),
+                    rebind[Tensor[f32, Device.gpu]](t1),
+                    rebind[Tensor[f32, Device.gpu]](t2),
+                    epsilon,
+                )
+                gpu_accumulate_grad(
+                    rebind[Tensor[f32, Device.gpu]](grad), res_grad
+                )
+        else:
+            comptime affine_id = tensor_id - 1
+            comptime target_shape = t2_shape if tensor_id == 1 else t3_shape
+            comptime if overwrite_grad:
+                gpu_layernorm_affine_backward(
+                    rebind[Tensor[f32, Device.gpu]](grad),
+                    rebind[Tensor[f32, Device.gpu]](ug),
+                    rebind[Tensor[f32, Device.gpu]](t1),
+                    epsilon,
+                    Int64(affine_id),
+                )
+            else:
+                var res_grad = Tensor[f32, Device.gpu](
+                    target_shape, uninitialized=True
+                )
+                gpu_layernorm_affine_backward(
+                    res_grad,
+                    rebind[Tensor[f32, Device.gpu]](ug),
+                    rebind[Tensor[f32, Device.gpu]](t1),
+                    epsilon,
+                    Int64(affine_id),
+                )
+                gpu_accumulate_grad(
+                    rebind[Tensor[f32, Device.gpu]](grad), res_grad
+                )
     else:
         comptime assert False, "backward_op: ternary GPU support is LINEAR-only"
 
@@ -1542,6 +1761,23 @@ def _backward_op_cpu[
             comptime n = ug_shape[-1]
             comptime outer = ug_shape.num_elements() // n
             cpu_bias_grad_accumulate[outer, n](grad, ug)
+    elif op == OP.LAYERNORM:
+        comptime width = t1_shape[-1]
+        comptime outer = t1_shape.num_elements() // width
+        comptime epsilon = attributes["epsilon"].value().to_scalar[f32]()
+        comptime if tensor_id == 0:
+            cpu_layernorm_input_backward[outer, width](
+                ug, t1, t2, grad, epsilon
+            )
+        elif tensor_id == 1:
+            cpu_layernorm_affine_backward[outer, width, 0](
+                ug, t1, grad, epsilon
+            )
+        else:
+            comptime assert tensor_id == 2
+            cpu_layernorm_affine_backward[outer, width, 1](
+                ug, t1, grad, epsilon
+            )
     else:
         var res_grad: Tensor[f32]
 

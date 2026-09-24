@@ -579,9 +579,7 @@ comptime _gelu_bw_kernel_global = _Global[
 
 def _cached_gelu_bw_kernel() raises -> (
     type_of(
-        _shared_device_context().compile_function[
-            _unary_bwd_kernel[_gelu_df]
-        ]()
+        _shared_device_context().compile_function[_unary_bwd_kernel[_gelu_df]]()
     )
 ):
     return _gelu_bw_kernel_global.get_or_create_ptr()[unsafe_offset=0].copy()
@@ -618,6 +616,242 @@ def gpu_gelu_backward(
         block_dim=min(n, _BLOCK),
     )
     return res_grad^
+
+
+# LayerNorm is row-wise over the contiguous last axis. One thread owns one
+# row, which keeps the mean/variance and input-gradient reductions local and
+# avoids materializing the composite graph's mean, variance, and normalized
+# activation tensors.
+def _layernorm_forward_kernel(
+    res: Pointer[Scalar[f32], MutAnyOrigin],
+    src: Pointer[Scalar[f32], MutAnyOrigin],
+    gamma: Pointer[Scalar[f32], MutAnyOrigin],
+    beta: Pointer[Scalar[f32], MutAnyOrigin],
+    groups: Int64,
+    width: Int64,
+    epsilon: Scalar[f32],
+):
+    var group = Int64(block_idx.x * block_dim.x + thread_idx.x)
+    if group < groups:
+        var base = group * width
+        var mean: Scalar[f32] = 0.0
+        for j in range(Int(width)):
+            mean += src.unsafe_load(Int(base + Int64(j)))
+        mean /= Scalar[f32](width)
+
+        var variance: Scalar[f32] = 0.0
+        for j in range(Int(width)):
+            var delta = src.unsafe_load(Int(base + Int64(j))) - mean
+            variance += delta * delta
+        var inv_std = 1.0 / sqrt(variance / Scalar[f32](width) + epsilon)
+
+        for j in range(Int(width)):
+            var xhat = (src.unsafe_load(Int(base + Int64(j))) - mean) * inv_std
+            res.unsafe_store(
+                Int(base + Int64(j)),
+                xhat * gamma.unsafe_load(j) + beta.unsafe_load(j),
+            )
+
+
+comptime _layernorm_forward_kernel_global = _Global[
+    "mantle_gpu_kernel_layernorm_forward",
+    _make_kernel_fn[_layernorm_forward_kernel],
+]
+
+
+def _cached_layernorm_forward_kernel() raises -> (
+    type_of(
+        _shared_device_context().compile_function[_layernorm_forward_kernel]()
+    )
+):
+    return _layernorm_forward_kernel_global.get_or_create_ptr()[
+        unsafe_offset=0
+    ].copy()
+
+
+def _layernorm_input_backward_kernel(
+    dst: Pointer[Scalar[f32], MutAnyOrigin],
+    ug: Pointer[Scalar[f32], MutAnyOrigin],
+    src: Pointer[Scalar[f32], MutAnyOrigin],
+    gamma: Pointer[Scalar[f32], MutAnyOrigin],
+    groups: Int64,
+    width: Int64,
+    epsilon: Scalar[f32],
+):
+    var group = Int64(block_idx.x * block_dim.x + thread_idx.x)
+    if group < groups:
+        var base = group * width
+        var mean: Scalar[f32] = 0.0
+        for j in range(Int(width)):
+            mean += src.unsafe_load(Int(base + Int64(j)))
+        mean /= Scalar[f32](width)
+
+        var variance: Scalar[f32] = 0.0
+        for j in range(Int(width)):
+            var delta = src.unsafe_load(Int(base + Int64(j))) - mean
+            variance += delta * delta
+        var inv_std = 1.0 / sqrt(variance / Scalar[f32](width) + epsilon)
+
+        var sum_dy: Scalar[f32] = 0.0
+        var sum_dy_xhat: Scalar[f32] = 0.0
+        for j in range(Int(width)):
+            var dy = ug.unsafe_load(Int(base + Int64(j))) * gamma.unsafe_load(j)
+            var xhat = (src.unsafe_load(Int(base + Int64(j))) - mean) * inv_std
+            sum_dy += dy
+            sum_dy_xhat += dy * xhat
+
+        for j in range(Int(width)):
+            var dy = ug.unsafe_load(Int(base + Int64(j))) * gamma.unsafe_load(j)
+            var xhat = (src.unsafe_load(Int(base + Int64(j))) - mean) * inv_std
+            dst.unsafe_store(
+                Int(base + Int64(j)),
+                inv_std
+                * (
+                    dy
+                    - sum_dy / Scalar[f32](width)
+                    - xhat * sum_dy_xhat / Scalar[f32](width)
+                ),
+            )
+
+
+comptime _layernorm_input_backward_kernel_global = _Global[
+    "mantle_gpu_kernel_layernorm_input_backward",
+    _make_kernel_fn[_layernorm_input_backward_kernel],
+]
+
+
+def _cached_layernorm_input_backward_kernel() raises -> (
+    type_of(
+        _shared_device_context().compile_function[
+            _layernorm_input_backward_kernel
+        ]()
+    )
+):
+    return _layernorm_input_backward_kernel_global.get_or_create_ptr()[
+        unsafe_offset=0
+    ].copy()
+
+
+def _layernorm_affine_backward_kernel(
+    grad: Pointer[Scalar[f32], MutAnyOrigin],
+    ug: Pointer[Scalar[f32], MutAnyOrigin],
+    src: Pointer[Scalar[f32], MutAnyOrigin],
+    groups: Int64,
+    width: Int64,
+    epsilon: Scalar[f32],
+    affine_id: Int64,
+):
+    var j = Int64(block_idx.x * block_dim.x + thread_idx.x)
+    if j < width:
+        var gamma_sum: Scalar[f32] = 0.0
+        var beta_sum: Scalar[f32] = 0.0
+        for group in range(Int(groups)):
+            var base = Int64(group) * width
+            var mean: Scalar[f32] = 0.0
+            for k in range(Int(width)):
+                mean += src.unsafe_load(Int(base + Int64(k)))
+            mean /= Scalar[f32](width)
+            var variance: Scalar[f32] = 0.0
+            for k in range(Int(width)):
+                var delta = src.unsafe_load(Int(base + Int64(k))) - mean
+                variance += delta * delta
+            var xhat = (src.unsafe_load(Int(base + j)) - mean) / sqrt(
+                variance / Scalar[f32](width) + epsilon
+            )
+            var upper = ug.unsafe_load(Int(base + j))
+            gamma_sum += upper * xhat
+            beta_sum += upper
+        grad.unsafe_store(Int(j), gamma_sum if affine_id == 0 else beta_sum)
+
+
+comptime _layernorm_affine_backward_kernel_global = _Global[
+    "mantle_gpu_kernel_layernorm_affine_backward",
+    _make_kernel_fn[_layernorm_affine_backward_kernel],
+]
+
+
+def _cached_layernorm_affine_backward_kernel() raises -> (
+    type_of(
+        _shared_device_context().compile_function[
+            _layernorm_affine_backward_kernel
+        ]()
+    )
+):
+    return _layernorm_affine_backward_kernel_global.get_or_create_ptr()[
+        unsafe_offset=0
+    ].copy()
+
+
+def gpu_layernorm_forward(
+    mut res: Tensor[f32, Device.gpu],
+    src: Tensor[f32, Device.gpu],
+    gamma: Tensor[f32, Device.gpu],
+    beta: Tensor[f32, Device.gpu],
+    epsilon: Scalar[f32],
+) raises:
+    var ctx = res.gpu_context()
+    var width = gamma.num_elements()
+    var groups = res.num_elements() // width
+    _cached_layernorm_forward_kernel()._call_with_pack_checked(
+        ctx,
+        res.gpu_ptr(),
+        src.gpu_ptr(),
+        gamma.gpu_ptr(),
+        beta.gpu_ptr(),
+        Int64(groups),
+        Int64(width),
+        epsilon,
+        grid_dim=ceildiv(groups, _BLOCK),
+        block_dim=min(groups, _BLOCK),
+    )
+
+
+def gpu_layernorm_input_backward(
+    mut grad: Tensor[f32, Device.gpu],
+    ug: Tensor[f32, Device.gpu],
+    src: Tensor[f32, Device.gpu],
+    gamma: Tensor[f32, Device.gpu],
+    epsilon: Scalar[f32],
+) raises:
+    var ctx = grad.gpu_context()
+    var width = gamma.num_elements()
+    var groups = grad.num_elements() // width
+    _cached_layernorm_input_backward_kernel()._call_with_pack_checked(
+        ctx,
+        grad.gpu_ptr(),
+        ug.gpu_ptr(),
+        src.gpu_ptr(),
+        gamma.gpu_ptr(),
+        Int64(groups),
+        Int64(width),
+        epsilon,
+        grid_dim=ceildiv(groups, _BLOCK),
+        block_dim=min(groups, _BLOCK),
+    )
+
+
+def gpu_layernorm_affine_backward(
+    mut grad: Tensor[f32, Device.gpu],
+    ug: Tensor[f32, Device.gpu],
+    src: Tensor[f32, Device.gpu],
+    epsilon: Scalar[f32],
+    affine_id: Int64,
+) raises:
+    var ctx = grad.gpu_context()
+    var width = grad.num_elements()
+    var groups = ug.num_elements() // width
+    _cached_layernorm_affine_backward_kernel()._call_with_pack_checked(
+        ctx,
+        grad.gpu_ptr(),
+        ug.gpu_ptr(),
+        src.gpu_ptr(),
+        Int64(groups),
+        Int64(width),
+        epsilon,
+        affine_id,
+        grid_dim=ceildiv(width, _BLOCK),
+        block_dim=min(width, _BLOCK),
+    )
 
 
 def _dropout_kernel(
@@ -940,9 +1174,7 @@ comptime _sqrt_bw_kernel_global = _Global[
 
 def _cached_sqrt_bw_kernel() raises -> (
     type_of(
-        _shared_device_context().compile_function[
-            _unary_bwd_kernel[_sqrt_df]
-        ]()
+        _shared_device_context().compile_function[_unary_bwd_kernel[_sqrt_df]]()
     )
 ):
     return _sqrt_bw_kernel_global.get_or_create_ptr()[unsafe_offset=0].copy()
@@ -1252,13 +1484,13 @@ def gpu_add_bias_forward(
     )
 
 
-def gpu_bias_grad(
-    ug: Tensor[f32, Device.gpu], n: Int
-) raises -> Tensor[f32, Device.gpu]:
-    """Reduces `ug`'s gradient back down to the broadcast bias's shape."""
-    var res_grad = Tensor[f32, Device.gpu](TensorShape(n), uninitialized=True)
+def gpu_bias_grad_into(
+    mut res_grad: Tensor[f32, Device.gpu], ug: Tensor[f32, Device.gpu]
+) raises:
+    """Write the reduction of `ug` into a preallocated bias-gradient buffer."""
     var ctx = res_grad.gpu_context()
     var total = ug.num_elements()
+    var n = res_grad.num_elements()
     var outer = total // n
     _cached_bias_grad_kernel()._call_with_pack_checked(
         ctx,
@@ -1269,6 +1501,14 @@ def gpu_bias_grad(
         grid_dim=ceildiv(n, _BLOCK),
         block_dim=min(n, _BLOCK),
     )
+
+
+def gpu_bias_grad(
+    ug: Tensor[f32, Device.gpu], n: Int
+) raises -> Tensor[f32, Device.gpu]:
+    """Reduces `ug`'s gradient back down to the broadcast bias's shape."""
+    var res_grad = Tensor[f32, Device.gpu](TensorShape(n), uninitialized=True)
+    gpu_bias_grad_into(res_grad, ug)
     return res_grad^
 
 

@@ -7,9 +7,8 @@
 #  ===----------------------------------------------------------------------=== #
 """LayerNorm (mantle.nn.layers.layernorm)
 ------------------------------------------------
-Layer normalization over the last axis, composed from existing ops
-(MEAN, SUB, POW, SQRT, DIV, MUL, ADD). Learnable gamma/beta of shape
-`(normalized_shape,)`.
+Fused layer normalization over the last axis with learnable gamma/beta of
+shape `(normalized_shape,)`.
 """
 from std.reflection import reflect_fn
 
@@ -43,8 +42,6 @@ def LayerNorm(
     parameters initialized to 1 and 0 respectively.
     """
     var before = len(g.nodes)
-    var axis = inputs.shape.rank() - 1
-
     var gamma = g.param(
         TensorShape(normalized_shape),
         init=Param("constant", Scalar[f32](1.0), Scalar[f32](0.0)),
@@ -54,18 +51,16 @@ def LayerNorm(
         init=Param("constant", Scalar[f32](0.0), Scalar[f32](0.0)),
     )
 
-    var mean = g.op(
-        OP.MEAN, inputs, attributes=AttributeVector(Attribute("axis", axis))
+    # A composite LayerNorm previously emitted eight graph nodes and kept all
+    # their activation/gradient buffers alive for backward. The fused op uses
+    # a row-wise reduction and stores only the original input plus output.
+    var res = g.op(
+        OP.LAYERNORM,
+        inputs,
+        gamma,
+        beta,
+        attributes=AttributeVector(Attribute("epsilon", Scalar[f32](epsilon))),
     )
-    var diff = g.op(OP.SUB, inputs, mean)
-    var sq_diff = g.op(OP.POW, diff, 2.0)
-    var var_ = g.op(
-        OP.MEAN, sq_diff, attributes=AttributeVector(Attribute("axis", axis))
-    )
-    var std = g.op(OP.SQRT, g.op(OP.ADD, var_, Float64(epsilon)))
-    var normed = g.op(OP.DIV, diff, std)
-    var scaled = g.op(OP.MUL, normed, gamma)
-    var res = g.op(OP.ADD, scaled, beta)
 
     g.set_scope_from(before, reflect_fn[LayerNorm].display_name())
     return res

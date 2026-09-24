@@ -28,6 +28,12 @@ struct Parameters[device: Device = Device.cpu]:
     var tensors: Collection[Self.device]
     var grads: Collection[Self.device]
 
-    def __init__(out self):
-        self.tensors = Collection[Self.device]()
-        self.grads = Collection[Self.device]()
+    def __init__(out self, tensor_capacity: Int = 1, grad_capacity: Int = 1):
+        """Create storage sized for a static graph's known symbol counts.
+
+        A `Model` knows these counts before it allocates its first tensor.
+        Reserving them here avoids repeated collection growth (and metadata
+        moves) while constructing larger graphs such as transformers.
+        """
+        self.tensors = Collection[Self.device](capacity=tensor_capacity)
+        self.grads = Collection[Self.device](capacity=grad_capacity)

@@ -72,6 +72,30 @@ def n_inference_nodes(g: Graph) -> OptionalReg[Int]:
     return None
 
 
+def graph_tensor_slots(g: Graph) -> Int:
+    """Number of persistent tensor slots required by the current executor."""
+    var count = len(g.inputs) + len(g.params)
+    for i in range(len(g.nodes)):
+        count += len(g.nodes[i].outputs)
+    return count
+
+
+def graph_grad_slots(g: Graph) -> Int:
+    """Number of trainable gradient slots required by the current executor."""
+    var count = 0
+    for input in g.inputs:
+        if input.trainable:
+            count += 1
+    for param in g.params.symbols:
+        if param.trainable:
+            count += 1
+    for node in g.nodes:
+        for output in node.outputs:
+            if output.trainable:
+                count += 1
+    return count
+
+
 # ===----------------------------------------------------------------------===#
 # Model
 # ===----------------------------------------------------------------------===#
@@ -89,14 +113,25 @@ struct Model[
     per training step but backward reconstructs the same mask forward used."""
 
     def __init__(out self, inference_only: Bool = False) raises:
-        self.parameters = Parameters[Self.device]()
+        # The graph is static, so grow neither symbol collection while model
+        # construction is allocating hundreds of transformer activations.
+        # This does not change tensor lifetime; a later memory planner will
+        # safely reuse the activation slots themselves.
+        self.parameters = Parameters[Self.device](
+            tensor_capacity=max(1, graph_tensor_slots(Self.g)),
+            grad_capacity=max(1, graph_grad_slots(Self.g)),
+        )
         self.step_seed = 0
 
         self.allocate_tensor_memory()
-        self.allocate_grad_memory()
+        # Inference never calls `backward()`, so its gradient arena would be
+        # entirely unused. Omitting it is particularly important for large
+        # transformer graphs, where activation-sized gradients dominate the
+        # model's resident memory.
+        if not inference_only:
+            self.allocate_grad_memory()
 
-        # TODO: remove this when ability to concatenate graphs (modules)
-        # NOTE: inference_only only used for surpressing the warning.
+        # TODO: remove this when ability to concatenate graphs (modules).
         if not inference_only and not Self.g.loss_out:
             print(
                 "\n\n[WARNING]: No loss defined, model.forward()"
@@ -283,7 +318,16 @@ struct Model[
                     # Unary operator
                     comptime if t1.trainable:
                         backward_op[
-                            0, op, out.shape, t1.shape, attrs, Self.device
+                            0,
+                            op,
+                            out.shape,
+                            t1.shape,
+                            attrs,
+                            Self.device,
+                            overwrite_grad=gradient_contributor_count(
+                                Self.g, t1
+                            )
+                            == 1,
                         ](
                             self.parameters.grads[out],
                             self.parameters.tensors[t1],
@@ -307,6 +351,10 @@ struct Model[
                             t2.shape,
                             attrs,
                             Self.device,
+                            overwrite_grad=gradient_contributor_count(
+                                Self.g, t1
+                            )
+                            == 1,
                         ](
                             self.parameters.grads[out],
                             self.parameters.tensors[t1],
@@ -325,6 +373,10 @@ struct Model[
                             t2.shape,
                             attrs,
                             Self.device,
+                            overwrite_grad=gradient_contributor_count(
+                                Self.g, t2
+                            )
+                            == 1,
                         ](
                             self.parameters.grads[out],
                             self.parameters.tensors[t1],
@@ -414,30 +466,52 @@ struct Model[
                             )
 
                     comptime if t3.trainable:
-                        backward_op[
-                            2,
-                            op,
-                            out.shape,
-                            t1.shape,
-                            t2.shape,
-                            t3.shape,
-                            attrs,
-                            Self.device,
-                        ](
-                            self.parameters.grads[out],
-                            self.parameters.tensors[t1],
-                            self.parameters.tensors[t2],
-                            self.parameters.tensors[t3],
-                            self.parameters.grads[
-                                t3
-                            ],  # grad to be updated: inputs[2]
-                        )
+                        comptime if gradient_contributor_count(Self.g, t3) == 1:
+                            backward_op[
+                                2,
+                                op,
+                                out.shape,
+                                t1.shape,
+                                t2.shape,
+                                t3.shape,
+                                attrs,
+                                Self.device,
+                                overwrite_grad=True,
+                            ](
+                                self.parameters.grads[out],
+                                self.parameters.tensors[t1],
+                                self.parameters.tensors[t2],
+                                self.parameters.tensors[t3],
+                                self.parameters.grads[t3],
+                            )
+                        else:
+                            backward_op[
+                                2,
+                                op,
+                                out.shape,
+                                t1.shape,
+                                t2.shape,
+                                t3.shape,
+                                attrs,
+                                Self.device,
+                            ](
+                                self.parameters.grads[out],
+                                self.parameters.tensors[t1],
+                                self.parameters.tensors[t2],
+                                self.parameters.tensors[t3],
+                                self.parameters.grads[
+                                    t3
+                                ],  # grad to be updated: inputs[2]
+                            )
 
     def allocate_tensor_memory(mut self) raises:
         comptime for i in range(len(Self.g.inputs)):
             comptime sym = Self.g.inputs[i]
+            # `execute()` copies every caller-provided input into this slot
+            # before it can be read. Avoid a redundant full-buffer fill
+            # (especially costly for large GPU token batches).
             self.parameters.tensors.append(
-                Tensor[f32, Self.device](sym.shape), sym
+                Tensor[f32, Self.device](sym.shape, uninitialized=True), sym
             )
 
         comptime for i in range(len(Self.g.params)):
@@ -469,9 +543,7 @@ struct Model[
                         )
                     else:
                         self.parameters.tensors.append(
-                            rebind[Tensor[f32, Self.device]](
-                                par_cpu.to_gpu()
-                            ),
+                            rebind[Tensor[f32, Self.device]](par_cpu.to_gpu()),
                             p,
                         )
                 else:
@@ -515,8 +587,8 @@ struct Model[
                             par_gpu.fill(materialize[init_arg0]())
                         else:
                             abort(
-                                "Model: unsupported GPU parameter"
-                                " initializer: " + init_type
+                                "Model: unsupported GPU parameter initializer: "
+                                + init_type
                             )
                         self.parameters.tensors.append(
                             rebind[Tensor[f32, Self.device]](par_gpu), p
@@ -551,8 +623,13 @@ struct Model[
             # Assumption: An input or a param cannot be an output of a node
             comptime for j in range(len(Self.g.nodes[i].outputs)):
                 comptime sym = Self.g.nodes[i].outputs[j]
+                # Every graph operator writes its complete result tensor.
+                # The old zero-fill therefore performed an extra memory-sized
+                # write for every intermediate at model construction time.
+                # Keep gradients zero-initialized below: they accumulate
+                # contributions during backward and do require a known base.
                 self.parameters.tensors.append(
-                    Tensor[f32, Self.device](sym.shape),
+                    Tensor[f32, Self.device](sym.shape, uninitialized=True),
                     sym,
                 )
 
@@ -584,6 +661,45 @@ struct Model[
         self, time_format: String = "ns", print_shape: Bool = False
     ):
         pass
+
+    def print_memory_summary(self, training: Bool = True):
+        """Print the executor's persistent f32 tensor footprint.
+
+        Activation and gradient bytes are intentionally reported separately:
+        training currently retains both for every graph node, while inference
+        can omit the entire gradient arena. These numbers are a stable
+        baseline for the forthcoming liveness and checkpointing planner.
+        """
+        var parameter_bytes = 0
+        var activation_bytes = 0
+        var gradient_bytes = 0
+
+        comptime for input in Self.g.inputs:
+            activation_bytes += input.shape.num_elements() * 4
+            if input.trainable:
+                gradient_bytes += input.shape.num_elements() * 4
+
+        comptime for param in Self.g.params.symbols:
+            parameter_bytes += param.shape.num_elements() * 4
+            if param.trainable:
+                gradient_bytes += param.shape.num_elements() * 4
+
+        comptime for node in Self.g.nodes:
+            comptime for output in node.outputs:
+                activation_bytes += output.shape.num_elements() * 4
+                if output.trainable:
+                    gradient_bytes += output.shape.num_elements() * 4
+
+        var total_bytes = parameter_bytes + activation_bytes
+        if training:
+            total_bytes += gradient_bytes
+
+        print("Mantle static-graph memory (f32):")
+        print("  parameters: ", Float64(parameter_bytes) / 1048576.0, " MiB")
+        print("  activations: ", Float64(activation_bytes) / 1048576.0, " MiB")
+        if training:
+            print("  gradients: ", Float64(gradient_bytes) / 1048576.0, " MiB")
+        print("  persistent total: ", Float64(total_bytes) / 1048576.0, " MiB")
 
     def load_model_data(
         mut self, model_path: String
