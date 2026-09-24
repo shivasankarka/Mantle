@@ -19,6 +19,7 @@ from mantle.autograd.graph import Graph
 from mantle.autograd.symbol import Symbol
 from mantle.autograd.ops import OP
 from mantle.autograd.attributes import Attribute, AttributeVector
+from mantle.autograd.params import Param
 from mantle.core.tensor import Tensor, TensorShape
 from mantle.nn.module import Layer
 from mantle.nn.layers.linear import Linear
@@ -36,13 +37,16 @@ def causal_mask(mut g: Graph, seq_len: Int) -> Symbol:
     Builds a `(seq_len, seq_len)` additive mask: 0 on/below the diagonal,
     -1e9 above it. Add to attention scores before Softmax to prevent
     attending to future positions.
+
+    Filled by `Model.allocate_tensor_memory()` with a runtime loop (see the
+    "causal_mask" initializer there) rather than embedded as `seq_len**2`
+    individual compile-time literals via `g.constant()` -- at seq_len=256
+    that's 65536 elements, and comptime-unrolling their materialization
+    took minutes by itself.
     """
-    var data = List[Scalar[f32]]()
-    data.reserve(seq_len * seq_len)
-    for i in range(seq_len):
-        for j in range(seq_len):
-            data.append(Float32(0.0) if j <= i else -1e9)
-    return g.constant(TensorShape(seq_len, seq_len), data)
+    return g.param(
+        TensorShape(seq_len, seq_len), Param("causal_mask"), trainable=False
+    )
 
 
 # ===----------------------------------------------------------------------===#

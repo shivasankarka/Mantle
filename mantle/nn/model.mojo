@@ -448,52 +448,79 @@ struct Model[
                 # 1. Specific parameter initialization defined.
                 comptime initializer_attr = p_init.initializer.value()
                 comptime init_type = initializer_attr.to_string()
-                comptime init_data = p_init.data.value()
-                comptime init_arg0 = init_data[0]
-                comptime init_arg1 = init_data[1]
 
-                comptime if Self.device.id == Device.cpu.id:
-                    comptime assert Self.device.id == Device.cpu.id
-                    var init_args = List[Scalar[f32]]()
-                    init_args.append(materialize[init_arg0]())
-                    init_args.append(materialize[init_arg1]())
-                    var par_cpu = initialize_tensor(
-                        shape=p.shape,
-                        type=init_type,
-                        data=init_args,
-                    )
-                    self.parameters.tensors.append(
-                        rebind[Tensor[f32, Self.device]](par_cpu), p
-                    )
-                else:
-                    # Fill directly on-device via the Philox RNG kernels
-                    # (`gpu_rand_uniform`/`gpu_rand_normal`) instead of
-                    # building on the host and copying over — avoids a
-                    # host round-trip for every randomly-initialized
-                    # parameter.
-                    var par_gpu = Tensor[f32, Device.gpu](p.shape)
-                    comptime if init_type == "random_uniform":
-                        gpu_rand_uniform(
-                            par_gpu,
-                            materialize[init_arg0](),
-                            materialize[init_arg1](),
+                comptime if init_type == "causal_mask":
+                    # Procedural fill via a runtime loop instead of a
+                    # comptime-unrolled per-element materialize (see
+                    # `causal_mask()` in attention.mojo for why: at
+                    # seq_len=256 that's 65536 comptime literals and took
+                    # minutes by itself).
+                    comptime mask_len = p.shape[0]
+                    var par_cpu = Tensor[f32, Device.cpu](p.shape)
+                    for mi in range(mask_len):
+                        for mj in range(mask_len):
+                            par_cpu[mi * mask_len + mj] = (
+                                0.0 if mj <= mi else -1e9
+                            )
+                    comptime if Self.device.id == Device.cpu.id:
+                        comptime assert Self.device.id == Device.cpu.id
+                        self.parameters.tensors.append(
+                            rebind[Tensor[f32, Self.device]](par_cpu), p
                         )
-                    elif init_type == "random_normal":
-                        gpu_rand_normal(
-                            par_gpu,
-                            materialize[init_arg0](),
-                            materialize[init_arg1](),
-                        )
-                    elif init_type == "constant":
-                        par_gpu.fill(materialize[init_arg0]())
                     else:
-                        abort(
-                            "Model: unsupported GPU parameter initializer: "
-                            + init_type
+                        self.parameters.tensors.append(
+                            rebind[Tensor[f32, Self.device]](
+                                par_cpu.to_gpu()
+                            ),
+                            p,
                         )
-                    self.parameters.tensors.append(
-                        rebind[Tensor[f32, Self.device]](par_gpu), p
-                    )
+                else:
+                    comptime init_data = p_init.data.value()
+                    comptime init_arg0 = init_data[0]
+                    comptime init_arg1 = init_data[1]
+
+                    comptime if Self.device.id == Device.cpu.id:
+                        comptime assert Self.device.id == Device.cpu.id
+                        var init_args = List[Scalar[f32]]()
+                        init_args.append(materialize[init_arg0]())
+                        init_args.append(materialize[init_arg1]())
+                        var par_cpu = initialize_tensor(
+                            shape=p.shape,
+                            type=init_type,
+                            data=init_args,
+                        )
+                        self.parameters.tensors.append(
+                            rebind[Tensor[f32, Self.device]](par_cpu), p
+                        )
+                    else:
+                        # Fill directly on-device via the Philox RNG kernels
+                        # (`gpu_rand_uniform`/`gpu_rand_normal`) instead of
+                        # building on the host and copying over — avoids a
+                        # host round-trip for every randomly-initialized
+                        # parameter.
+                        var par_gpu = Tensor[f32, Device.gpu](p.shape)
+                        comptime if init_type == "random_uniform":
+                            gpu_rand_uniform(
+                                par_gpu,
+                                materialize[init_arg0](),
+                                materialize[init_arg1](),
+                            )
+                        elif init_type == "random_normal":
+                            gpu_rand_normal(
+                                par_gpu,
+                                materialize[init_arg0](),
+                                materialize[init_arg1](),
+                            )
+                        elif init_type == "constant":
+                            par_gpu.fill(materialize[init_arg0]())
+                        else:
+                            abort(
+                                "Model: unsupported GPU parameter"
+                                " initializer: " + init_type
+                            )
+                        self.parameters.tensors.append(
+                            rebind[Tensor[f32, Self.device]](par_gpu), p
+                        )
             elif p_init.data:
                 # 2. Parameter initialized with data only. Literal data is
                 # small and known at compile time either way, so build it on
