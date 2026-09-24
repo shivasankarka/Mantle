@@ -304,6 +304,23 @@ struct Tensor[dtype: DType, device: Device = Device.cpu](
         Args:
             shape: The shape of the tensor.
         """
+        self = Self(shape, uninitialized=False)
+
+    def __init__(out self, var shape: TensorShape, *, uninitialized: Bool):
+        """
+        Allocate a tensor with the given shape, optionally skipping the
+        zero-fill.
+
+        `uninitialized=True` is only safe when the caller is about to fully
+        overwrite every element (e.g. a kernel's or matmul's write-only
+        output) — the zero-fill `enqueue_fill` performs is itself a real
+        GPU kernel launch/memory write, not a free formality, so skipping it
+        for write-only temporaries avoids doing that work twice.
+
+        Args:
+            shape: The shape of the tensor.
+            uninitialized: If True, skip zero-filling the buffer.
+        """
         self._shape = shape
         self._host_buffer = None
         self._device_buffer = None
@@ -315,13 +332,15 @@ struct Tensor[dtype: DType, device: Device = Device.cpu](
                 var buf = ctx.enqueue_create_host_buffer[Self.dtype](
                     shape.num_elements()
                 )
-                buf.enqueue_fill(Scalar[Self.dtype](0))
+                if not uninitialized:
+                    buf.enqueue_fill(Scalar[Self.dtype](0))
                 self._host_buffer = buf
             else:
                 var buf = ctx.enqueue_create_buffer[Self.dtype](
                     shape.num_elements()
                 )
-                buf.enqueue_fill(Scalar[Self.dtype](0))
+                if not uninitialized:
+                    buf.enqueue_fill(Scalar[Self.dtype](0))
                 self._device_buffer = buf
         except e:
             abort("Tensor: allocation failed: " + String(e))

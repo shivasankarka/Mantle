@@ -11,7 +11,7 @@ GPU kernels for ADD/SUB/MUL/DIV/RELU forward+backward (same-shape
 operands), trailing-dim-broadcast bias-add (for Linear layers), RNG, and
 the Adam optimizer step.
 """
-from std.math import ceildiv, sqrt, log, cos, pi
+from std.math import ceildiv, sqrt, log, cos, pi, pow
 from max.gpu import thread_idx, block_idx, block_dim
 from max.gpu.host import DeviceContext
 from std.ffi import _Global
@@ -262,6 +262,147 @@ def _cached_bias_grad_kernel() raises -> type_of(_shared_device_context().compil
     return _bias_grad_kernel_global.get_or_create_ptr()[unsafe_offset=0].copy()
 
 
+def _pow_kernel(
+    res: Pointer[Scalar[f32], MutAnyOrigin],
+    a: Pointer[Scalar[f32], MutAnyOrigin],
+    exponent: Pointer[Scalar[f32], MutAnyOrigin],
+    n: Int64,
+):
+    """`exponent` is read from its own device buffer (not a host scalar
+    argument) so this needs no host round-trip: `exponent` is itself a
+    graph tensor (POW's second operand), and reading it on the host would
+    reintroduce the exact sync we're trying to eliminate."""
+    var i = Int64(block_idx.x * block_dim.x + thread_idx.x)
+    if i < n:
+        var e = Int(exponent.unsafe_load(0))
+        res.unsafe_store(Int(i), pow(a.unsafe_load(Int(i)), e))
+
+
+comptime _pow_kernel_global = _Global["mantle_gpu_kernel_pow", _make_kernel_fn[_pow_kernel]]
+
+
+def _cached_pow_kernel() raises -> type_of(_shared_device_context().compile_function[_pow_kernel]()):
+    return _pow_kernel_global.get_or_create_ptr()[unsafe_offset=0].copy()
+
+
+def _pow_bw_kernel(
+    res: Pointer[Scalar[f32], MutAnyOrigin],
+    a: Pointer[Scalar[f32], MutAnyOrigin],
+    ug: Pointer[Scalar[f32], MutAnyOrigin],
+    exponent: Pointer[Scalar[f32], MutAnyOrigin],
+    n: Int64,
+):
+    var i = Int64(block_idx.x * block_dim.x + thread_idx.x)
+    if i < n:
+        var ev = exponent.unsafe_load(0)
+        var e = Int(ev)
+        res.unsafe_store(
+            Int(i),
+            ev * pow(a.unsafe_load(Int(i)), e - 1) * ug.unsafe_load(Int(i)),
+        )
+
+
+comptime _pow_bw_kernel_global = _Global[
+    "mantle_gpu_kernel_pow_bw", _make_kernel_fn[_pow_bw_kernel]
+]
+
+
+def _cached_pow_bw_kernel() raises -> type_of(_shared_device_context().compile_function[_pow_bw_kernel]()):
+    return _pow_bw_kernel_global.get_or_create_ptr()[unsafe_offset=0].copy()
+
+
+def _mean_kernel(
+    res: Pointer[Scalar[f32], MutAnyOrigin],
+    a: Pointer[Scalar[f32], MutAnyOrigin],
+    n: Int64,
+):
+    """Single-thread full reduction: correct for any n, only fast for the
+    small loss-sized tensors this is meant for (a handful of thousand
+    elements) — not a general large-tensor reduction kernel."""
+    var s: Scalar[f32] = 0
+    for i in range(Int(n)):
+        s += a.unsafe_load(i)
+    res.unsafe_store(0, s / Scalar[f32](n))
+
+
+comptime _mean_kernel_global = _Global["mantle_gpu_kernel_mean", _make_kernel_fn[_mean_kernel]]
+
+
+def _cached_mean_kernel() raises -> type_of(_shared_device_context().compile_function[_mean_kernel]()):
+    return _mean_kernel_global.get_or_create_ptr()[unsafe_offset=0].copy()
+
+
+def _mean_bw_kernel(
+    res: Pointer[Scalar[f32], MutAnyOrigin],
+    ug: Pointer[Scalar[f32], MutAnyOrigin],
+    n: Int64,
+):
+    var i = Int64(block_idx.x * block_dim.x + thread_idx.x)
+    if i < n:
+        res.unsafe_store(Int(i), ug.unsafe_load(0) / Scalar[f32](n))
+
+
+comptime _mean_bw_kernel_global = _Global[
+    "mantle_gpu_kernel_mean_bw", _make_kernel_fn[_mean_bw_kernel]
+]
+
+
+def _cached_mean_bw_kernel() raises -> type_of(_shared_device_context().compile_function[_mean_bw_kernel]()):
+    return _mean_bw_kernel_global.get_or_create_ptr()[unsafe_offset=0].copy()
+
+
+def gpu_pow_forward(
+    mut res: Tensor[f32, Device.gpu],
+    t1: Tensor[f32, Device.gpu],
+    exponent: Tensor[f32, Device.gpu],
+) raises:
+    var ctx = res.gpu_context()
+    var n = res.num_elements()
+    _cached_pow_kernel()._call_with_pack_checked(
+        ctx, res.gpu_ptr(), t1.gpu_ptr(), exponent.gpu_ptr(), Int64(n),
+        grid_dim=ceildiv(n, _BLOCK), block_dim=min(n, _BLOCK),
+    )
+
+
+def gpu_pow_backward(
+    ug: Tensor[f32, Device.gpu],
+    t1: Tensor[f32, Device.gpu],
+    exponent: Tensor[f32, Device.gpu],
+) raises -> Tensor[f32, Device.gpu]:
+    var res_grad = Tensor[f32, Device.gpu](t1.shape(), uninitialized=True)
+    var ctx = res_grad.gpu_context()
+    var n = res_grad.num_elements()
+    _cached_pow_bw_kernel()._call_with_pack_checked(
+        ctx, res_grad.gpu_ptr(), t1.gpu_ptr(), ug.gpu_ptr(), exponent.gpu_ptr(), Int64(n),
+        grid_dim=ceildiv(n, _BLOCK), block_dim=min(n, _BLOCK),
+    )
+    return res_grad^
+
+
+def gpu_mean_forward(
+    mut res: Tensor[f32, Device.gpu], t1: Tensor[f32, Device.gpu]
+) raises:
+    var ctx = res.gpu_context()
+    var n = t1.num_elements()
+    _cached_mean_kernel()._call_with_pack_checked(
+        ctx, res.gpu_ptr(), t1.gpu_ptr(), Int64(n),
+        grid_dim=1, block_dim=1,
+    )
+
+
+def gpu_mean_backward(
+    ug: Tensor[f32, Device.gpu], t_shape: TensorShape
+) raises -> Tensor[f32, Device.gpu]:
+    var res_grad = Tensor[f32, Device.gpu](t_shape, uninitialized=True)
+    var ctx = res_grad.gpu_context()
+    var n = res_grad.num_elements()
+    _cached_mean_bw_kernel()._call_with_pack_checked(
+        ctx, res_grad.gpu_ptr(), ug.gpu_ptr(), Int64(n),
+        grid_dim=ceildiv(n, _BLOCK), block_dim=min(n, _BLOCK),
+    )
+    return res_grad^
+
+
 def gpu_add_bias_forward(
     mut res: Tensor[f32, Device.gpu],
     t1: Tensor[f32, Device.gpu],
@@ -282,7 +423,7 @@ def gpu_bias_grad(
     ug: Tensor[f32, Device.gpu], n: Int
 ) raises -> Tensor[f32, Device.gpu]:
     """Reduces `ug`'s gradient back down to the broadcast bias's shape."""
-    var res_grad = Tensor[f32, Device.gpu](TensorShape(n))
+    var res_grad = Tensor[f32, Device.gpu](TensorShape(n), uninitialized=True)
     var ctx = res_grad.gpu_context()
     var total = ug.num_elements()
     var outer = total // n
@@ -538,7 +679,7 @@ def gpu_relu_forward(
 def gpu_relu_backward(
     ug: Tensor[f32, Device.gpu], t1: Tensor[f32, Device.gpu]
 ) raises -> Tensor[f32, Device.gpu]:
-    var res_grad = Tensor[f32, Device.gpu](ug.shape())
+    var res_grad = Tensor[f32, Device.gpu](ug.shape(), uninitialized=True)
     var ctx = res_grad.gpu_context()
     var n = res_grad.num_elements()
     _cached_relu_bw_kernel()._call_with_pack_checked(
@@ -549,7 +690,7 @@ def gpu_relu_backward(
 
 
 def gpu_sub_backward_t2(ug: Tensor[f32, Device.gpu]) raises -> Tensor[f32, Device.gpu]:
-    var res_grad = Tensor[f32, Device.gpu](ug.shape())
+    var res_grad = Tensor[f32, Device.gpu](ug.shape(), uninitialized=True)
     var ctx = res_grad.gpu_context()
     var n = res_grad.num_elements()
     _cached_neg_kernel()._call_with_pack_checked(
@@ -562,7 +703,7 @@ def gpu_sub_backward_t2(ug: Tensor[f32, Device.gpu]) raises -> Tensor[f32, Devic
 def gpu_mul_backward(
     ug: Tensor[f32, Device.gpu], other: Tensor[f32, Device.gpu]
 ) raises -> Tensor[f32, Device.gpu]:
-    var res_grad = Tensor[f32, Device.gpu](ug.shape())
+    var res_grad = Tensor[f32, Device.gpu](ug.shape(), uninitialized=True)
     var ctx = res_grad.gpu_context()
     var n = res_grad.num_elements()
     _cached_mul_kernel()._call_with_pack_checked(
@@ -575,7 +716,7 @@ def gpu_mul_backward(
 def gpu_div_backward_t1(
     ug: Tensor[f32, Device.gpu], t2: Tensor[f32, Device.gpu]
 ) raises -> Tensor[f32, Device.gpu]:
-    var res_grad = Tensor[f32, Device.gpu](ug.shape())
+    var res_grad = Tensor[f32, Device.gpu](ug.shape(), uninitialized=True)
     var ctx = res_grad.gpu_context()
     var n = res_grad.num_elements()
     _cached_div_kernel()._call_with_pack_checked(
@@ -590,7 +731,7 @@ def gpu_div_backward_t2(
     t1: Tensor[f32, Device.gpu],
     t2: Tensor[f32, Device.gpu],
 ) raises -> Tensor[f32, Device.gpu]:
-    var res_grad = Tensor[f32, Device.gpu](ug.shape())
+    var res_grad = Tensor[f32, Device.gpu](ug.shape(), uninitialized=True)
     var ctx = res_grad.gpu_context()
     var n = res_grad.num_elements()
     _cached_div_bw_t2_kernel()._call_with_pack_checked(

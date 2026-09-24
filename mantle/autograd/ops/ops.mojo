@@ -76,6 +76,10 @@ from .gpu_elementwise import (
     gpu_mul_backward,
     gpu_div_backward_t1,
     gpu_div_backward_t2,
+    gpu_pow_forward,
+    gpu_pow_backward,
+    gpu_mean_forward,
+    gpu_mean_backward,
     gpu_accumulate_grad,
     gpu_write_from_host,
 )
@@ -370,11 +374,16 @@ def forward_op[
             rebind[Tensor[f32, Device.gpu]](res),
             rebind[Tensor[f32, Device.gpu]](t1),
         )
+    elif op == OP.MEAN and not attributes["axis"]:
+        gpu_mean_forward(
+            rebind[Tensor[f32, Device.gpu]](res),
+            rebind[Tensor[f32, Device.gpu]](t1),
+        )
     else:
         # Host round-trip fallback for unary ops without a native GPU
-        # kernel yet (e.g. MEAN, SIGMOID, TANH, ...): run the existing,
-        # unmodified CPU implementation against host copies, then write the
-        # result back into `res`'s existing GPU buffer.
+        # kernel yet (e.g. SIGMOID, TANH, axis-reduced MEAN, ...): run the
+        # existing, unmodified CPU implementation against host copies, then
+        # write the result back into `res`'s existing GPU buffer.
         var res_cpu = res.to_host()
         var t1_cpu = t1.to_host()
         _forward_op_cpu[op, t1_shape, attributes](
@@ -505,9 +514,15 @@ def forward_op[
             rebind[Tensor[f32, Device.gpu]](t1),
             rebind[Tensor[f32, Device.gpu]](t2),
         )
+    elif op == OP.POW:
+        gpu_pow_forward(
+            rebind[Tensor[f32, Device.gpu]](res),
+            rebind[Tensor[f32, Device.gpu]](t1),
+            rebind[Tensor[f32, Device.gpu]](t2),
+        )
     else:
         # Host round-trip fallback: any op without a native GPU kernel
-        # (POW, GATHER, batched DOT, ...), or ADD/SUB/MUL/DIV under
+        # (GATHER, batched DOT, ...), or ADD/SUB/MUL/DIV under
         # broadcasting. Runs the existing, unmodified CPU implementation
         # against host copies, then writes the result back into `res`'s
         # existing GPU buffer.
@@ -684,6 +699,11 @@ def backward_op[
             rebind[Tensor[f32, Device.gpu]](t1),
         )
         gpu_accumulate_grad(rebind[Tensor[f32, Device.gpu]](grad), res_grad)
+    elif op == OP.MEAN and not attributes["axis"]:
+        var res_grad = gpu_mean_backward(
+            rebind[Tensor[f32, Device.gpu]](ug), t1_shape
+        )
+        gpu_accumulate_grad(rebind[Tensor[f32, Device.gpu]](grad), res_grad)
     else:
         # Host round-trip fallback (mirrors forward_op's).
         var ug_cpu = ug.to_host()
@@ -847,7 +867,7 @@ def backward_op[
             gpu_accumulate_grad(rebind[Tensor[f32, Device.gpu]](grad), res_grad)
     elif t1_shape.rank() == 2 and t2_shape.rank() == 2 and op == OP.DOT:
         comptime if tensor_id == 0:
-            var res_grad = Tensor[f32, Device.gpu](t1_shape)
+            var res_grad = Tensor[f32, Device.gpu](t1_shape, uninitialized=True)
             gpu_matmul_bt[ug_shape[0], ug_shape[1], t2_shape[0]](
                 res_grad,
                 rebind[Tensor[f32, Device.gpu]](ug),
@@ -855,16 +875,26 @@ def backward_op[
             )
             gpu_accumulate_grad(rebind[Tensor[f32, Device.gpu]](grad), res_grad)
         else:
-            var res_grad = Tensor[f32, Device.gpu](t2_shape)
+            var res_grad = Tensor[f32, Device.gpu](t2_shape, uninitialized=True)
             gpu_matmul_at[t1_shape[0], t1_shape[1], ug_shape[1]](
                 res_grad,
                 rebind[Tensor[f32, Device.gpu]](t1),
                 rebind[Tensor[f32, Device.gpu]](ug),
             )
             gpu_accumulate_grad(rebind[Tensor[f32, Device.gpu]](grad), res_grad)
+    elif op == OP.POW:
+        # The exponent (t2) is never trainable, so the caller
+        # (Model.backward) never invokes tensor_id == 1 here.
+        comptime assert tensor_id == 0
+        var res_grad = gpu_pow_backward(
+            rebind[Tensor[f32, Device.gpu]](ug),
+            rebind[Tensor[f32, Device.gpu]](t1),
+            rebind[Tensor[f32, Device.gpu]](t2),
+        )
+        gpu_accumulate_grad(rebind[Tensor[f32, Device.gpu]](grad), res_grad)
     else:
         # Host round-trip fallback: any op without a native GPU kernel
-        # (POW, GATHER, batched DOT, ...), or ADD/SUB/MUL/DIV under
+        # (GATHER, batched DOT, ...), or ADD/SUB/MUL/DIV under
         # broadcasting.
         var ug_cpu = ug.to_host()
         var t1_cpu = t1.to_host()
@@ -981,7 +1011,7 @@ def backward_op[
         )
     elif op == OP.LINEAR and t1_shape.rank() == 2 and t2_shape.rank() == 2:
         comptime if tensor_id == 0:
-            var res_grad = Tensor[f32, Device.gpu](t1_shape)
+            var res_grad = Tensor[f32, Device.gpu](t1_shape, uninitialized=True)
             gpu_matmul_bt[ug_shape[0], ug_shape[1], t2_shape[0]](
                 res_grad,
                 rebind[Tensor[f32, Device.gpu]](ug),
@@ -989,7 +1019,7 @@ def backward_op[
             )
             gpu_accumulate_grad(rebind[Tensor[f32, Device.gpu]](grad), res_grad)
         elif tensor_id == 1:
-            var res_grad = Tensor[f32, Device.gpu](t2_shape)
+            var res_grad = Tensor[f32, Device.gpu](t2_shape, uninitialized=True)
             gpu_matmul_at[t1_shape[0], t1_shape[1], ug_shape[1]](
                 res_grad,
                 rebind[Tensor[f32, Device.gpu]](t1),

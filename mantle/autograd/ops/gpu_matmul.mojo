@@ -192,7 +192,7 @@ def gpu_matmul_at[
     """Res[k,n] = a[p,k]^T @ b[p,n]."""
     var ctx = res.gpu_context()
 
-    var a_t = Tensor[f32, Device.gpu](TensorShape(k, p))
+    var a_t = Tensor[f32, Device.gpu](TensorShape(k, p), uninitialized=True)
     gpu_transpose[p, k](a_t, a)
 
     var res_tt = TileTensor(
