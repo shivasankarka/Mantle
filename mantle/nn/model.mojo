@@ -23,7 +23,10 @@ from mantle.core.device import Device
 from mantle.autograd.ops import forward_op, backward_op
 from mantle.nn.parameters import Parameters
 from .initializers import initialize_tensor
-from mantle.autograd.ops.gpu_elementwise import gpu_rand_uniform, gpu_rand_normal
+from mantle.autograd.ops.gpu_elementwise import (
+    gpu_rand_uniform,
+    gpu_rand_normal,
+)
 from mantle.serialize.onnx_utils import load_onnx_model, export_onnx_model
 
 
@@ -37,6 +40,22 @@ def dv_contains(dv: List[Symbol], symbol: Symbol) -> Bool:
         if dv[i] == symbol:
             return True
     return False
+
+
+def gradient_contributor_count(g: Graph, symbol: Symbol) -> Int:
+    """Return the number of backward paths that write `symbol`'s gradient.
+
+    A symbol with one downstream use has exactly one gradient producer.  Its
+    pre-zeroed gradient buffer can therefore be written directly, rather than
+    allocating a temporary gradient and adding it back in a second kernel.
+    Symbols shared by multiple nodes still use the normal accumulation path.
+    """
+    var count = 0
+    for i in range(len(g.nodes)):
+        for j in range(len(g.nodes[i].inputs)):
+            if g.nodes[i].inputs[j] == symbol:
+                count += 1
+    return count
 
 
 # TODO: remove when ability to concatenate graphs (modules)
@@ -319,44 +338,78 @@ struct Model[
                     comptime t3 = Self.g.nodes[reverse_i].inputs[2]
 
                     comptime if t1.trainable:
-                        backward_op[
-                            0,
-                            op,
-                            out.shape,
-                            t1.shape,
-                            t2.shape,
-                            t3.shape,
-                            attrs,
-                            Self.device,
-                        ](
-                            self.parameters.grads[out],
-                            self.parameters.tensors[t1],
-                            self.parameters.tensors[t2],
-                            self.parameters.tensors[t3],
-                            self.parameters.grads[
-                                t1
-                            ],  # grad to be updated: inputs[0]
-                        )
+                        comptime if gradient_contributor_count(Self.g, t1) == 1:
+                            backward_op[
+                                0,
+                                op,
+                                out.shape,
+                                t1.shape,
+                                t2.shape,
+                                t3.shape,
+                                attrs,
+                                Self.device,
+                                overwrite_grad=True,
+                            ](
+                                self.parameters.grads[out],
+                                self.parameters.tensors[t1],
+                                self.parameters.tensors[t2],
+                                self.parameters.tensors[t3],
+                                self.parameters.grads[t1],
+                            )
+                        else:
+                            backward_op[
+                                0,
+                                op,
+                                out.shape,
+                                t1.shape,
+                                t2.shape,
+                                t3.shape,
+                                attrs,
+                                Self.device,
+                            ](
+                                self.parameters.grads[out],
+                                self.parameters.tensors[t1],
+                                self.parameters.tensors[t2],
+                                self.parameters.tensors[t3],
+                                self.parameters.grads[t1],
+                            )
 
                     comptime if t2.trainable:
-                        backward_op[
-                            1,
-                            op,
-                            out.shape,
-                            t1.shape,
-                            t2.shape,
-                            t3.shape,
-                            attrs,
-                            Self.device,
-                        ](
-                            self.parameters.grads[out],
-                            self.parameters.tensors[t1],
-                            self.parameters.tensors[t2],
-                            self.parameters.tensors[t3],
-                            self.parameters.grads[
-                                t2
-                            ],  # grad to be updated: inputs[1]
-                        )
+                        comptime if gradient_contributor_count(Self.g, t2) == 1:
+                            backward_op[
+                                1,
+                                op,
+                                out.shape,
+                                t1.shape,
+                                t2.shape,
+                                t3.shape,
+                                attrs,
+                                Self.device,
+                                overwrite_grad=True,
+                            ](
+                                self.parameters.grads[out],
+                                self.parameters.tensors[t1],
+                                self.parameters.tensors[t2],
+                                self.parameters.tensors[t3],
+                                self.parameters.grads[t2],
+                            )
+                        else:
+                            backward_op[
+                                1,
+                                op,
+                                out.shape,
+                                t1.shape,
+                                t2.shape,
+                                t3.shape,
+                                attrs,
+                                Self.device,
+                            ](
+                                self.parameters.grads[out],
+                                self.parameters.tensors[t1],
+                                self.parameters.tensors[t2],
+                                self.parameters.tensors[t3],
+                                self.parameters.grads[t2],
+                            )
 
                     comptime if t3.trainable:
                         backward_op[

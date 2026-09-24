@@ -25,7 +25,7 @@ from mantle.core.tensor import Tensor, TensorShape
 from mantle.autograd.collection import Collection
 from mantle.core.device import Device
 from mantle.core.math_util import add, sub, mul, div
-from mantle.autograd.ops.gpu_elementwise import gpu_adam_step
+from mantle.autograd.ops.gpu_elementwise import gpu_adam_step, gpu_adamw_step
 
 
 # ===----------------------------------------------------------------------===#
@@ -160,7 +160,7 @@ struct Adam[
 
         self.allocate_rms_and_momentum()
 
-    def zero_grad(mut self):
+    def zero_grad(mut self) raises:
         """Set all gradients to zero."""
         self.parameters[].grads.set_zero()
 
@@ -179,60 +179,89 @@ struct Adam[
             var one_minus_beta1_pow_t = 1 - self.beta1**self.iter
             var one_minus_beta2_pow_t = 1 - self.beta2**self.iter
 
-            # Loop over all trainable parameters
-            def p_step(i: Int) {mut self, imm tr, imm one_minus_beta1_pow_t, imm one_minus_beta2_pow_t}:
+            # Parallelizing only over parameters leaves one worker processing
+            # the large middle-layer weight matrix while the other workers
+            # finish its small peers.  Split each parameter into independent
+            # contiguous chunks instead; all four buffers are disjoint per
+            # chunk, so the updates remain race-free.
+            comptime chunk_elements = 32768
+            for i in range(len(tr)):
                 var param = tr[i]
-
-                # Collection.__getitem__ does an index lookup plus a
-                # refcounted buffer `.share()` — cheap once, but `v_step`
-                # runs once per SIMD group, so doing it inside `v_step`
-                # meant paying that cost millions of times over on a big
-                # param. Hoisted out here instead (was the single biggest
-                # cost in the whole optimizer step).
                 var momentum_t = self.momentum_grads[param]
                 var rms_t = self.rms_grads[param]
                 var grad_t = self.parameters[].grads[param]
                 var param_t = self.parameters[].tensors[param]
+                var n = param.shape.num_elements()
 
-                def v_step[nelts: Int](j: Int) {imm self, mut momentum_t, mut rms_t, imm grad_t, mut param_t, imm one_minus_beta1_pow_t, imm one_minus_beta2_pow_t}:
-                    var momentum_grads = momentum_t.load[nelts](j)
-                    var rms_grads = rms_t.load[nelts](j)
-                    var grads = grad_t.load[nelts](j)
-                    var params = param_t.load[nelts](j)
+                def chunk_step(
+                    chunk: Int,
+                ) {
+                    imm self,
+                    mut momentum_t,
+                    mut rms_t,
+                    imm grad_t,
+                    mut param_t,
+                    imm one_minus_beta1_pow_t,
+                    imm one_minus_beta2_pow_t,
+                    imm n,
+                }:
+                    var offset = chunk * chunk_elements
 
-                    # Momentum beta 1
-                    # f1 = beta1 * momentum + (1 - beta1) * grad
-                    momentum_grads = (
-                        self.beta1 * momentum_grads
-                        + (1 - self.beta1) * grads
+                    def v_step[
+                        nelts: Int
+                    ](j: Int) {
+                        imm self,
+                        mut momentum_t,
+                        mut rms_t,
+                        imm grad_t,
+                        mut param_t,
+                        imm one_minus_beta1_pow_t,
+                        imm one_minus_beta2_pow_t,
+                        imm offset,
+                    }:
+                        var index = offset + j
+                        var momentum_grads = momentum_t.load[nelts](index)
+                        var rms_grads = rms_t.load[nelts](index)
+                        var grads = grad_t.load[nelts](index)
+                        var params = param_t.load[nelts](index)
+
+                        # Momentum beta 1
+                        # f1 = beta1 * momentum + (1 - beta1) * grad
+                        momentum_grads = (
+                            self.beta1 * momentum_grads
+                            + (1 - self.beta1) * grads
+                        )
+                        momentum_t.store[nelts](index, momentum_grads)
+
+                        # Bias correction
+                        # f2 = f1 / (1 - beta1 ** iter)
+                        momentum_grads = momentum_grads / one_minus_beta1_pow_t
+
+                        # RMS beta 2
+                        # f1 = beta2 * rms + (1 - beta2) * grad ** 2
+                        rms_grads = (
+                            self.beta2 * rms_grads
+                            + (1 - self.beta2) * grads * grads
+                        )
+                        rms_t.store[nelts](index, rms_grads)
+
+                        # Bias correction
+                        # f2 = f1 / (1 - beta2 ** iter)
+                        rms_grads = rms_grads / one_minus_beta2_pow_t
+
+                        # tensor = tensor - lr * (f2 / (sqrt(rms) + epsilon))
+                        params = params - self.lr * (
+                            momentum_grads / (sqrt(rms_grads) + self.epsilon)
+                        )
+                        param_t.store[nelts](index, params)
+
+                    vectorize[simd_width_of[f32]()](
+                        min(chunk_elements, n - offset), v_step
                     )
-                    momentum_t.store[nelts](j, momentum_grads)
 
-                    # Bias correction
-                    # f2 = f1 / (1 - beta1 ** iter)
-                    momentum_grads = momentum_grads / one_minus_beta1_pow_t
-
-                    # RMS beta 2
-                    # f1 = beta2 * rms + (1 - beta2) * grad ** 2
-                    rms_grads = (
-                        self.beta2 * rms_grads
-                        + (1 - self.beta2) * grads * grads
-                    )
-                    rms_t.store[nelts](j, rms_grads)
-
-                    # Bias correction
-                    # f2 = f1 / (1 - beta2 ** iter)
-                    rms_grads = rms_grads / one_minus_beta2_pow_t
-
-                    # tensor = tensor - lr * (f2 / (sqrt(rms) + epsilon))
-                    params = params - self.lr * (
-                        momentum_grads / (sqrt(rms_grads) + self.epsilon)
-                    )
-                    param_t.store[nelts](j, params)
-
-                vectorize[simd_width_of[f32]()](param.shape.num_elements(), v_step)
-
-            parallelize(p_step, len(tr))
+                parallelize(
+                    chunk_step, (n + chunk_elements - 1) // chunk_elements
+                )
         else:
             # Native on-device Adam-update kernel — no host round-trip
             # (each parameter element updates independently, so this is a
@@ -280,6 +309,7 @@ struct Adam[
 struct AdamW[
     g: Graph,
     trainable_parameters: List[Symbol] = get_trainable_parameters(g),
+    device: Device = Device.cpu,
 ]:
     """
     Adam with decoupled weight decay (Loshchilov & Hutter, 2019).
@@ -291,7 +321,7 @@ struct AdamW[
     optimizer for training Transformers.
     """
 
-    var parameters: Pointer[Parameters[Device.cpu], MutUntrackedOrigin]
+    var parameters: Pointer[Parameters[Self.device], MutUntrackedOrigin]
 
     var lr: Scalar[f32]
     var beta1: Scalar[f32]
@@ -300,12 +330,12 @@ struct AdamW[
     var weight_decay: Scalar[f32]
     var iter: Int
 
-    var rms_grads: Collection[Device.cpu]
-    var momentum_grads: Collection[Device.cpu]
+    var rms_grads: Collection[Self.device]
+    var momentum_grads: Collection[Self.device]
 
     def __init__(
         out self,
-        ref[MutAnyOrigin] parameters: Parameters[Device.cpu],
+        ref[MutAnyOrigin] parameters: Parameters[Self.device],
         lr: Scalar[f32] = 0.001,
         beta1: Scalar[f32] = 0.9,
         beta2: Scalar[f32] = 0.999,
@@ -324,16 +354,16 @@ struct AdamW[
         self.iter = 0
 
         var tr = materialize[Self.trainable_parameters]()
-        self.rms_grads = Collection[Device.cpu](capacity=len(tr))
-        self.momentum_grads = Collection[Device.cpu](capacity=len(tr))
+        self.rms_grads = Collection[Self.device](capacity=len(tr))
+        self.momentum_grads = Collection[Self.device](capacity=len(tr))
 
         self.allocate_rms_and_momentum()
 
-    def zero_grad(mut self):
+    def zero_grad(mut self) raises:
         """Set all gradients to zero."""
         self.parameters[].grads.set_zero()
 
-    def step(mut self):
+    def step(mut self) raises:
         """Update model parameters."""
         self.iter += 1
         var tr = materialize[Self.trainable_parameters]()
@@ -341,55 +371,120 @@ struct AdamW[
         var one_minus_beta1_pow_t = 1 - self.beta1**self.iter
         var one_minus_beta2_pow_t = 1 - self.beta2**self.iter
 
-        def p_step(i: Int) {mut self, imm tr, imm one_minus_beta1_pow_t, imm one_minus_beta2_pow_t}:
-            var param = tr[i]
+        comptime if Self.device.id == Device.cpu.id:
+            comptime assert Self.device.id == Device.cpu.id
 
-            # See Adam.step for why these are hoisted out of `v_step`.
-            var momentum_t = self.momentum_grads[param]
-            var rms_t = self.rms_grads[param]
-            var grad_t = self.parameters[].grads[param]
-            var param_t = self.parameters[].tensors[param]
+            # See Adam.step for why this chunks each parameter into
+            # independent pieces instead of parallelizing over whole
+            # parameters — same worker-imbalance problem, same fix.
+            comptime chunk_elements = 32768
+            for i in range(len(tr)):
+                var param = tr[i]
+                var momentum_t = self.momentum_grads[param]
+                var rms_t = self.rms_grads[param]
+                var grad_t = self.parameters[].grads[param]
+                var param_t = self.parameters[].tensors[param]
+                var n = param.shape.num_elements()
 
-            def v_step[nelts: Int](j: Int) {imm self, mut momentum_t, mut rms_t, imm grad_t, mut param_t, imm one_minus_beta1_pow_t, imm one_minus_beta2_pow_t}:
-                var momentum_grads = momentum_t.load[nelts](j)
-                var rms_grads = rms_t.load[nelts](j)
-                var grads = grad_t.load[nelts](j)
-                var params = param_t.load[nelts](j)
+                def chunk_step(
+                    chunk: Int,
+                ) {
+                    imm self,
+                    mut momentum_t,
+                    mut rms_t,
+                    imm grad_t,
+                    mut param_t,
+                    imm one_minus_beta1_pow_t,
+                    imm one_minus_beta2_pow_t,
+                    imm n,
+                }:
+                    var offset = chunk * chunk_elements
 
-                # Momentum beta 1
-                momentum_grads = (
-                    self.beta1 * momentum_grads + (1 - self.beta1) * grads
+                    def v_step[
+                        nelts: Int
+                    ](j: Int) {
+                        imm self,
+                        mut momentum_t,
+                        mut rms_t,
+                        imm grad_t,
+                        mut param_t,
+                        imm one_minus_beta1_pow_t,
+                        imm one_minus_beta2_pow_t,
+                        imm offset,
+                    }:
+                        var index = offset + j
+                        var momentum_grads = momentum_t.load[nelts](index)
+                        var rms_grads = rms_t.load[nelts](index)
+                        var grads = grad_t.load[nelts](index)
+                        var params = param_t.load[nelts](index)
+
+                        # Momentum beta 1
+                        momentum_grads = (
+                            self.beta1 * momentum_grads
+                            + (1 - self.beta1) * grads
+                        )
+                        momentum_t.store[nelts](index, momentum_grads)
+                        momentum_grads = (
+                            momentum_grads / one_minus_beta1_pow_t
+                        )
+
+                        # RMS beta 2
+                        rms_grads = (
+                            self.beta2 * rms_grads
+                            + (1 - self.beta2) * grads * grads
+                        )
+                        rms_t.store[nelts](index, rms_grads)
+                        rms_grads = rms_grads / one_minus_beta2_pow_t
+
+                        # Decoupled weight decay, applied directly to the
+                        # param (not folded into the gradient like Adam + L2
+                        # would).
+                        if self.weight_decay != 0.0:
+                            params = (
+                                params - self.lr * self.weight_decay * params
+                            )
+
+                        params = params - self.lr * (
+                            momentum_grads / (sqrt(rms_grads) + self.epsilon)
+                        )
+                        param_t.store[nelts](index, params)
+
+                    vectorize[simd_width_of[f32]()](
+                        min(chunk_elements, n - offset), v_step
+                    )
+
+                parallelize(
+                    chunk_step, (n + chunk_elements - 1) // chunk_elements
                 )
-                momentum_t.store[nelts](j, momentum_grads)
-                momentum_grads = momentum_grads / one_minus_beta1_pow_t
-
-                # RMS beta 2
-                rms_grads = (
-                    self.beta2 * rms_grads + (1 - self.beta2) * grads * grads
+        else:
+            for i in range(len(tr)):
+                var param = tr[i]
+                var momentum_gpu = self.momentum_grads[param]
+                var rms_gpu = self.rms_grads[param]
+                var params_gpu = self.parameters[].tensors[param]
+                var grad_gpu = self.parameters[].grads[param]
+                gpu_adamw_step(
+                    rebind[Tensor[f32, Device.gpu]](params_gpu),
+                    rebind[Tensor[f32, Device.gpu]](momentum_gpu),
+                    rebind[Tensor[f32, Device.gpu]](rms_gpu),
+                    rebind[Tensor[f32, Device.gpu]](grad_gpu),
+                    self.lr,
+                    self.beta1,
+                    self.beta2,
+                    self.epsilon,
+                    self.weight_decay,
+                    one_minus_beta1_pow_t,
+                    one_minus_beta2_pow_t,
                 )
-                rms_t.store[nelts](j, rms_grads)
-                rms_grads = rms_grads / one_minus_beta2_pow_t
-
-                # Decoupled weight decay, applied directly to the param
-                # (not folded into the gradient like Adam + L2 would).
-                if self.weight_decay != 0.0:
-                    params = params - self.lr * self.weight_decay * params
-
-                params = params - self.lr * (
-                    momentum_grads / (sqrt(rms_grads) + self.epsilon)
-                )
-                param_t.store[nelts](j, params)
-
-            vectorize[simd_width_of[f32]()](param.shape.num_elements(), v_step)
-
-        parallelize(p_step, len(tr))
 
     def allocate_rms_and_momentum(mut self):
         var tr = materialize[Self.trainable_parameters]()
         for i in range(len(tr)):
             var param = tr[i]
-            self.rms_grads.append(Tensor[f32](param.shape), param)
-            self.momentum_grads.append(Tensor[f32](param.shape), param)
+            self.rms_grads.append(Tensor[f32, Self.device](param.shape), param)
+            self.momentum_grads.append(
+                Tensor[f32, Self.device](param.shape), param
+            )
 
 
 # ===----------------------------------------------------------------------===#
@@ -438,7 +533,7 @@ struct SGD[
         self.velocities = Collection[Device.cpu](capacity=len(tr))
         self.allocate_velocities()
 
-    def zero_grad(mut self):
+    def zero_grad(mut self) raises:
         """Set all gradients to zero."""
         self.parameters[].grads.set_zero()
 
@@ -454,7 +549,9 @@ struct SGD[
             var param_t = self.parameters[].tensors[param]
             var vel_t = self.velocities[param]
 
-            def v_step[nelts: Int](j: Int) {imm self, imm grad_t, mut param_t, mut vel_t}:
+            def v_step[
+                nelts: Int
+            ](j: Int) {imm self, imm grad_t, mut param_t, mut vel_t}:
                 var grad = grad_t.load[nelts](j)
                 var w = param_t.load[nelts](j)
 
