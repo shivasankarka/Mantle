@@ -213,20 +213,19 @@ def sample[
 
 
 def main() raises:
-    # Keep the first GPU run intentionally small: Mojo specializes the whole
-    # static graph before `main()` can print. Once this smoke configuration
-    # trains and the GPU fallback audit is clean, scale these to 64/16/128.
-    comptime seq_len = 16
-    comptime batch_size = 4
-    comptime d_model = 32
-    comptime num_heads = 4
-    comptime d_ff = 128
-    comptime num_blocks = 1
+    # Scaled up from the original 16/4/32/4/128/1 smoke config now that GPU
+    # training, attention, and the native-kernel fallback audit are clean.
+    comptime seq_len = 64
+    comptime batch_size = 8
+    comptime d_model = 128
+    comptime num_heads = 16
+    comptime d_ff = 512
+    comptime num_blocks = 2
     comptime learning_rate = 3e-4
     comptime weight_decay = 0.01
     comptime warmup_steps = 200
     comptime num_steps = 1000
-    comptime sample_every = 1000
+    comptime sample_every = 250
 
     print("Loading data from", DATA_PATH, "...")
     var text = open(String(DATA_PATH), "r").read()
