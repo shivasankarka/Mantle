@@ -1236,8 +1236,7 @@ def gpu_add_bias_forward(
     t1: Tensor[f32, Device.gpu],
     bias: Tensor[f32, Device.gpu],
 ) raises:
-    """res = t1 + bias, broadcasting `bias` (rank 1) over t1's trailing
-    dim."""
+    """Res = t1 + bias, broadcasting `bias` (rank 1) over t1's trailing dim."""
     var ctx = res.gpu_context()
     var total = res.num_elements()
     var n = bias.num_elements()

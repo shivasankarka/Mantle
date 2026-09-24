@@ -111,7 +111,7 @@ struct Model[
     # TODO: remove when ability to concatenate graphs (modules)
     # Removes the need for splitting in forward and inference mode
     def forward(
-        mut self, *t_inputs: Tensor[f32, Self.device]
+        mut self, *t_inputs: Tensor[f32, Self.device], training: Bool = True
     ) raises -> Tensor[f32, Self.device]:
         # NOTE: Important detail here is that the order of the inputs must be the same as the order the inputs were defined in the graph.
         # Example: If you were te define the y_true before the x when creating the graph
@@ -126,7 +126,9 @@ struct Model[
 
         # 1. Execute a full forward pass (model inference + loss)
         self.step_seed = random_ui64(0, UInt64.MAX)
-        self.execute[len(Self.g.nodes)](t_inputs, self.step_seed, training=True)
+        self.execute[len(Self.g.nodes)](
+            t_inputs, self.step_seed, training=training
+        )
 
         # 2. Return loss from allocated output memory
         # TODO: known copy (reference?)

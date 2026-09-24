@@ -193,7 +193,7 @@ def inverse_transpose_axes(axes: TensorShape) -> TensorShape:
 def cpu_add_bias_forward[
     outer: Int, n: Int
 ](mut res: Tensor[f32], a: Tensor[f32], bias: Tensor[f32]):
-    """res[i,j] = a[i,j] + bias[j] — the CPU counterpart of
+    """Res[i,j] = a[i,j] + bias[j] — the CPU counterpart of
     `gpu_add_bias_forward`: `elwise_op`'s generic broadcast path
     (`broadcast_elwise_op`) is `vectorize[1]` (scalar; broadcast indexing
     generally doesn't vectorize), so `LINEAR`'s bias-add gets its own
@@ -213,7 +213,7 @@ def cpu_add_bias_forward[
 def cpu_bias_grad_accumulate[
     outer: Int, n: Int
 ](mut grad: Tensor[f32], ug: Tensor[f32]):
-    """grad[j] += sum_i ug[i,j] — the CPU counterpart of `gpu_bias_grad`
+    """Grad[j] += sum_i ug[i,j] — the CPU counterpart of `gpu_bias_grad`
     (see `cpu_add_bias_forward` for why this needs its own fast path
     instead of the generic broadcast `accumulate_grad`)."""
     comptime nelts = simd_width_of[f32]()
@@ -230,7 +230,7 @@ def cpu_bias_grad_accumulate[
 def cpu_bias_grad_overwrite[
     outer: Int, n: Int
 ](mut grad: Tensor[f32], ug: Tensor[f32]):
-    """grad[j] = sum_i ug[i,j] — the `overwrite_grad` counterpart of
+    """Grad[j] = sum_i ug[i,j] — the `overwrite_grad` counterpart of
     `cpu_bias_grad_accumulate`, for when `grad` is a single-consumer buffer
     being written directly rather than accumulated into."""
     comptime nelts = simd_width_of[f32]()
