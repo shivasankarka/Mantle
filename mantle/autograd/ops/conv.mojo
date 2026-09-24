@@ -12,6 +12,7 @@ im2col-based 2D convolution with forward and backward passes.
 from mantle import f32, nelts
 from mantle.core.tensor import Tensor, TensorShape
 from mantle.autograd.attributes import AttributeVector
+from mantle.autograd.ops.matmul import dot, dot_transpose_t2
 
 from std.algorithm import vectorize
 from max.algorithm import parallelize
@@ -92,7 +93,7 @@ struct CONV2D:
         inputs: Tensor[f32],
         kernel: Tensor[f32],
         bias: Tensor[f32],
-    ):
+    ) raises:
         """
         Performs a 2D convolution on the input tensor using the kernel and bias.
             inputs.shape     [batch, in_channels, iX, iY]
@@ -175,58 +176,47 @@ struct CONV2D:
 
         parallelize(im2col, batch_size)
 
-        def conv(batch: Int) {mut outputs, imm col_ptr, imm kernel, imm bias}:
-            for out_ch in range(out_channels):
-                for ux in range(out_x):
-                    for uy in range(out_y):
-                        var result: SIMD[f32, nelts] = 0.0
+        # im2col is `(spatial_positions, kernel_values)` while each filter is
+        # `(kernel_values)`. Route the product through the same
+        # Accelerate-backed SGEMM path as Linear, then transpose the small
+        # spatial-major result into Mantle's public NCHW layout.
+        comptime gemm_shape = TensorShape(col_x * col_y, out_channels)
+        var gemm_ptr = unsafe_alloc[Scalar[f32]](
+            batch_size * gemm_shape.num_elements()
+        )
+        for batch in range(batch_size):
+            dot_transpose_t2[
+                TensorShape(col_x * col_y, in_channels * k_x * k_y),
+                TensorShape(out_channels, in_channels * k_x * k_y),
+            ](
+                gemm_ptr.unsafe_offset(batch * gemm_shape.num_elements()),
+                col_ptr.unsafe_offset(batch * col_strides[0]),
+                kernel.ptr(),
+            )
 
-                        def v_im2col[
-                            _nelts: Int
-                        ](in_ch_kx_ky: Int) {
-                            mut result,
-                            imm col_ptr,
-                            imm kernel,
-                            imm batch,
-                            imm out_ch,
-                            imm ux,
-                            imm uy,
-                        }:
-                            var col_index = (
-                                batch * col_strides[0]
-                                + (ux * col_y + uy) * col_strides[1]
-                                + in_ch_kx_ky
-                            )
+        def store_output(
+            work_item: Int,
+        ) {mut outputs, imm gemm_ptr, imm bias}:
+            var batch = work_item // out_channels
+            var out_ch = work_item % out_channels
+            for position in range(col_x * col_y):
+                var output_index = (
+                    batch * outputs_strides[0]
+                    + out_ch * outputs_strides[1]
+                    + position
+                )
+                var gemm_index = (
+                    batch * gemm_shape.num_elements()
+                    + position * out_channels
+                    + out_ch
+                )
+                outputs[output_index] = (
+                    gemm_ptr[unsafe_offset=gemm_index] + bias[out_ch]
+                )
 
-                            var kernel_index = (
-                                out_ch * kernel_strides[0] + in_ch_kx_ky
-                            )
+        parallelize(store_output, batch_size * out_channels)
 
-                            comptime if _nelts == nelts:
-                                result += col_ptr.unsafe_load[width=nelts](
-                                    col_index
-                                ) * kernel.load[nelts](kernel_index)
-                            else:
-                                result[0] += (
-                                    col_ptr.unsafe_load[width=_nelts](col_index)
-                                    * kernel.load[_nelts](kernel_index)
-                                ).reduce_add()
-
-                        vectorize[nelts](in_channels * k_x * k_y, v_im2col)
-
-                        var output_index = (
-                            batch * outputs_strides[0]
-                            + out_ch * outputs_strides[1]
-                            + ux * outputs_strides[2]
-                            + uy
-                        )
-
-                        outputs[output_index] = (
-                            result.reduce_add() + bias[out_ch]
-                        )
-
-        parallelize(conv, batch_size)
-
+        gemm_ptr.unsafe_free()
         col_ptr.unsafe_free()
 
     @staticmethod
@@ -242,7 +232,7 @@ struct CONV2D:
         inputs: Tensor[f32],
         kernel: Tensor[f32],
         bias: Tensor[f32],
-    ) -> Tensor[f32]:
+    ) raises -> Tensor[f32]:
         """
         Backward operation of 2D convolution.
 
@@ -286,86 +276,59 @@ struct CONV2D:
         var res: Tensor[f32]
 
         comptime if tensor_id == 0:
-            # Inputs
-            # Sum of upper gradient over batch, X, Y dimensions
-
+            # Input gradient is `col_grad = dY^T @ W`, followed by col2im.
+            # Materialize the small NCHW -> spatial-major transpose per batch
+            # so the product uses the Accelerate SGEMM path.
             res = Tensor[f32](input_shape)
+            comptime positions = ug_shape_2 * ug_shape_3
+            comptime kernel_values = (
+                input_shape_1 * kernel_shape_2 * kernel_shape_3
+            )
+            comptime col_grad_shape = TensorShape(positions, kernel_values)
+            var col_grad_ptr = unsafe_alloc[Scalar[f32]](
+                input_shape_0 * col_grad_shape.num_elements()
+            )
 
-            def input_grad(batch: Int) {mut res, imm ug, imm kernel}:
+            for batch in range(input_shape_0):
+                var upper_grad_transposed = Tensor[f32](
+                    TensorShape(positions, ug_shape_1), uninitialized=True
+                )
                 for out_ch in range(ug_shape_1):
-                    for ux in range(ug_shape_2):
-                        for uy in range(
-                            ug_shape_3
-                        ):  # For all the element of ug
-                            var ix_base = ux * stride_0 - padding_0
-                            var iy_base = uy * stride_1 - padding_1
+                    for position in range(positions):
+                        upper_grad_transposed[
+                            position * ug_shape_1 + out_ch
+                        ] = ug[
+                            batch * ug_strides_0
+                            + out_ch * ug_strides_1
+                            + position
+                        ]
+                dot[
+                    TensorShape(positions, ug_shape_1),
+                    TensorShape(ug_shape_1, kernel_values),
+                ](
+                    col_grad_ptr.unsafe_offset(
+                        batch * col_grad_shape.num_elements()
+                    ),
+                    upper_grad_transposed.ptr(),
+                    kernel.ptr(),
+                )
 
-                            var ug_val = ug[
-                                batch * ug_strides_0
-                                + out_ch * ug_strides_1
-                                + ux * ug_strides_2
-                                + uy
-                            ]
-
-                            for in_ch in range(input_shape_1):
-                                for kx in range(kernel_shape_2):
-                                    for ky in range(kernel_shape_3):
-                                        var ix = ix_base + kx * dilation_0
-                                        var iy = iy_base + ky * dilation_1
-
-                                        if (
-                                            ix < 0
-                                            or iy < 0
-                                            or ix >= input_shape_2
-                                            or iy >= input_shape_3
-                                        ):
-                                            continue
-
-                                        var kernel_index = (
-                                            out_ch * kernel_strides_0
-                                            + in_ch * kernel_strides_1
-                                            + kx * kernel_strides_2
-                                            + ky
-                                        )
-
-                                        var input_index = (
-                                            batch * inputs_strides_0
-                                            + in_ch * inputs_strides_1
-                                            + ix * inputs_strides_2
-                                            + iy
-                                        )
-                                        res[input_index] += (
-                                            kernel[kernel_index] * ug_val
-                                        )
-
-            parallelize(input_grad, input_shape_0)
-
-        elif tensor_id == 1:
-            # Kernel
-            # Sum of upper gradient over batch and X, Y dimensions
-            res = Tensor[f32](kernel_shape)
-
-            def kernel_grad(out_ch: Int) {mut res, imm inputs, imm ug}:
-                var channel_offset = out_ch * kernel_strides_0
-                for k in range(input_shape_1 * kernel_shape_2 * kernel_shape_3):
-                    var in_ch_kx_ky = divmod(k, kernel_shape_3)
-                    var in_ch = k // (kernel_shape_2 * kernel_shape_3)
-                    var kx = in_ch_kx_ky[0] % kernel_shape_2
-                    var ky = in_ch_kx_ky[1]
-
-                    # TODO: Cant vectorize since you are going different directions across input and upper grad
-                    # But theoretically could transpose or split somehow
-                    var result: Scalar[f32] = 0
-                    for batch in range(input_shape_0):
-                        for ux in range(ug_shape_2):
-                            for uy in range(ug_shape_3):
+            # A separate (batch, input-channel) tile owns every element it
+            # writes. This makes the col2im accumulation race-free while
+            # exposing all input channels to the CPU scheduler.
+            def col2im(work_item: Int) {mut res, imm col_grad_ptr}:
+                var batch = work_item // input_shape_1
+                var in_ch = work_item % input_shape_1
+                for ux in range(ug_shape_2):
+                    for uy in range(ug_shape_3):
+                        for kx in range(kernel_shape_2):
+                            for ky in range(kernel_shape_3):
                                 var ix = (
                                     ux * stride_0 - padding_0 + kx * dilation_0
                                 )
                                 var iy = (
                                     uy * stride_1 - padding_1 + ky * dilation_1
                                 )
-
                                 if (
                                     ix < 0
                                     or iy < 0
@@ -373,26 +336,103 @@ struct CONV2D:
                                     or iy >= input_shape_3
                                 ):
                                     continue
-
                                 var input_index = (
                                     batch * inputs_strides_0
                                     + in_ch * inputs_strides_1
                                     + ix * inputs_strides_2
                                     + iy
                                 )
-                                var ug_index = (
-                                    batch * ug_strides_0
-                                    + out_ch * ug_strides_1
-                                    + ux * ug_strides_2
-                                    + uy
+                                var col_index = (
+                                    batch * col_grad_shape.num_elements()
+                                    + (ux * ug_shape_3 + uy) * kernel_values
+                                    + in_ch * kernel_shape_2 * kernel_shape_3
+                                    + kx * kernel_shape_3
+                                    + ky
                                 )
+                                res[input_index] += col_grad_ptr[
+                                    unsafe_offset=col_index
+                                ]
 
-                                result += inputs[input_index] * ug[ug_index]
+            parallelize(col2im, input_shape_0 * input_shape_1)
+            col_grad_ptr.unsafe_free()
 
-                    var kernel_index = channel_offset + k
-                    res[kernel_index] = result
+        elif tensor_id == 1:
+            # Filter gradient is the batched matrix product
+            #   dW = sum_b dY[b] @ im2col(X[b]).
+            # The old scalar-loop implementation performed this product one
+            # filter weight at a time; use Accelerate SGEMM as Linear does.
+            res = Tensor[f32](kernel_shape)
+            comptime positions = ug_shape_2 * ug_shape_3
+            comptime kernel_values = (
+                input_shape_1 * kernel_shape_2 * kernel_shape_3
+            )
+            comptime col_shape = TensorShape(positions, kernel_values)
+            var col_ptr = unsafe_alloc[Scalar[f32]](
+                input_shape_0 * col_shape.num_elements()
+            )
+            unsafe_memset_zero(
+                col_ptr, input_shape_0 * col_shape.num_elements()
+            )
 
-            parallelize(kernel_grad, ug_shape_1)
+            def im2col(batch: Int) {imm col_ptr, imm inputs}:
+                for ux in range(ug_shape_2):
+                    for uy in range(ug_shape_3):
+                        for in_ch in range(input_shape_1):
+                            for kx in range(kernel_shape_2):
+                                for ky in range(kernel_shape_3):
+                                    var ix = (
+                                        ux * stride_0
+                                        - padding_0
+                                        + kx * dilation_0
+                                    )
+                                    var iy = (
+                                        uy * stride_1
+                                        - padding_1
+                                        + ky * dilation_1
+                                    )
+                                    if (
+                                        ix < 0
+                                        or iy < 0
+                                        or ix >= input_shape_2
+                                        or iy >= input_shape_3
+                                    ):
+                                        continue
+                                    var col_index = (
+                                        batch * col_shape.num_elements()
+                                        + (ux * ug_shape_3 + uy) * kernel_values
+                                        + in_ch
+                                        * kernel_shape_2
+                                        * kernel_shape_3
+                                        + kx * kernel_shape_3
+                                        + ky
+                                    )
+                                    var input_index = (
+                                        batch * inputs_strides_0
+                                        + in_ch * inputs_strides_1
+                                        + ix * inputs_strides_2
+                                        + iy
+                                    )
+                                    col_ptr[unsafe_offset=col_index] = inputs[
+                                        input_index
+                                    ]
+
+            parallelize(im2col, input_shape_0)
+            for batch in range(input_shape_0):
+                var batch_kernel_grad = Tensor[f32](
+                    kernel_shape, uninitialized=True
+                )
+                dot[
+                    TensorShape(ug_shape_1, positions),
+                    TensorShape(positions, kernel_values),
+                ](
+                    batch_kernel_grad.ptr(),
+                    ug.ptr().unsafe_offset(batch * ug_strides_0),
+                    col_ptr.unsafe_offset(batch * col_shape.num_elements()),
+                )
+                for i in range(kernel_shape.num_elements()):
+                    res[i] += batch_kernel_grad[i]
+
+            col_ptr.unsafe_free()
 
         else:
             # Bias
