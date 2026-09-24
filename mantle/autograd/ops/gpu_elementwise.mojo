@@ -7,20 +7,38 @@
 #  ===----------------------------------------------------------------------=== #
 """GPU elementwise kernels (mantle.autograd.ops.gpu_elementwise)
 ------------------------------------------------
-GPU kernels for ADD/SUB/MUL/DIV/RELU forward+backward. Same-shape
-operands only (no broadcast).
+GPU kernels for ADD/SUB/MUL/DIV/RELU forward+backward (same-shape
+operands), trailing-dim-broadcast bias-add (for Linear layers), RNG, and
+the Adam optimizer step.
 """
 from std.math import ceildiv, sqrt, log, cos, pi
 from max.gpu import thread_idx, block_idx, block_dim
 from max.gpu.host import DeviceContext
+from std.ffi import _Global
+from std.os import abort
 from std.random.philox import Random
 from std.random import random_ui64
 
 from mantle import f32
-from mantle.core.tensor import Tensor
+from mantle.core.tensor import Tensor, TensorShape, _shared_device_context
 from mantle.core.device import Device
 
 comptime _BLOCK = 256
+
+
+def _make_kernel_fn[
+    declared_arg_types: TypeList[Trait=AnyType, ...],
+    //,
+    func: def(*args: *declared_arg_types) thin -> None,
+]() -> type_of(_shared_device_context().compile_function[func]()):
+    """A kernel's `DeviceFunction` (compiled pipeline state) is expensive to
+    create and constant for the process, so each kernel gets exactly one,
+    cached the same way `_shared_device_context` caches the `DeviceContext`
+    itself — otherwise every single launch would recompile it."""
+    try:
+        return _shared_device_context().compile_function[func]()
+    except e:
+        abort("Mantle: GPU kernel compile failed: " + String(e))
 
 
 def _add_kernel(
@@ -34,6 +52,13 @@ def _add_kernel(
         res.unsafe_store(Int(i), a.unsafe_load(Int(i)) + b.unsafe_load(Int(i)))
 
 
+comptime _add_kernel_global = _Global["mantle_gpu_kernel_add", _make_kernel_fn[_add_kernel]]
+
+
+def _cached_add_kernel() raises -> type_of(_shared_device_context().compile_function[_add_kernel]()):
+    return _add_kernel_global.get_or_create_ptr()[unsafe_offset=0].copy()
+
+
 def _sub_kernel(
     res: Pointer[Scalar[f32], MutAnyOrigin],
     a: Pointer[Scalar[f32], MutAnyOrigin],
@@ -43,6 +68,13 @@ def _sub_kernel(
     var i = Int64(block_idx.x * block_dim.x + thread_idx.x)
     if i < n:
         res.unsafe_store(Int(i), a.unsafe_load(Int(i)) - b.unsafe_load(Int(i)))
+
+
+comptime _sub_kernel_global = _Global["mantle_gpu_kernel_sub", _make_kernel_fn[_sub_kernel]]
+
+
+def _cached_sub_kernel() raises -> type_of(_shared_device_context().compile_function[_sub_kernel]()):
+    return _sub_kernel_global.get_or_create_ptr()[unsafe_offset=0].copy()
 
 
 def _mul_kernel(
@@ -56,6 +88,13 @@ def _mul_kernel(
         res.unsafe_store(Int(i), a.unsafe_load(Int(i)) * b.unsafe_load(Int(i)))
 
 
+comptime _mul_kernel_global = _Global["mantle_gpu_kernel_mul", _make_kernel_fn[_mul_kernel]]
+
+
+def _cached_mul_kernel() raises -> type_of(_shared_device_context().compile_function[_mul_kernel]()):
+    return _mul_kernel_global.get_or_create_ptr()[unsafe_offset=0].copy()
+
+
 def _div_kernel(
     res: Pointer[Scalar[f32], MutAnyOrigin],
     a: Pointer[Scalar[f32], MutAnyOrigin],
@@ -65,6 +104,13 @@ def _div_kernel(
     var i = Int64(block_idx.x * block_dim.x + thread_idx.x)
     if i < n:
         res.unsafe_store(Int(i), a.unsafe_load(Int(i)) / b.unsafe_load(Int(i)))
+
+
+comptime _div_kernel_global = _Global["mantle_gpu_kernel_div", _make_kernel_fn[_div_kernel]]
+
+
+def _cached_div_kernel() raises -> type_of(_shared_device_context().compile_function[_div_kernel]()):
+    return _div_kernel_global.get_or_create_ptr()[unsafe_offset=0].copy()
 
 
 def _accumulate_kernel(
@@ -77,6 +123,15 @@ def _accumulate_kernel(
         res.unsafe_store(Int(i), res.unsafe_load(Int(i)) + other.unsafe_load(Int(i)))
 
 
+comptime _accumulate_kernel_global = _Global[
+    "mantle_gpu_kernel_accumulate", _make_kernel_fn[_accumulate_kernel]
+]
+
+
+def _cached_accumulate_kernel() raises -> type_of(_shared_device_context().compile_function[_accumulate_kernel]()):
+    return _accumulate_kernel_global.get_or_create_ptr()[unsafe_offset=0].copy()
+
+
 def _neg_kernel(
     res: Pointer[Scalar[f32], MutAnyOrigin],
     a: Pointer[Scalar[f32], MutAnyOrigin],
@@ -85,6 +140,13 @@ def _neg_kernel(
     var i = Int64(block_idx.x * block_dim.x + thread_idx.x)
     if i < n:
         res.unsafe_store(Int(i), -a.unsafe_load(Int(i)))
+
+
+comptime _neg_kernel_global = _Global["mantle_gpu_kernel_neg", _make_kernel_fn[_neg_kernel]]
+
+
+def _cached_neg_kernel() raises -> type_of(_shared_device_context().compile_function[_neg_kernel]()):
+    return _neg_kernel_global.get_or_create_ptr()[unsafe_offset=0].copy()
 
 
 def _relu_kernel(
@@ -98,6 +160,13 @@ def _relu_kernel(
         res.unsafe_store(Int(i), v if v > 0 else Scalar[f32](0))
 
 
+comptime _relu_kernel_global = _Global["mantle_gpu_kernel_relu", _make_kernel_fn[_relu_kernel]]
+
+
+def _cached_relu_kernel() raises -> type_of(_shared_device_context().compile_function[_relu_kernel]()):
+    return _relu_kernel_global.get_or_create_ptr()[unsafe_offset=0].copy()
+
+
 def _relu_bw_kernel(
     res: Pointer[Scalar[f32], MutAnyOrigin],
     t1: Pointer[Scalar[f32], MutAnyOrigin],
@@ -108,6 +177,15 @@ def _relu_bw_kernel(
     if i < n:
         var mask = Scalar[f32](1) if t1.unsafe_load(Int(i)) > 0 else Scalar[f32](0)
         res.unsafe_store(Int(i), mask * ug.unsafe_load(Int(i)))
+
+
+comptime _relu_bw_kernel_global = _Global[
+    "mantle_gpu_kernel_relu_bw", _make_kernel_fn[_relu_bw_kernel]
+]
+
+
+def _cached_relu_bw_kernel() raises -> type_of(_shared_device_context().compile_function[_relu_bw_kernel]()):
+    return _relu_bw_kernel_global.get_or_create_ptr()[unsafe_offset=0].copy()
 
 
 def _div_bw_t2_kernel(
@@ -125,6 +203,96 @@ def _div_bw_t2_kernel(
         )
 
 
+comptime _div_bw_t2_kernel_global = _Global[
+    "mantle_gpu_kernel_div_bw_t2", _make_kernel_fn[_div_bw_t2_kernel]
+]
+
+
+def _cached_div_bw_t2_kernel() raises -> type_of(_shared_device_context().compile_function[_div_bw_t2_kernel]()):
+    return _div_bw_t2_kernel_global.get_or_create_ptr()[unsafe_offset=0].copy()
+
+
+def _add_bias_kernel(
+    res: Pointer[Scalar[f32], MutAnyOrigin],
+    a: Pointer[Scalar[f32], MutAnyOrigin],
+    bias: Pointer[Scalar[f32], MutAnyOrigin],
+    n: Int64,
+    total: Int64,
+):
+    """res[i] = a[i] + bias[i % n], for a trailing-dim broadcast bias."""
+    var i = Int64(block_idx.x * block_dim.x + thread_idx.x)
+    if i < total:
+        res.unsafe_store(
+            Int(i), a.unsafe_load(Int(i)) + bias.unsafe_load(Int(i % n))
+        )
+
+
+comptime _add_bias_kernel_global = _Global[
+    "mantle_gpu_kernel_add_bias", _make_kernel_fn[_add_bias_kernel]
+]
+
+
+def _cached_add_bias_kernel() raises -> type_of(_shared_device_context().compile_function[_add_bias_kernel]()):
+    return _add_bias_kernel_global.get_or_create_ptr()[unsafe_offset=0].copy()
+
+
+def _bias_grad_kernel(
+    res: Pointer[Scalar[f32], MutAnyOrigin],
+    ug: Pointer[Scalar[f32], MutAnyOrigin],
+    n: Int64,
+    outer: Int64,
+):
+    """res[j] = sum over the broadcast dim of ug[..., j]."""
+    var j = Int64(block_idx.x * block_dim.x + thread_idx.x)
+    if j < n:
+        var s: Scalar[f32] = 0
+        var idx = j
+        for _ in range(outer):
+            s += ug.unsafe_load(Int(idx))
+            idx += n
+        res.unsafe_store(Int(j), s)
+
+
+comptime _bias_grad_kernel_global = _Global[
+    "mantle_gpu_kernel_bias_grad", _make_kernel_fn[_bias_grad_kernel]
+]
+
+
+def _cached_bias_grad_kernel() raises -> type_of(_shared_device_context().compile_function[_bias_grad_kernel]()):
+    return _bias_grad_kernel_global.get_or_create_ptr()[unsafe_offset=0].copy()
+
+
+def gpu_add_bias_forward(
+    mut res: Tensor[f32, Device.gpu],
+    t1: Tensor[f32, Device.gpu],
+    bias: Tensor[f32, Device.gpu],
+) raises:
+    """res = t1 + bias, broadcasting `bias` (rank 1) over t1's trailing
+    dim."""
+    var ctx = res.gpu_context()
+    var total = res.num_elements()
+    var n = bias.num_elements()
+    _cached_add_bias_kernel()._call_with_pack_checked(
+        ctx, res.gpu_ptr(), t1.gpu_ptr(), bias.gpu_ptr(), Int64(n), Int64(total),
+        grid_dim=ceildiv(total, _BLOCK), block_dim=min(total, _BLOCK),
+    )
+
+
+def gpu_bias_grad(
+    ug: Tensor[f32, Device.gpu], n: Int
+) raises -> Tensor[f32, Device.gpu]:
+    """Reduces `ug`'s gradient back down to the broadcast bias's shape."""
+    var res_grad = Tensor[f32, Device.gpu](TensorShape(n))
+    var ctx = res_grad.gpu_context()
+    var total = ug.num_elements()
+    var outer = total // n
+    _cached_bias_grad_kernel()._call_with_pack_checked(
+        ctx, res_grad.gpu_ptr(), ug.gpu_ptr(), Int64(n), Int64(outer),
+        grid_dim=ceildiv(n, _BLOCK), block_dim=min(n, _BLOCK),
+    )
+    return res_grad^
+
+
 def _rand_uniform_kernel(
     res: Pointer[Scalar[f32], MutAnyOrigin],
     n: Int64,
@@ -137,6 +305,15 @@ def _rand_uniform_kernel(
         var gen = Random(seed=seed, offset=UInt64(i))
         var u = gen.step_uniform()
         res.unsafe_store(Int(i), u[0] * (high - low) + low)
+
+
+comptime _rand_uniform_kernel_global = _Global[
+    "mantle_gpu_kernel_rand_uniform", _make_kernel_fn[_rand_uniform_kernel]
+]
+
+
+def _cached_rand_uniform_kernel() raises -> type_of(_shared_device_context().compile_function[_rand_uniform_kernel]()):
+    return _rand_uniform_kernel_global.get_or_create_ptr()[unsafe_offset=0].copy()
 
 
 def _rand_normal_kernel(
@@ -158,6 +335,15 @@ def _rand_normal_kernel(
         res.unsafe_store(Int(i), mean + std * z0)
 
 
+comptime _rand_normal_kernel_global = _Global[
+    "mantle_gpu_kernel_rand_normal", _make_kernel_fn[_rand_normal_kernel]
+]
+
+
+def _cached_rand_normal_kernel() raises -> type_of(_shared_device_context().compile_function[_rand_normal_kernel]()):
+    return _rand_normal_kernel_global.get_or_create_ptr()[unsafe_offset=0].copy()
+
+
 def gpu_rand_uniform(
     mut res: Tensor[f32, Device.gpu], low: Scalar[f32], high: Scalar[f32]
 ) raises:
@@ -167,11 +353,10 @@ def gpu_rand_uniform(
     var ctx = res.gpu_context()
     var n = res.num_elements()
     var seed = random_ui64(0, UInt64.MAX)
-    ctx.compile_function[_rand_uniform_kernel]()._call_with_pack_checked(
+    _cached_rand_uniform_kernel()._call_with_pack_checked(
         ctx, res.gpu_ptr(), Int64(n), seed, low, high,
         grid_dim=ceildiv(n, _BLOCK), block_dim=min(n, _BLOCK),
     )
-    ctx.synchronize()
 
 
 def gpu_rand_normal(
@@ -182,11 +367,10 @@ def gpu_rand_normal(
     var ctx = res.gpu_context()
     var n = res.num_elements()
     var seed = random_ui64(0, UInt64.MAX)
-    ctx.compile_function[_rand_normal_kernel]()._call_with_pack_checked(
+    _cached_rand_normal_kernel()._call_with_pack_checked(
         ctx, res.gpu_ptr(), Int64(n), seed, mean, std,
         grid_dim=ceildiv(n, _BLOCK), block_dim=min(n, _BLOCK),
     )
-    ctx.synchronize()
 
 
 def _adam_step_kernel(
@@ -221,6 +405,15 @@ def _adam_step_kernel(
         param.unsafe_store(Int(i), p)
 
 
+comptime _adam_step_kernel_global = _Global[
+    "mantle_gpu_kernel_adam_step", _make_kernel_fn[_adam_step_kernel]
+]
+
+
+def _cached_adam_step_kernel() raises -> type_of(_shared_device_context().compile_function[_adam_step_kernel]()):
+    return _adam_step_kernel_global.get_or_create_ptr()[unsafe_offset=0].copy()
+
+
 def gpu_adam_step(
     mut param: Tensor[f32, Device.gpu],
     mut momentum: Tensor[f32, Device.gpu],
@@ -236,7 +429,7 @@ def gpu_adam_step(
     """One Adam update (momentum/rms/bias-correction/param step)."""
     var ctx = param.gpu_context()
     var n = param.num_elements()
-    ctx.compile_function[_adam_step_kernel]()._call_with_pack_checked(
+    _cached_adam_step_kernel()._call_with_pack_checked(
         ctx,
         param.gpu_ptr(),
         momentum.gpu_ptr(),
@@ -252,7 +445,6 @@ def gpu_adam_step(
         grid_dim=ceildiv(n, _BLOCK),
         block_dim=min(n, _BLOCK),
     )
-    ctx.synchronize()
 
 
 def gpu_write_from_host(
@@ -275,11 +467,10 @@ def gpu_add_forward(
 ) raises:
     var ctx = res.gpu_context()
     var n = res.num_elements()
-    ctx.compile_function[_add_kernel]()._call_with_pack_checked(
+    _cached_add_kernel()._call_with_pack_checked(
         ctx, res.gpu_ptr(), t1.gpu_ptr(), t2.gpu_ptr(), Int64(n),
         grid_dim=ceildiv(n, _BLOCK), block_dim=min(n, _BLOCK),
     )
-    ctx.synchronize()
 
 
 def gpu_sub_forward(
@@ -289,11 +480,10 @@ def gpu_sub_forward(
 ) raises:
     var ctx = res.gpu_context()
     var n = res.num_elements()
-    ctx.compile_function[_sub_kernel]()._call_with_pack_checked(
+    _cached_sub_kernel()._call_with_pack_checked(
         ctx, res.gpu_ptr(), t1.gpu_ptr(), t2.gpu_ptr(), Int64(n),
         grid_dim=ceildiv(n, _BLOCK), block_dim=min(n, _BLOCK),
     )
-    ctx.synchronize()
 
 
 def gpu_mul_forward(
@@ -303,11 +493,10 @@ def gpu_mul_forward(
 ) raises:
     var ctx = res.gpu_context()
     var n = res.num_elements()
-    ctx.compile_function[_mul_kernel]()._call_with_pack_checked(
+    _cached_mul_kernel()._call_with_pack_checked(
         ctx, res.gpu_ptr(), t1.gpu_ptr(), t2.gpu_ptr(), Int64(n),
         grid_dim=ceildiv(n, _BLOCK), block_dim=min(n, _BLOCK),
     )
-    ctx.synchronize()
 
 
 def gpu_div_forward(
@@ -317,11 +506,10 @@ def gpu_div_forward(
 ) raises:
     var ctx = res.gpu_context()
     var n = res.num_elements()
-    ctx.compile_function[_div_kernel]()._call_with_pack_checked(
+    _cached_div_kernel()._call_with_pack_checked(
         ctx, res.gpu_ptr(), t1.gpu_ptr(), t2.gpu_ptr(), Int64(n),
         grid_dim=ceildiv(n, _BLOCK), block_dim=min(n, _BLOCK),
     )
-    ctx.synchronize()
 
 
 def gpu_accumulate_grad(
@@ -330,11 +518,10 @@ def gpu_accumulate_grad(
     """`grad += res_grad`, elementwise (no broadcasting)."""
     var ctx = grad.gpu_context()
     var n = grad.num_elements()
-    ctx.compile_function[_accumulate_kernel]()._call_with_pack_checked(
+    _cached_accumulate_kernel()._call_with_pack_checked(
         ctx, grad.gpu_ptr(), res_grad.gpu_ptr(), Int64(n),
         grid_dim=ceildiv(n, _BLOCK), block_dim=min(n, _BLOCK),
     )
-    ctx.synchronize()
 
 
 def gpu_relu_forward(
@@ -342,11 +529,10 @@ def gpu_relu_forward(
 ) raises:
     var ctx = res.gpu_context()
     var n = res.num_elements()
-    ctx.compile_function[_relu_kernel]()._call_with_pack_checked(
+    _cached_relu_kernel()._call_with_pack_checked(
         ctx, res.gpu_ptr(), t1.gpu_ptr(), Int64(n),
         grid_dim=ceildiv(n, _BLOCK), block_dim=min(n, _BLOCK),
     )
-    ctx.synchronize()
 
 
 def gpu_relu_backward(
@@ -355,11 +541,10 @@ def gpu_relu_backward(
     var res_grad = Tensor[f32, Device.gpu](ug.shape())
     var ctx = res_grad.gpu_context()
     var n = res_grad.num_elements()
-    ctx.compile_function[_relu_bw_kernel]()._call_with_pack_checked(
+    _cached_relu_bw_kernel()._call_with_pack_checked(
         ctx, res_grad.gpu_ptr(), t1.gpu_ptr(), ug.gpu_ptr(), Int64(n),
         grid_dim=ceildiv(n, _BLOCK), block_dim=min(n, _BLOCK),
     )
-    ctx.synchronize()
     return res_grad^
 
 
@@ -367,11 +552,10 @@ def gpu_sub_backward_t2(ug: Tensor[f32, Device.gpu]) raises -> Tensor[f32, Devic
     var res_grad = Tensor[f32, Device.gpu](ug.shape())
     var ctx = res_grad.gpu_context()
     var n = res_grad.num_elements()
-    ctx.compile_function[_neg_kernel]()._call_with_pack_checked(
+    _cached_neg_kernel()._call_with_pack_checked(
         ctx, res_grad.gpu_ptr(), ug.gpu_ptr(), Int64(n),
         grid_dim=ceildiv(n, _BLOCK), block_dim=min(n, _BLOCK),
     )
-    ctx.synchronize()
     return res_grad^
 
 
@@ -381,11 +565,10 @@ def gpu_mul_backward(
     var res_grad = Tensor[f32, Device.gpu](ug.shape())
     var ctx = res_grad.gpu_context()
     var n = res_grad.num_elements()
-    ctx.compile_function[_mul_kernel]()._call_with_pack_checked(
+    _cached_mul_kernel()._call_with_pack_checked(
         ctx, res_grad.gpu_ptr(), ug.gpu_ptr(), other.gpu_ptr(), Int64(n),
         grid_dim=ceildiv(n, _BLOCK), block_dim=min(n, _BLOCK),
     )
-    ctx.synchronize()
     return res_grad^
 
 
@@ -395,11 +578,10 @@ def gpu_div_backward_t1(
     var res_grad = Tensor[f32, Device.gpu](ug.shape())
     var ctx = res_grad.gpu_context()
     var n = res_grad.num_elements()
-    ctx.compile_function[_div_kernel]()._call_with_pack_checked(
+    _cached_div_kernel()._call_with_pack_checked(
         ctx, res_grad.gpu_ptr(), ug.gpu_ptr(), t2.gpu_ptr(), Int64(n),
         grid_dim=ceildiv(n, _BLOCK), block_dim=min(n, _BLOCK),
     )
-    ctx.synchronize()
     return res_grad^
 
 
@@ -411,7 +593,7 @@ def gpu_div_backward_t2(
     var res_grad = Tensor[f32, Device.gpu](ug.shape())
     var ctx = res_grad.gpu_context()
     var n = res_grad.num_elements()
-    ctx.compile_function[_div_bw_t2_kernel]()._call_with_pack_checked(
+    _cached_div_bw_t2_kernel()._call_with_pack_checked(
         ctx,
         res_grad.gpu_ptr(),
         t1.gpu_ptr(),
@@ -421,5 +603,4 @@ def gpu_div_backward_t2(
         grid_dim=ceildiv(n, _BLOCK),
         block_dim=min(n, _BLOCK),
     )
-    ctx.synchronize()
     return res_grad^
