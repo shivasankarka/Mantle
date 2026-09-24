@@ -261,7 +261,7 @@ struct DOT:
     def forward[
         t1_shape: TensorShape,
         t2_shape: TensorShape,
-    ](mut res: Tensor[f32], t1: Tensor[f32], t2: Tensor[f32]):
+    ](mut res: Tensor[f32], t1: Tensor[f32], t2: Tensor[f32]) raises:
         """
         Forward pass of the dot operation.
         """
@@ -276,7 +276,7 @@ struct DOT:
         ug_shape: TensorShape,
         t1_shape: TensorShape,
         t2_shape: TensorShape,
-    ](ug: Tensor[f32], t1: Tensor[f32], t2: Tensor[f32]) -> Tensor[f32]:
+    ](ug: Tensor[f32], t1: Tensor[f32], t2: Tensor[f32]) raises -> Tensor[f32]:
         """Backward operation of dot product.
 
         For the batched case, the returned gradient has the "full" batch

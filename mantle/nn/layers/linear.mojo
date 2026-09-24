@@ -45,8 +45,7 @@ def Linear(
         TensorShape(n_outputs), init=Param("random_uniform", -bound, bound)
     )
 
-    var res = g.op(OP.DOT, inputs, weights)
-    return g.op(OP.ADD, res, b)
+    return g.op(OP.LINEAR, inputs, weights, b)
 
 
 # ===----------------------------------------------------------------------===#
