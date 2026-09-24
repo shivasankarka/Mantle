@@ -13,6 +13,7 @@ utilities.
 from std.math import sqrt, cos
 from std.algorithm import vectorize
 from max.algorithm import parallelize
+from std.sys.info import simd_width_of
 
 comptime PI = Float64(3.14159265358979323846)
 
@@ -90,7 +91,7 @@ def clip_grad_norm[
             var g_vec = parameters.grads[param].load[nelts](j)
             total_norm += (g_vec * g_vec).reduce_add()
 
-        vectorize[1](n, v_norm)
+        vectorize[simd_width_of[f32]()](n, v_norm)
 
     total_norm = sqrt(total_norm)
 
@@ -108,7 +109,7 @@ def clip_grad_norm[
                 var g_vec = parameters.grads[param].load[nelts](j)
                 parameters.grads[param].store[nelts](j, g_vec * scale)
 
-            vectorize[1](n, v_scale)
+            vectorize[simd_width_of[f32]()](n, v_scale)
 
     return total_norm
 
@@ -171,19 +172,33 @@ struct Adam[
         comptime if Self.device.id == Device.cpu.id:
             comptime assert Self.device.id == Device.cpu.id
 
+            # Loop-invariant across every element of every param — hoisted
+            # out of `v_step` so `pow` runs once per `step()` call instead
+            # of once per SIMD group per param (was previously the single
+            # biggest cost in the whole optimizer step).
+            var one_minus_beta1_pow_t = 1 - self.beta1**self.iter
+            var one_minus_beta2_pow_t = 1 - self.beta2**self.iter
+
             # Loop over all trainable parameters
-            def p_step(i: Int) {mut self, imm tr}:
+            def p_step(i: Int) {mut self, imm tr, imm one_minus_beta1_pow_t, imm one_minus_beta2_pow_t}:
                 var param = tr[i]
 
-                def v_step[nelts: Int](j: Int) {mut self, imm param}:
-                    var momentum_grads = self.momentum_grads[param].load[
-                        nelts
-                    ](j)
-                    var rms_grads = self.rms_grads[param].load[nelts](j)
-                    var grads = self.parameters[].grads[param].load[nelts](j)
-                    var params = self.parameters[].tensors[param].load[nelts](
-                        j
-                    )
+                # Collection.__getitem__ does an index lookup plus a
+                # refcounted buffer `.share()` — cheap once, but `v_step`
+                # runs once per SIMD group, so doing it inside `v_step`
+                # meant paying that cost millions of times over on a big
+                # param. Hoisted out here instead (was the single biggest
+                # cost in the whole optimizer step).
+                var momentum_t = self.momentum_grads[param]
+                var rms_t = self.rms_grads[param]
+                var grad_t = self.parameters[].grads[param]
+                var param_t = self.parameters[].tensors[param]
+
+                def v_step[nelts: Int](j: Int) {imm self, mut momentum_t, mut rms_t, imm grad_t, mut param_t, imm one_minus_beta1_pow_t, imm one_minus_beta2_pow_t}:
+                    var momentum_grads = momentum_t.load[nelts](j)
+                    var rms_grads = rms_t.load[nelts](j)
+                    var grads = grad_t.load[nelts](j)
+                    var params = param_t.load[nelts](j)
 
                     # Momentum beta 1
                     # f1 = beta1 * momentum + (1 - beta1) * grad
@@ -191,15 +206,11 @@ struct Adam[
                         self.beta1 * momentum_grads
                         + (1 - self.beta1) * grads
                     )
-                    self.momentum_grads[param].store[nelts](
-                        j, momentum_grads
-                    )
+                    momentum_t.store[nelts](j, momentum_grads)
 
                     # Bias correction
                     # f2 = f1 / (1 - beta1 ** iter)
-                    momentum_grads = momentum_grads / (
-                        1 - self.beta1**self.iter
-                    )
+                    momentum_grads = momentum_grads / one_minus_beta1_pow_t
 
                     # RMS beta 2
                     # f1 = beta2 * rms + (1 - beta2) * grad ** 2
@@ -207,19 +218,19 @@ struct Adam[
                         self.beta2 * rms_grads
                         + (1 - self.beta2) * grads * grads
                     )
-                    self.rms_grads[param].store[nelts](j, rms_grads)
+                    rms_t.store[nelts](j, rms_grads)
 
                     # Bias correction
                     # f2 = f1 / (1 - beta2 ** iter)
-                    rms_grads = rms_grads / (1 - self.beta2**self.iter)
+                    rms_grads = rms_grads / one_minus_beta2_pow_t
 
                     # tensor = tensor - lr * (f2 / (sqrt(rms) + epsilon))
                     params = params - self.lr * (
                         momentum_grads / (sqrt(rms_grads) + self.epsilon)
                     )
-                    self.parameters[].tensors[param].store[nelts](j, params)
+                    param_t.store[nelts](j, params)
 
-                vectorize[1](param.shape.num_elements(), v_step)
+                vectorize[simd_width_of[f32]()](param.shape.num_elements(), v_step)
 
             parallelize(p_step, len(tr))
         else:
@@ -327,28 +338,37 @@ struct AdamW[
         self.iter += 1
         var tr = materialize[Self.trainable_parameters]()
 
-        def p_step(i: Int) {mut self, imm tr}:
+        var one_minus_beta1_pow_t = 1 - self.beta1**self.iter
+        var one_minus_beta2_pow_t = 1 - self.beta2**self.iter
+
+        def p_step(i: Int) {mut self, imm tr, imm one_minus_beta1_pow_t, imm one_minus_beta2_pow_t}:
             var param = tr[i]
 
-            def v_step[nelts: Int](j: Int) {mut self, imm param}:
-                var momentum_grads = self.momentum_grads[param].load[nelts](j)
-                var rms_grads = self.rms_grads[param].load[nelts](j)
-                var grads = self.parameters[].grads[param].load[nelts](j)
-                var params = self.parameters[].tensors[param].load[nelts](j)
+            # See Adam.step for why these are hoisted out of `v_step`.
+            var momentum_t = self.momentum_grads[param]
+            var rms_t = self.rms_grads[param]
+            var grad_t = self.parameters[].grads[param]
+            var param_t = self.parameters[].tensors[param]
+
+            def v_step[nelts: Int](j: Int) {imm self, mut momentum_t, mut rms_t, imm grad_t, mut param_t, imm one_minus_beta1_pow_t, imm one_minus_beta2_pow_t}:
+                var momentum_grads = momentum_t.load[nelts](j)
+                var rms_grads = rms_t.load[nelts](j)
+                var grads = grad_t.load[nelts](j)
+                var params = param_t.load[nelts](j)
 
                 # Momentum beta 1
                 momentum_grads = (
                     self.beta1 * momentum_grads + (1 - self.beta1) * grads
                 )
-                self.momentum_grads[param].store[nelts](j, momentum_grads)
-                momentum_grads = momentum_grads / (1 - self.beta1**self.iter)
+                momentum_t.store[nelts](j, momentum_grads)
+                momentum_grads = momentum_grads / one_minus_beta1_pow_t
 
                 # RMS beta 2
                 rms_grads = (
                     self.beta2 * rms_grads + (1 - self.beta2) * grads * grads
                 )
-                self.rms_grads[param].store[nelts](j, rms_grads)
-                rms_grads = rms_grads / (1 - self.beta2**self.iter)
+                rms_t.store[nelts](j, rms_grads)
+                rms_grads = rms_grads / one_minus_beta2_pow_t
 
                 # Decoupled weight decay, applied directly to the param
                 # (not folded into the gradient like Adam + L2 would).
@@ -358,9 +378,9 @@ struct AdamW[
                 params = params - self.lr * (
                     momentum_grads / (sqrt(rms_grads) + self.epsilon)
                 )
-                self.parameters[].tensors[param].store[nelts](j, params)
+                param_t.store[nelts](j, params)
 
-            vectorize[1](param.shape.num_elements(), v_step)
+            vectorize[simd_width_of[f32]()](param.shape.num_elements(), v_step)
 
         parallelize(p_step, len(tr))
 
@@ -429,25 +449,28 @@ struct SGD[
         def p_step(i: Int) {mut self, imm tr}:
             var param = tr[i]
 
-            def v_step[nelts: Int](j: Int) {mut self, imm param}:
-                var grad = self.parameters[].grads[param].load[nelts](j)
-                var w = self.parameters[].tensors[param].load[nelts](j)
+            # See Adam.step for why these are hoisted out of `v_step`.
+            var grad_t = self.parameters[].grads[param]
+            var param_t = self.parameters[].tensors[param]
+            var vel_t = self.velocities[param]
+
+            def v_step[nelts: Int](j: Int) {imm self, imm grad_t, mut param_t, mut vel_t}:
+                var grad = grad_t.load[nelts](j)
+                var w = param_t.load[nelts](j)
 
                 # Optional weight decay (L2 regularization)
                 if self.weight_decay != 0.0:
                     grad = grad + self.weight_decay * w
 
                 if self.momentum != 0.0:
-                    var vel = self.velocities[param].load[nelts](j)
+                    var vel = vel_t.load[nelts](j)
                     vel = self.momentum * vel - self.lr * grad
-                    self.velocities[param].store[nelts](j, vel)
-                    self.parameters[].tensors[param].store[nelts](j, w + vel)
+                    vel_t.store[nelts](j, vel)
+                    param_t.store[nelts](j, w + vel)
                 else:
-                    self.parameters[].tensors[param].store[nelts](
-                        j, w - self.lr * grad
-                    )
+                    param_t.store[nelts](j, w - self.lr * grad)
 
-            vectorize[1](param.shape.num_elements(), v_step)
+            vectorize[simd_width_of[f32]()](param.shape.num_elements(), v_step)
 
         parallelize(p_step, len(tr))
 
