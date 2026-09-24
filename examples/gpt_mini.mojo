@@ -18,19 +18,24 @@ from std.math import exp
 import mantle.nn as nn
 from mantle import Tensor, TensorShape
 from mantle import Graph, Symbol, OP, f32
+from mantle.core.device import Device
 from mantle.autograd.attributes import AttributeVector, Attribute
 from mantle.serialize.checkpoint import (
     save_checkpoint_with_optim,
     load_checkpoint_with_optim,
 )
+from mantle.autograd.ops.gpu_elementwise import gpu_write_from_host
 
 
 comptime DATA_PATH: StaticString = "./examples/data/tinyshakespeare.txt"
 comptime CHECKPOINT_PATH: StaticString = "./examples/data/gpt_mini.ckpt"
 comptime VOCAB_SIZE = 65
+comptime TRAIN_DEVICE = Device.gpu
 
 
-def build_vocab(text: String, mut vocab: List[String], mut char_ids: List[Int]) raises:
+def build_vocab(
+    text: String, mut vocab: List[String], mut char_ids: List[Int]
+) raises:
     """Fills `vocab` with sorted unique chars and `char_ids` with text
     mapped through that vocab."""
     for i in range(text.byte_length()):
@@ -140,7 +145,9 @@ def sample_from_logits(
     var probs = List[Float32]()
     var total: Float32 = 0.0
     for v in range(vocab_size):
-        var p = exp((logits_flat[row * vocab_size + v] - max_logit) / temperature)
+        var p = exp(
+            (logits_flat[row * vocab_size + v] - max_logit) / temperature
+        )
         probs.append(p)
         total += p
 
@@ -156,7 +163,7 @@ def sample_from_logits(
 def sample[
     g: Graph
 ](
-    mut model: nn.Model[g],
+    mut model: nn.Model[g, device=Device.gpu],
     vocab: List[String],
     char_to_id: Dict[String, Int],
     prompt: String,
@@ -173,18 +180,31 @@ def sample[
         context.insert(0, 0)
 
     var generated = String(prompt)
-    for _ in range(num_chars):
-        var x = Tensor[f32](TensorShape(batch_size, seq_len))
-        for t in range(seq_len):
-            x[t] = Float32(context[len(context) - seq_len + t])
 
-        var dummy_y = Tensor[f32](TensorShape(batch_size * seq_len, vocab_size))
-        var out = model.inference(x, dummy_y)
-        var logits_flat = out[0].copy()
+    # Allocated once and reused across every generated char instead of
+    # re-uploading a fresh GPU tensor per token: `dummy_y` is never read
+    # (inference stops before the loss node), so it needs no per-iteration
+    # write at all, and `x` only needs its content refreshed in place via
+    # `gpu_write_from_host` (no realloc/zero-fill, unlike `.to_gpu()`).
+    var x_cpu = Tensor[f32](TensorShape(batch_size, seq_len))
+    var x_gpu = x_cpu.to_gpu()
+    var dummy_y = Tensor[f32](
+        TensorShape(batch_size * seq_len, vocab_size)
+    ).to_gpu()
+
+    for _ in range(num_chars):
+        for t in range(seq_len):
+            x_cpu[t] = Float32(context[len(context) - seq_len + t])
+        gpu_write_from_host(x_gpu, x_cpu)
+
+        var out = model.inference(x_gpu.share(), dummy_y.share())
+        var logits_flat = out[0].to_host()
 
         # last real token's logits are at row (seq_len - 1) for batch 0
         var row = seq_len - 1
-        var next_id = sample_from_logits(logits_flat, row, vocab_size, temperature)
+        var next_id = sample_from_logits(
+            logits_flat, row, vocab_size, temperature
+        )
 
         generated += vocab[next_id]
         context.append(next_id)
@@ -193,19 +213,20 @@ def sample[
 
 
 def main() raises:
-    comptime seq_len = 64
-    comptime batch_size = 16
-    comptime d_model = 128
+    # Keep the first GPU run intentionally small: Mojo specializes the whole
+    # static graph before `main()` can print. Once this smoke configuration
+    # trains and the GPU fallback audit is clean, scale these to 64/16/128.
+    comptime seq_len = 16
+    comptime batch_size = 4
+    comptime d_model = 32
     comptime num_heads = 4
-    comptime d_ff = 512
-    comptime num_blocks = 4
+    comptime d_ff = 128
+    comptime num_blocks = 1
     comptime learning_rate = 3e-4
     comptime weight_decay = 0.01
     comptime warmup_steps = 200
-    comptime num_steps = 3000
-    comptime sample_every = 300
-    comptime checkpoint_every = 500
-    comptime resume_from_checkpoint = False
+    comptime num_steps = 1000
+    comptime sample_every = 1000
 
     print("Loading data from", DATA_PATH, "...")
     var text = open(String(DATA_PATH), "r").read()
@@ -239,8 +260,8 @@ def main() raises:
         d_ff,
         num_blocks,
     )
-    var model = nn.Model[graph]()
-    var optim = nn.optim.AdamW[graph](
+    var model = nn.Model[graph, device=TRAIN_DEVICE]()
+    var optim = nn.optim.AdamW[graph, device=TRAIN_DEVICE](
         model.parameters, lr=learning_rate, weight_decay=weight_decay
     )
     var lr_schedule = nn.optim.WarmupCosineSchedule(
@@ -250,41 +271,46 @@ def main() raises:
         min_lr=learning_rate * 0.1,
     )
 
-    var start_step = 0
-    comptime if resume_from_checkpoint:
-        try:
-            var info = load_checkpoint_with_optim(
-                String(CHECKPOINT_PATH),
-                model.parameters,
-                optim.momentum_grads,
-                optim.rms_grads,
-            )
-            optim.iter = info.iter
-            start_step = info.iter
-            print("Resumed from checkpoint at step", start_step)
-        except e:
-            print("No checkpoint to resume from (", e, "), starting fresh.")
-
-    print("Training started. (", num_steps, "steps, batch size", batch_size, ", seq len", seq_len, ")")
+    print(
+        "Training started. (",
+        num_steps,
+        "steps, batch size",
+        batch_size,
+        ", seq len",
+        seq_len,
+        ")",
+    )
     var start = now()
 
-    for step in range(start_step, num_steps):
+    for step in range(num_steps):
         optim.lr = lr_schedule.get_lr(step)
 
-        var x = Tensor[f32](TensorShape(batch_size, seq_len))
-        var y_onehot = Tensor[f32](
+        var x_host = Tensor[f32](TensorShape(batch_size, seq_len))
+        var y_onehot_host = Tensor[f32](
             TensorShape(batch_size * seq_len, VOCAB_SIZE)
         )
-        make_random_batch(char_ids, batch_size, seq_len, VOCAB_SIZE, x, y_onehot)
+        make_random_batch(
+            char_ids, batch_size, seq_len, VOCAB_SIZE, x_host, y_onehot_host
+        )
 
-        var loss = model.forward(x, y_onehot)
+        var loss = model.forward(x_host.to_gpu(), y_onehot_host.to_gpu())
 
         optim.zero_grad()
         model.backward()
         optim.step()
 
         if step % 50 == 0 or step == num_steps - 1:
-            print("step", step, "/", num_steps, "\tloss:", loss[0], "\tlr:", optim.lr)
+            var loss_host = loss.to_host()
+            print(
+                "step",
+                step,
+                "/",
+                num_steps,
+                "\tloss:",
+                loss_host[0],
+                "\tlr:",
+                optim.lr,
+            )
 
         if step > 0 and step % sample_every == 0:
             print(
@@ -292,37 +318,17 @@ def main() raises:
                 step,
                 "---\n",
                 sample(
-                    model, vocab, char_to_id, "\n", seq_len, batch_size,
-                    VOCAB_SIZE, 80,
+                    model,
+                    vocab,
+                    char_to_id,
+                    "\n",
+                    seq_len,
+                    batch_size,
+                    VOCAB_SIZE,
+                    80,
                 ),
                 "\n---",
             )
 
-        if step > 0 and step % checkpoint_every == 0:
-            save_checkpoint_with_optim(
-                String(CHECKPOINT_PATH),
-                model.parameters,
-                optim.momentum_grads,
-                optim.rms_grads,
-                iter=step,
-            )
-            print("Saved checkpoint at step", step, "to", CHECKPOINT_PATH)
-
     print("Training finished:", Float64(now() - start) / 1e9, "seconds")
-
-    save_checkpoint_with_optim(
-        String(CHECKPOINT_PATH),
-        model.parameters,
-        optim.momentum_grads,
-        optim.rms_grads,
-        iter=num_steps,
-    )
-    print("Saved final checkpoint to", CHECKPOINT_PATH)
-
-    print("\nFinal sample:")
-    print(
-        sample(
-            model, vocab, char_to_id, "ROMEO:", seq_len, batch_size,
-            VOCAB_SIZE, 200,
-        )
-    )
+    print("GPU smoke training completed.")

@@ -68,24 +68,33 @@ def main() raises:
     print("CPU:", cpu_seconds, "seconds (", cpu_seconds / epochs, "s/epoch)")
 
     # --- GPU ---
-    var model_gpu = nn.Model[graph, device = Device.gpu]()
-    var optim_gpu = nn.optim.Adam[graph, device = Device.gpu](
+    var model_gpu = nn.Model[graph, device=Device.gpu]()
+    var optim_gpu = nn.optim.Adam[graph, device=Device.gpu](
         model_gpu.parameters, lr=learning_rate
     )
+    # Keep benchmark inputs resident on the device, matching the PyTorch
+    # reference.  Uploading and synchronizing them in every timed iteration
+    # measures transfer overhead rather than model throughput.
+    var x_gpu = x_data.to_gpu()
+    var y_gpu = y_data.to_gpu()
 
     print("GPU: warming up")
-    _ = model_gpu.forward(x_data.to_gpu(), y_data.to_gpu())
+    _ = model_gpu.forward(x_gpu, y_gpu)
     optim_gpu.zero_grad()
     model_gpu.backward()
     optim_gpu.step()
+    x_gpu.gpu_context().synchronize()
 
     print("GPU: training", epochs, "epochs")
     var start_gpu = now()
     for _ in range(epochs):
-        _ = model_gpu.forward(x_data.to_gpu(), y_data.to_gpu())
+        _ = model_gpu.forward(x_gpu, y_gpu)
         optim_gpu.zero_grad()
         model_gpu.backward()
         optim_gpu.step()
+    # GPU launches are asynchronous.  Include all queued work, but avoid
+    # serializing every tensor copy/fill inside the measured loop.
+    x_gpu.gpu_context().synchronize()
     var gpu_seconds = Float64(now() - start_gpu) / 1e9
     print("GPU:", gpu_seconds, "seconds (", gpu_seconds / epochs, "s/epoch)")
 
