@@ -10,9 +10,11 @@
 GPU kernels for ADD/SUB/MUL/DIV/RELU forward+backward. Same-shape
 operands only (no broadcast).
 """
-from std.math import ceildiv
+from std.math import ceildiv, sqrt, log, cos, pi
 from max.gpu import thread_idx, block_idx, block_dim
 from max.gpu.host import DeviceContext
+from std.random.philox import Random
+from std.random import random_ui64
 
 from mantle import f32
 from mantle.core.tensor import Tensor
@@ -121,6 +123,149 @@ def _div_bw_t2_kernel(
         res.unsafe_store(
             Int(i), -t1.unsafe_load(Int(i)) / (t2v * t2v) * ug.unsafe_load(Int(i))
         )
+
+
+def _rand_uniform_kernel(
+    res: Pointer[Scalar[f32], MutAnyOrigin],
+    n: Int64,
+    seed: UInt64,
+    low: Scalar[f32],
+    high: Scalar[f32],
+):
+    var i = Int64(block_idx.x * block_dim.x + thread_idx.x)
+    if i < n:
+        var gen = Random(seed=seed, offset=UInt64(i))
+        var u = gen.step_uniform()
+        res.unsafe_store(Int(i), u[0] * (high - low) + low)
+
+
+def _rand_normal_kernel(
+    res: Pointer[Scalar[f32], MutAnyOrigin],
+    n: Int64,
+    seed: UInt64,
+    mean: Scalar[f32],
+    std: Scalar[f32],
+):
+    """Box-Muller, using one Philox stream per thread (independent of any
+    other thread's draw, unlike the CPU Mersenne-Twister path in
+    `rand_utils.mojo`."""
+    var i = Int64(block_idx.x * block_dim.x + thread_idx.x)
+    if i < n:
+        var gen = Random(seed=seed, offset=UInt64(i))
+        var u = gen.step_uniform_unbiased()
+        var r = sqrt(-2.0 * log(u[0]))
+        var z0 = r * cos(Scalar[f32](2.0 * pi) * u[1])
+        res.unsafe_store(Int(i), mean + std * z0)
+
+
+def gpu_rand_uniform(
+    mut res: Tensor[f32, Device.gpu], low: Scalar[f32], high: Scalar[f32]
+) raises:
+    """Fills `res` with values drawn from a uniform distribution, entirely
+    on-device (Philox counter-based RNG, one independent stream per
+    element)."""
+    var ctx = res.gpu_context()
+    var n = res.num_elements()
+    var seed = random_ui64(0, UInt64.MAX)
+    ctx.compile_function[_rand_uniform_kernel]()._call_with_pack_checked(
+        ctx, res.gpu_ptr(), Int64(n), seed, low, high,
+        grid_dim=ceildiv(n, _BLOCK), block_dim=min(n, _BLOCK),
+    )
+    ctx.synchronize()
+
+
+def gpu_rand_normal(
+    mut res: Tensor[f32, Device.gpu], mean: Scalar[f32], std: Scalar[f32]
+) raises:
+    """Fills `res` with values drawn from a normal distribution, entirely
+    on-device (Box-Muller over a Philox stream per element)."""
+    var ctx = res.gpu_context()
+    var n = res.num_elements()
+    var seed = random_ui64(0, UInt64.MAX)
+    ctx.compile_function[_rand_normal_kernel]()._call_with_pack_checked(
+        ctx, res.gpu_ptr(), Int64(n), seed, mean, std,
+        grid_dim=ceildiv(n, _BLOCK), block_dim=min(n, _BLOCK),
+    )
+    ctx.synchronize()
+
+
+def _adam_step_kernel(
+    param: Pointer[Scalar[f32], MutAnyOrigin],
+    momentum: Pointer[Scalar[f32], MutAnyOrigin],
+    rms: Pointer[Scalar[f32], MutAnyOrigin],
+    grad: Pointer[Scalar[f32], MutAnyOrigin],
+    n: Int64,
+    lr: Scalar[f32],
+    beta1: Scalar[f32],
+    beta2: Scalar[f32],
+    epsilon: Scalar[f32],
+    one_minus_beta1_pow_t: Scalar[f32],
+    one_minus_beta2_pow_t: Scalar[f32],
+):
+    var i = Int64(block_idx.x * block_dim.x + thread_idx.x)
+    if i < n:
+        var m = momentum.unsafe_load(Int(i))
+        var v = rms.unsafe_load(Int(i))
+        var g = grad.unsafe_load(Int(i))
+        var p = param.unsafe_load(Int(i))
+
+        m = beta1 * m + (1 - beta1) * g
+        momentum.unsafe_store(Int(i), m)
+        var m_hat = m / one_minus_beta1_pow_t
+
+        v = beta2 * v + (1 - beta2) * g * g
+        rms.unsafe_store(Int(i), v)
+        var v_hat = v / one_minus_beta2_pow_t
+
+        p = p - lr * (m_hat / (sqrt(v_hat) + epsilon))
+        param.unsafe_store(Int(i), p)
+
+
+def gpu_adam_step(
+    mut param: Tensor[f32, Device.gpu],
+    mut momentum: Tensor[f32, Device.gpu],
+    mut rms: Tensor[f32, Device.gpu],
+    grad: Tensor[f32, Device.gpu],
+    lr: Scalar[f32],
+    beta1: Scalar[f32],
+    beta2: Scalar[f32],
+    epsilon: Scalar[f32],
+    one_minus_beta1_pow_t: Scalar[f32],
+    one_minus_beta2_pow_t: Scalar[f32],
+) raises:
+    """One Adam update (momentum/rms/bias-correction/param step)."""
+    var ctx = param.gpu_context()
+    var n = param.num_elements()
+    ctx.compile_function[_adam_step_kernel]()._call_with_pack_checked(
+        ctx,
+        param.gpu_ptr(),
+        momentum.gpu_ptr(),
+        rms.gpu_ptr(),
+        grad.gpu_ptr(),
+        Int64(n),
+        lr,
+        beta1,
+        beta2,
+        epsilon,
+        one_minus_beta1_pow_t,
+        one_minus_beta2_pow_t,
+        grid_dim=ceildiv(n, _BLOCK),
+        block_dim=min(n, _BLOCK),
+    )
+    ctx.synchronize()
+
+
+def gpu_write_from_host(
+    mut gpu_t: Tensor[f32, Device.gpu], host_t: Tensor[f32, Device.cpu]
+) raises:
+    """Overwrites `gpu_t`'s existing device buffer with `host_t`'s data —
+    used by `ops.mojo`'s host round-trip fallback for ops without a native
+    GPU kernel yet (unlike `Tensor.to_gpu()`, this writes into the buffer
+    `gpu_t` already owns rather than allocating a new one, so callers that
+    hold a `.share()` of `gpu_t` still see the update)."""
+    var ctx = gpu_t.gpu_context()
+    ctx.enqueue_copy(gpu_t.gpu_ptr(), host_t.ptr(), gpu_t.num_elements())
+    ctx.synchronize()
 
 
 def gpu_add_forward(
