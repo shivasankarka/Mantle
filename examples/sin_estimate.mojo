@@ -28,13 +28,13 @@ def create_simple_nn(batch_size: Int, n_inputs: Int, n_outputs: Int) -> Graph:
     return g ^
 
 
-def main():
+def main() raises:
     comptime batch_size = 32
     comptime n_inputs = 1
     comptime n_outputs = 1
     comptime learning_rate = 0.01
 
-    comptime epochs = 20000
+    comptime epochs = 2000
 
     comptime graph = create_simple_nn(batch_size, n_inputs, n_outputs)
 
@@ -50,13 +50,13 @@ def main():
     print("Training started")
     var start = now()
     for i in range(epochs):
-        rand[f32](x_data.mut_ptr(), x_data.num_elements())
+        rand[f32](x_data.ptr(), x_data.num_elements())
 
         for j in range(batch_size):
             x_data[j] = x_data[j] * 2 - 1
             y_data[j] = math.sin(x_data[j])
 
-        ref out = model.forward(x_data.copy(), y_data.copy())
+        ref out = model.forward(x_data, y_data)
 
         if (i + 1) % 1000 == 0:
             print("[", i + 1, "/", epochs, "] \tLoss: ", out[0])
