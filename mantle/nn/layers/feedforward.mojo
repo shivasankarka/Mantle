@@ -11,6 +11,7 @@ Position-wise feed-forward block used inside a Transformer block:
 Linear(d_ff) -> GELU -> Linear(d_model) -> Dropout.
 """
 from std.reflection import reflect_fn
+from std.math import sqrt
 
 from mantle import f32
 from mantle.autograd.graph import Graph
@@ -31,17 +32,23 @@ def FeedForward(
     inputs: Symbol,
     d_ff: Int,
     dropout_p: Float32 = 0.0,
+    num_blocks: Int = 1,
 ) -> Symbol:
     """
     Position-wise feed-forward block: expands to `d_ff`, applies GELU,
     projects back to `inputs`' last dim, then dropout.
+
+    `num_blocks` scales down the down-projection's init (see `Linear`'s
+    `output_scale`) to keep deep pre-norm stacks numerically stable. Leave
+    at 1 for a standalone feed-forward block.
     """
     var before = len(g.nodes)
     var d_model = inputs.shape[-1]
 
     var hidden = Linear(g, inputs, d_ff)
     var activated = GELU(g, hidden)
-    var res = Linear(g, activated, d_model)
+    var output_scale = 1.0 / sqrt(2.0 * Float64(num_blocks))
+    var res = Linear(g, activated, d_model, Float32(output_scale))
     if dropout_p > 0.0:
         res = Dropout(g, res, dropout_p)
 
@@ -62,14 +69,21 @@ struct FeedForwardLayer(Copyable, Layer, Movable):
 
     var d_ff: Int
     var dropout_p: Float32
+    var num_blocks: Int
 
-    def __init__(out self, d_ff: Int, dropout_p: Float32 = 0.0):
+    def __init__(
+        out self, d_ff: Int, dropout_p: Float32 = 0.0, num_blocks: Int = 1
+    ):
         self.d_ff = d_ff
         self.dropout_p = dropout_p
+        self.num_blocks = num_blocks
 
     def __init__(out self, *, copy: Self):
         self.d_ff = copy.d_ff
         self.dropout_p = copy.dropout_p
+        self.num_blocks = copy.num_blocks
 
     def forward(self, mut g: Graph, input: Symbol) -> Symbol:
-        return FeedForward(g, input, self.d_ff, self.dropout_p)
+        return FeedForward(
+            g, input, self.d_ff, self.dropout_p, self.num_blocks
+        )

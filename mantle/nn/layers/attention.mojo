@@ -60,10 +60,16 @@ def MultiHeadAttention(
     num_heads: Int,
     dropout_p: Float32 = 0.0,
     causal: Bool = False,
+    num_blocks: Int = 1,
 ) -> Symbol:
     """
     Scaled dot-product multi-head self-attention over `inputs` of shape
     `(B, T, D)`. `D` must be divisible by `num_heads`.
+
+    `num_blocks` is the total number of Transformer blocks this attention
+    sits inside; it scales down the output projection's init (see
+    `Linear`'s `output_scale`) to keep deep pre-norm stacks numerically
+    stable. Leave at 1 for a standalone attention layer.
     """
     var before = len(g.nodes)
 
@@ -135,7 +141,8 @@ def MultiHeadAttention(
         ),
     )
 
-    var res = Linear(g, merged_flat, d_model)
+    var output_scale = 1.0 / sqrt(2.0 * Float64(num_blocks))
+    var res = Linear(g, merged_flat, d_model, Float32(output_scale))
 
     g.set_scope_from(before, reflect_fn[MultiHeadAttention].display_name())
     return res
@@ -155,23 +162,32 @@ struct MultiHeadAttentionLayer(Copyable, Layer, Movable):
     var num_heads: Int
     var dropout_p: Float32
     var causal: Bool
+    var num_blocks: Int
 
     def __init__(
         out self,
         num_heads: Int,
         dropout_p: Float32 = 0.0,
         causal: Bool = False,
+        num_blocks: Int = 1,
     ):
         self.num_heads = num_heads
         self.dropout_p = dropout_p
         self.causal = causal
+        self.num_blocks = num_blocks
 
     def __init__(out self, *, copy: Self):
         self.num_heads = copy.num_heads
         self.dropout_p = copy.dropout_p
         self.causal = copy.causal
+        self.num_blocks = copy.num_blocks
 
     def forward(self, mut g: Graph, input: Symbol) -> Symbol:
         return MultiHeadAttention(
-            g, input, self.num_heads, self.dropout_p, self.causal
+            g,
+            input,
+            self.num_heads,
+            self.dropout_p,
+            self.causal,
+            self.num_blocks,
         )

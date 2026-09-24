@@ -104,7 +104,13 @@ def create_gpt_mini(
 
     for _ in range(num_blocks):
         x = nn.TransformerBlock(
-            g, x, num_heads, d_ff, dropout_p=dropout_p, causal=True
+            g,
+            x,
+            num_heads,
+            d_ff,
+            dropout_p=dropout_p,
+            causal=True,
+            num_blocks=num_blocks,
         )
 
     x = nn.LayerNorm(g, x, d_model)
@@ -302,7 +308,7 @@ def main() raises:
     comptime min_lr = 1e-4
     comptime num_steps = 5000  # max_iters
     comptime eval_interval = 250
-    comptime eval_iters = 200
+    comptime eval_iters = 20
     comptime sample_every = 2500
 
     print("Loading data from", DATA_PATH, "...")
