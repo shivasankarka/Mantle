@@ -16,7 +16,7 @@ from mantle.autograd.symbol import Symbol
 from mantle.autograd.ops import OP
 from mantle.core.math_util import q_sqrt
 from mantle.autograd.params import Param
-from mantle.nn.module import Layer
+from mantle.nn.module import Expr, Layer, Module
 
 
 # ===----------------------------------------------------------------------===#
@@ -73,7 +73,7 @@ def Linear(n_outputs: Int) -> LinearLayer:
 
 
 @fieldwise_init
-struct LinearLayer(Copyable, Layer, Movable):
+struct LinearLayer(Copyable, Layer, Module, Movable):
     """
     `Layer`-conforming wrapper around `Linear`, for use in a reflection-based
     Module struct.
@@ -83,3 +83,9 @@ struct LinearLayer(Copyable, Layer, Movable):
 
     def forward(self, mut g: Graph, input: Symbol) -> Symbol:
         return Linear(g, input, self.n_outputs)
+
+    def forward(mut self, input: Expr) -> Expr:
+        return Expr(input.graph, Linear(input.graph[], input.symbol, self.n_outputs))
+
+    def __call__(mut self, input: Expr) -> Expr:
+        return self.forward(input)

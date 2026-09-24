@@ -10,6 +10,7 @@
 Layer trait, FlattenLayer, graph-building reflection, and Sequential container.
 """
 from std.reflection import reflect
+from std.memory.unsafe_pointer import Pointer
 
 from mantle.autograd.graph import Graph
 from mantle.autograd.symbol import Symbol
@@ -21,6 +22,51 @@ from mantle.autograd.attributes import Attribute, AttributeVector
 # ===----------------------------------------------------------------------===#
 # Layer Trait
 # ===----------------------------------------------------------------------===#
+
+
+struct Expr(Copyable, Movable):
+    """An opaque symbolic value bound to one graph-building context.
+
+    ``Expr`` exists only while Mantle is constructing a static graph.  It
+    carries the builder internally, letting user-defined modules compose
+    symbolic values without accepting a ``Graph`` argument themselves.
+    """
+
+    var graph: Pointer[Graph, MutUntrackedOrigin]
+    var symbol: Symbol
+
+    def __init__(
+        out self,
+        ref[MutAnyOrigin] graph: Graph,
+        symbol: Symbol,
+    ):
+        self.graph = Pointer(to=graph).unsafe_origin_cast[
+            MutUntrackedOrigin
+        ]()
+        self.symbol = symbol
+
+    def __init__(
+        out self,
+        graph: Pointer[Graph, MutUntrackedOrigin],
+        symbol: Symbol,
+    ):
+        self.graph = graph
+        self.symbol = symbol
+
+    def relu(self) -> Self:
+        return Expr(self.graph, self.graph[].op(OP.RELU, self.symbol))
+
+    def __add__(self, other: Self) -> Self:
+        return Expr(
+            self.graph, self.graph[].op(OP.ADD, self.symbol, other.symbol)
+        )
+
+
+trait Module:
+    """A custom model block built from opaque graph expressions."""
+
+    def forward(mut self, input: Expr) -> Expr:
+        ...
 
 
 trait Layer:
@@ -91,6 +137,17 @@ def build_graph[
                 continue
             g.set_scope_from(before, type_name)
     return x
+
+
+def build_module_graph[T: Module](
+    mut module: T, input_shape: TensorShape
+) -> Graph:
+    """Build an inference graph from a custom ``Module`` definition."""
+    var g = Graph()
+    var input = Expr(g, g.input(input_shape))
+    var output = module.forward(input)
+    g.out(output.symbol)
+    return g^
 
 
 # ===----------------------------------------------------------------------===#

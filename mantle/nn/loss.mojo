@@ -17,7 +17,7 @@ from mantle.autograd.graph import Graph
 from mantle.autograd.symbol import Symbol
 from mantle.autograd.ops import OP
 from mantle.autograd.attributes import Attribute, AttributeVector
-from mantle.nn.module import Layer, build_graph
+from mantle.nn.module import Expr, Layer, Module, build_graph
 
 
 # ===----------------------------------------------------------------------===#
@@ -118,7 +118,9 @@ def classification_graph[T: AnyType](
     var g = Graph()
     var inputs = g.input(input_shape)
     var logits: Symbol
-    comptime if conforms_to(T, Layer):
+    comptime if conforms_to(T, Module):
+        logits = network.forward(Expr(g, inputs)).symbol
+    elif conforms_to(T, Layer):
         logits = network.forward(g, inputs)
     else:
         logits = build_graph(network, g, inputs)

@@ -16,7 +16,7 @@ from mantle.autograd.graph import Graph
 from mantle.autograd.symbol import Symbol
 from mantle.autograd.ops import OP
 from mantle.autograd.attributes import Attribute, AttributeVector
-from mantle.nn.module import Layer
+from mantle.nn.module import Expr, Layer, Module
 
 
 # ===----------------------------------------------------------------------===#
@@ -34,7 +34,7 @@ def ReLU() -> ReLULayer:
 
 
 @fieldwise_init
-struct ReLULayer(Copyable, Layer, Movable):
+struct ReLULayer(Copyable, Layer, Module, Movable):
     """
     `Layer`-conforming wrapper around `ReLU`, for use in a reflection-based
     Module struct.
@@ -42,6 +42,12 @@ struct ReLULayer(Copyable, Layer, Movable):
 
     def forward(self, mut g: Graph, input: Symbol) -> Symbol:
         return ReLU(g, input)
+
+    def forward(mut self, input: Expr) -> Expr:
+        return input.relu()
+
+    def __call__(mut self, input: Expr) -> Expr:
+        return self.forward(input)
 
 
 # ===----------------------------------------------------------------------===#

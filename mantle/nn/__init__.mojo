@@ -11,7 +11,16 @@ High-level neural network abstractions: layers, models, loss functions, optimize
 """
 from mantle.core.tensor import Tensor, TensorShape
 from .model import Model
-from .module import Layer, build_graph, Flatten, FlattenLayer, Sequential
+from .module import (
+    Expr,
+    Layer,
+    Module,
+    build_graph,
+    build_module_graph,
+    Flatten,
+    FlattenLayer,
+    Sequential,
+)
 
 from .layers.linear import Linear, LinearLayer
 from .layers.conv import Conv2d, Conv2dLayer
