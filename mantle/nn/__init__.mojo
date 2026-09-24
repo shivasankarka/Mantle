@@ -11,7 +11,7 @@ High-level neural network abstractions: layers, models, loss functions, optimize
 """
 from mantle.core.tensor import Tensor, TensorShape
 from .model import Model
-from .module import Layer, build_graph, FlattenLayer, Sequential
+from .module import Layer, build_graph, Flatten, FlattenLayer, Sequential
 
 from .layers.linear import Linear, LinearLayer
 from .layers.conv import Conv2d, Conv2dLayer
@@ -28,7 +28,7 @@ from .layers.attention import (
 from .layers.feedforward import FeedForward, FeedForwardLayer
 from .layers.transformer_block import TransformerBlock, TransformerBlockLayer
 
-from .loss import MSELoss, CrossEntropyLoss, L1Loss
+from .loss import MSELoss, CrossEntropyLoss, L1Loss, classification_graph
 from .metrics import accuracy
 import mantle.nn.optim as optim
 from .activations import (

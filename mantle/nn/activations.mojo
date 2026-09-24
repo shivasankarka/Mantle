@@ -28,6 +28,11 @@ def ReLU(mut g: Graph, input: Symbol) -> Symbol:
     return g.op(OP.RELU, input)
 
 
+def ReLU() -> ReLULayer:
+    """Create a ReLU layer for ``Sequential`` or a reflected module."""
+    return ReLULayer()
+
+
 @fieldwise_init
 struct ReLULayer(Copyable, Layer, Movable):
     """

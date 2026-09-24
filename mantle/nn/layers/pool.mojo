@@ -89,6 +89,25 @@ def MaxPool2d(
     )
 
 
+def MaxPool2d(
+    kernel_size: Int,
+    stride: Int = 0,
+    padding: Int = 0,
+    dilation: Int = 1,
+) -> MaxPool2dLayer:
+    """Create a square MaxPool2d layer for ``Sequential`` or a module.
+
+    ``stride=0`` follows PyTorch's default of using ``kernel_size``.
+    """
+    var resolved_stride = kernel_size if stride == 0 else stride
+    return MaxPool2dLayer(
+        IndexList[2](kernel_size, kernel_size),
+        resolved_stride,
+        IndexList[2](padding, padding),
+        IndexList[2](dilation, dilation),
+    )
+
+
 # ===----------------------------------------------------------------------===#
 # MaxPool2dLayer
 # ===----------------------------------------------------------------------===#

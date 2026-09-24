@@ -73,6 +73,27 @@ def Conv2d(
     )
 
 
+def Conv2d(
+    out_channels: Int,
+    kernel_size: Int,
+    padding: Int = 0,
+    stride: Int = 1,
+    dilation: Int = 1,
+) -> Conv2dLayer:
+    """Create a square Conv2d layer for ``Sequential`` or a module.
+
+    The graph-building overload remains available for custom graphs.  Square
+    integer arguments cover the common case without exposing ``IndexList``.
+    """
+    return Conv2dLayer(
+        out_channels,
+        IndexList[2](kernel_size, kernel_size),
+        IndexList[2](padding, padding),
+        IndexList[2](stride, stride),
+        IndexList[2](dilation, dilation),
+    )
+
+
 # ===----------------------------------------------------------------------===#
 # Conv2dLayer
 # ===----------------------------------------------------------------------===#

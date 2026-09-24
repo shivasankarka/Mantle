@@ -57,6 +57,16 @@ def Linear(
     return g.op(OP.LINEAR, inputs, weights, b)
 
 
+def Linear(n_outputs: Int) -> LinearLayer:
+    """Create a Linear layer for ``Sequential`` or a reflected module.
+
+    The graph-building overload above remains available for custom low-level
+    graphs.  This overload is the normal model-definition spelling:
+    ``nn.Linear(10)``.
+    """
+    return LinearLayer(n_outputs)
+
+
 # ===----------------------------------------------------------------------===#
 # LinearLayer
 # ===----------------------------------------------------------------------===#

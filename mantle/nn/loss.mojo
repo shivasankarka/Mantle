@@ -17,6 +17,7 @@ from mantle.autograd.graph import Graph
 from mantle.autograd.symbol import Symbol
 from mantle.autograd.ops import OP
 from mantle.autograd.attributes import Attribute, AttributeVector
+from mantle.nn.module import Layer, build_graph
 
 
 # ===----------------------------------------------------------------------===#
@@ -99,6 +100,33 @@ def CrossEntropyLoss(
 
     g.set_scope_from(before, reflect_fn[CrossEntropyLoss].display_name())
     return negDivN
+
+
+def classification_graph[T: AnyType](
+    mut network: T,
+    input_shape: TensorShape,
+    label_smoothing: Float64 = 0.0,
+) -> Graph:
+    """Build a static one-hot classification graph from a layer network.
+
+    This is intentionally a graph builder, not another model wrapper:
+    callers keep the familiar ``comptime graph = ...`` followed by
+    ``Model[graph]()`` API.  It owns graph inputs, output registration, and
+    cross-entropy wiring so an architecture never needs to thread ``Graph``
+    through every layer call.
+    """
+    var g = Graph()
+    var inputs = g.input(input_shape)
+    var logits: Symbol
+    comptime if conforms_to(T, Layer):
+        logits = network.forward(g, inputs)
+    else:
+        logits = build_graph(network, g, inputs)
+    g.out(logits)
+
+    var targets = g.input(TensorShape(input_shape[0], logits.shape[-1]))
+    g.loss(CrossEntropyLoss(g, logits, targets, label_smoothing))
+    return g^
 
 
 # ===----------------------------------------------------------------------===#

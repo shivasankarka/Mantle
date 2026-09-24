@@ -52,6 +52,11 @@ struct FlattenLayer(Copyable, Layer, Movable):
         )
 
 
+def Flatten() -> FlattenLayer:
+    """Create a flatten layer for ``Sequential`` or a reflected module."""
+    return FlattenLayer()
+
+
 # ===----------------------------------------------------------------------===#
 # build_graph
 # ===----------------------------------------------------------------------===#

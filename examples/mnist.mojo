@@ -1,12 +1,23 @@
 from std.time import perf_counter_ns as now
-from std.utils.index import IndexList
-
 import mantle.nn as nn
 from mantle import Tensor, TensorShape
-from mantle import Graph, Symbol, OP, f32
+from mantle import Graph, f32
 from mantle.data.datasets import MNIST
 from mantle.data.dataloader import DataLoader
-from mantle.autograd.attributes import AttributeVector, Attribute
+
+
+@fieldwise_init
+struct MNISTCNN(Copyable, Movable):
+    """A reflected, PyTorch-style model definition."""
+
+    var conv1: nn.Conv2dLayer
+    var relu1: nn.ReLULayer
+    var pool1: nn.MaxPool2dLayer
+    var conv2: nn.Conv2dLayer
+    var relu2: nn.ReLULayer
+    var pool2: nn.MaxPool2dLayer
+    var flatten: nn.FlattenLayer
+    var head: nn.LinearLayer
 
 
 # def plot_image(data: Tensor, num: Int):
@@ -25,48 +36,19 @@ from mantle.autograd.attributes import AttributeVector, Attribute
 
 
 def create_CNN(batch_size: Int) -> Graph:
-    var g = Graph()
-    var x = g.input(TensorShape(batch_size, 1, 28, 28))
-
-    var x1 = nn.Conv2d(
-        g,
-        x,
-        out_channels=16,
-        kernel_size=IndexList[2](5, 5),
-        padding=IndexList[2](2, 2),
+    var network = MNISTCNN(
+        nn.Conv2d(16, kernel_size=5, padding=2),
+        nn.ReLU(),
+        nn.MaxPool2d(2),
+        nn.Conv2d(32, kernel_size=5, padding=2),
+        nn.ReLU(),
+        nn.MaxPool2d(2),
+        nn.Flatten(),
+        nn.Linear(10),
     )
-    var x2 = nn.ReLU(g, x1)
-    var x3 = nn.MaxPool2d(g, x2, kernel_size=IndexList[2](2, 2))
-    var x4 = nn.Conv2d(
-        g,
-        x3,
-        out_channels=32,
-        kernel_size=IndexList[2](5, 5),
-        padding=IndexList[2](2, 2),
+    return nn.classification_graph(
+        network, TensorShape(batch_size, 1, 28, 28)
     )
-    var x5 = nn.ReLU(g, x4)
-    var x6 = nn.MaxPool2d(g, x5, kernel_size=IndexList[2](2, 2))
-    var x7 = g.op(
-        OP.RESHAPE,
-        x6,
-        attributes=AttributeVector(
-            Attribute(
-                "shape",
-                TensorShape(
-                    x6.shape[0], x6.shape[1] * x6.shape[2] * x6.shape[3]
-                ),
-            )
-        ),
-    )
-    var out = nn.Linear(g, x7, n_outputs=10)
-    g.out(out)
-
-    var y_true = g.input(TensorShape(batch_size, 10))
-    var loss = nn.CrossEntropyLoss(g, out, y_true)
-    # var loss = nn.MSELoss(g, out, y_true)
-    g.loss(loss)
-
-    return g^
 
 
 def main() raises:
