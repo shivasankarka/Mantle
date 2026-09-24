@@ -211,7 +211,7 @@ struct Collection[device: Device = Device.cpu](Copyable, Movable, Sized):
         ref tensor = self.data_ref[unsafe_offset=index]
         return tensor.share()
 
-    def __setitem__(mut self, symbol: Symbol, value: Tensor[f32, Self.device]):
+    def __setitem__(mut self, symbol: Symbol, value: Tensor[f32, Self.device]) raises:
         var index = self.get_index(symbol.name)
         comptime if Self.device.id == Device.cpu.id:
             comptime assert Self.device.id == Device.cpu.id
@@ -222,8 +222,12 @@ struct Collection[device: Device = Device.cpu](Copyable, Movable, Sized):
                 count=tensor.num_elements(),
             )
         else:
-            (self.data_ref.unsafe_offset(index)).unsafe_deinit_pointee()
-            (self.data_ref.unsafe_offset(index)).unsafe_write(value.copy())
+            # Keep the preallocated graph buffer and enqueue the copy.  The
+            # old path replaced it with a deep copy, which synchronizes the
+            # device and allocates a new buffer for every model input/upper
+            # gradient on every step.
+            ref tensor = self.data_ref[unsafe_offset=index]
+            tensor.copy_from(value)
 
     @always_inline("nodebug")
     def clear(mut self):
@@ -236,11 +240,15 @@ struct Collection[device: Device = Device.cpu](Copyable, Movable, Sized):
         self.size = 0
 
     @always_inline("nodebug")
-    def set_zero(mut self):
+    def set_zero(mut self) raises:
         comptime if Self.device.id == Device.cpu.id:
             comptime assert Self.device.id == Device.cpu.id
             for i in range(self.size):
                 self.data_ref[unsafe_offset=i].zero()
         else:
+            comptime assert Self.device.id == Device.gpu.id
             for i in range(self.size):
-                self.data_ref[unsafe_offset=i].fill(0)
+                # Command ordering makes these fills complete before the
+                # following backward kernels.  Synchronize once at an
+                # explicit host-observation boundary, not per tensor.
+                self.data_ref[unsafe_offset=i].enqueue_fill(0)

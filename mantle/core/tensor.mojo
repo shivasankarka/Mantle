@@ -52,6 +52,7 @@ def _shared_device_context() raises -> DeviceContext:
         unsafe_offset=0
     ].copy()
 
+
 # ===----------------------------------------------------------------------===#
 # TensorShape
 # ===----------------------------------------------------------------------===#
@@ -418,6 +419,38 @@ struct Tensor[dtype: DType, device: Device = Device.cpu](
         except e:
             abort("Tensor: deep copy failed: " + String(e))
 
+    def copy_from(mut self, source: Self) raises:
+        """Copy ``source`` into this tensor's existing storage.
+
+        Copies `self.num_elements()` elements — the destination's own size,
+        not `source`'s. Callers must guarantee `source` has exactly this
+        tensor's shape; nothing here validates it (same invariant
+        `Collection.__setitem__`'s CPU branch already relies on). This holds
+        for every current caller because the graph is fully static: each
+        `Symbol`'s slot is always written with a tensor of that symbol's
+        fixed, comptime-known shape. A mismatched `source` would silently
+        under/over-read instead of erroring — don't reuse this for anything
+        where that invariant isn't guaranteed by construction.
+
+        GPU copies are deliberately enqueued without synchronizing.  Commands
+        submitted to one DeviceContext are ordered, so consumers on that
+        context see the copy before their kernels run; callers that need host
+        visibility must synchronize explicitly at their boundary.  Keeping
+        the destination allocation is particularly important for graph inputs
+        and gradients, which are overwritten on every training step.
+        """
+        comptime if Self.device.id == Device.cpu.id:
+            comptime assert Self.device.id == Device.cpu.id
+            unsafe_memcpy(
+                dest=self._host_buffer.value().unsafe_ptr(),
+                src=source._host_buffer.value().unsafe_ptr(),
+                count=self.num_elements(),
+            )
+        else:
+            comptime assert Self.device.id == Device.gpu.id
+            var src = source._device_buffer.value()
+            src.enqueue_copy_to(self._device_buffer.value())
+
     def __init__(
         out self, *, var host_buffer: HostBuffer[Self.dtype], shape: TensorShape
     ) where Self.device.id == Device.cpu.id:
@@ -540,9 +573,13 @@ struct Tensor[dtype: DType, device: Device = Device.cpu](
         self._host_buffer.value()[index] = value
 
     @always_inline("nodebug")
-    def ptr[o: Origin](
+    def ptr[
+        o: Origin
+    ](
         ref[o] self,
-    ) -> Pointer[Scalar[Self.dtype], o] where (Self.device.id == Device.cpu.id):
+    ) -> Pointer[Scalar[Self.dtype], o] where (
+        Self.device.id == Device.cpu.id
+    ):
         """
         Returns a pointer to the tensor's underlying buffer, with its
         mutability tied to how `self` is referenced — immutable for a
@@ -551,7 +588,12 @@ struct Tensor[dtype: DType, device: Device = Device.cpu](
         Returns:
             A pointer to the tensor's data, valid for the lifetime of `self`.
         """
-        return self._host_buffer.value().unsafe_ptr().unsafe_mut_cast[o.mut]().unsafe_origin_cast[o]()
+        return (
+            self._host_buffer.value()
+            .unsafe_ptr()
+            .unsafe_mut_cast[o.mut]()
+            .unsafe_origin_cast[o]()
+        )
 
     @always_inline("nodebug")
     def shape(self) -> TensorShape:
@@ -648,7 +690,9 @@ struct Tensor[dtype: DType, device: Device = Device.cpu](
         )
 
     @always_inline("nodebug")
-    def gpu_ptr[o: Origin](
+    def gpu_ptr[
+        o: Origin
+    ](
         ref[o] self,
     ) -> Pointer[Scalar[Self.dtype], o] where (
         Self.device.id == Device.gpu.id
@@ -663,9 +707,9 @@ struct Tensor[dtype: DType, device: Device = Device.cpu](
         return self._device_buffer.value().unsafe_ptr().unsafe_origin_cast[o]()
 
     @always_inline("nodebug")
-    def gpu_context(self) raises -> DeviceContext where (
-        Self.device.id == Device.gpu.id
-    ):
+    def gpu_context(
+        self,
+    ) raises -> DeviceContext where Self.device.id == Device.gpu.id:
         """
         Returns:
             The `DeviceContext` that owns this tensor's GPU buffer, for
@@ -694,6 +738,12 @@ struct Tensor[dtype: DType, device: Device = Device.cpu](
                 buf.context().synchronize()
         except e:
             abort("Tensor: fill failed: " + String(e))
+
+    def enqueue_fill(
+        mut self, value: Scalar[Self.dtype]
+    ) raises where Self.device.id == Device.gpu.id:
+        """Queue a GPU fill without forcing completion on the host."""
+        self._device_buffer.value().enqueue_fill(value)
 
     @always_inline("nodebug")
     def ireshape(mut self, new_shape: TensorShape) raises:

@@ -41,7 +41,7 @@ comptime _BLOCK = 16
 def _make_kernel_fn[
     declared_arg_types: TypeList[Trait=AnyType, ...],
     //,
-    func: def(*args: *declared_arg_types) thin -> None,
+    func: def(* args: * declared_arg_types) thin -> None,
 ]() -> type_of(_shared_device_context().compile_function[func]()):
     """Caches a kernel's compiled `DeviceFunction` (same rationale as
     `_shared_device_context` caching the `DeviceContext` itself — see
@@ -70,7 +70,9 @@ comptime _transpose_kernel_global = _Global[
 ]
 
 
-def _cached_transpose_kernel() raises -> type_of(_shared_device_context().compile_function[_transpose_kernel]()):
+def _cached_transpose_kernel() raises -> (
+    type_of(_shared_device_context().compile_function[_transpose_kernel]())
+):
     return _transpose_kernel_global.get_or_create_ptr()[unsafe_offset=0].copy()
 
 
@@ -86,6 +88,137 @@ def gpu_transpose[
         Int64(cols),
         grid_dim=(ceildiv(cols, _BLOCK), ceildiv(rows, _BLOCK)),
         block_dim=(_BLOCK, _BLOCK),
+    )
+
+
+def _transpose_4d_kernel(
+    dst: Pointer[Scalar[f32], MutAnyOrigin],
+    src: Pointer[Scalar[f32], MutAnyOrigin],
+    d0: Int64,
+    d1: Int64,
+    d2: Int64,
+    d3: Int64,
+    a0: Int64,
+    a1: Int64,
+    a2: Int64,
+    a3: Int64,
+):
+    """Permute a contiguous rank-4 tensor with runtime axes.
+
+    The output coordinate `(c0,c1,c2,c3)` maps to source coordinates at
+    axes `(a0,a1,a2,a3)`. Runtime axes keep one cached kernel usable for all
+    attention permutations while avoiding a CPU materialization.
+    """
+    var i = Int64(block_idx.x * block_dim.x + thread_idx.x)
+    if i < d0 * d1 * d2 * d3:
+        var out_d0 = d0
+        var out_d1 = d1
+        var out_d2 = d2
+        var out_d3 = d3
+        if a0 == 1:
+            out_d0 = d1
+        elif a0 == 2:
+            out_d0 = d2
+        elif a0 == 3:
+            out_d0 = d3
+        if a1 == 0:
+            out_d1 = d0
+        elif a1 == 2:
+            out_d1 = d2
+        elif a1 == 3:
+            out_d1 = d3
+        if a2 == 0:
+            out_d2 = d0
+        elif a2 == 1:
+            out_d2 = d1
+        elif a2 == 3:
+            out_d2 = d3
+        if a3 == 0:
+            out_d3 = d0
+        elif a3 == 1:
+            out_d3 = d1
+        elif a3 == 2:
+            out_d3 = d2
+
+        var remaining = i
+        var c3 = remaining % out_d3
+        remaining = remaining // out_d3
+        var c2 = remaining % out_d2
+        remaining = remaining // out_d2
+        var c1 = remaining % out_d1
+        var c0 = remaining // out_d1
+
+        var source_offset: Int64 = 0
+        if a0 == 0:
+            source_offset += c0 * d1 * d2 * d3
+        elif a0 == 1:
+            source_offset += c0 * d2 * d3
+        elif a0 == 2:
+            source_offset += c0 * d3
+        else:
+            source_offset += c0
+        if a1 == 0:
+            source_offset += c1 * d1 * d2 * d3
+        elif a1 == 1:
+            source_offset += c1 * d2 * d3
+        elif a1 == 2:
+            source_offset += c1 * d3
+        else:
+            source_offset += c1
+        if a2 == 0:
+            source_offset += c2 * d1 * d2 * d3
+        elif a2 == 1:
+            source_offset += c2 * d2 * d3
+        elif a2 == 2:
+            source_offset += c2 * d3
+        else:
+            source_offset += c2
+        if a3 == 0:
+            source_offset += c3 * d1 * d2 * d3
+        elif a3 == 1:
+            source_offset += c3 * d2 * d3
+        elif a3 == 2:
+            source_offset += c3 * d3
+        else:
+            source_offset += c3
+        dst.unsafe_store(Int(i), src.unsafe_load(Int(source_offset)))
+
+
+comptime _transpose_4d_kernel_global = _Global[
+    "mantle_gpu_kernel_transpose_4d", _make_kernel_fn[_transpose_4d_kernel]
+]
+
+
+def _cached_transpose_4d_kernel() raises -> (
+    type_of(_shared_device_context().compile_function[_transpose_4d_kernel]())
+):
+    return _transpose_4d_kernel_global.get_or_create_ptr()[
+        unsafe_offset=0
+    ].copy()
+
+
+def gpu_transpose_4d(
+    mut dst: Tensor[f32, Device.gpu],
+    src: Tensor[f32, Device.gpu],
+    axes: TensorShape,
+) raises:
+    """Device-resident rank-4 transpose used by multi-head attention."""
+    var shape = src.shape()
+    var ctx = dst.gpu_context()
+    _cached_transpose_4d_kernel()._call_with_pack_checked(
+        ctx,
+        dst.gpu_ptr(),
+        src.gpu_ptr(),
+        Int64(shape[0]),
+        Int64(shape[1]),
+        Int64(shape[2]),
+        Int64(shape[3]),
+        Int64(axes[0]),
+        Int64(axes[1]),
+        Int64(axes[2]),
+        Int64(axes[3]),
+        grid_dim=(ceildiv(src.num_elements(), _BLOCK),),
+        block_dim=(_BLOCK,),
     )
 
 
@@ -189,22 +322,106 @@ def gpu_matmul_at[
     a: Tensor[f32, Device.gpu],
     b: Tensor[f32, Device.gpu],
 ) raises:
-    """Res[k,n] = a[p,k]^T @ b[p,n]."""
+    """Res[k,n] = a[p,k]^T @ b[p,n] without materializing ``a^T``."""
     var ctx = res.gpu_context()
-
-    var a_t = Tensor[f32, Device.gpu](TensorShape(k, p), uninitialized=True)
-    gpu_transpose[p, k](a_t, a)
 
     var res_tt = TileTensor(
         ptr=res.gpu_ptr().unsafe_origin_cast[MutAnyOrigin](),
         layout=row_major[k, n](),
     )
-    var a_t_tt = TileTensor(
-        ptr=a_t.gpu_ptr().unsafe_origin_cast[MutAnyOrigin](),
-        layout=row_major[k, p](),
+    var a_tt = TileTensor(
+        ptr=a.gpu_ptr().unsafe_origin_cast[MutAnyOrigin](),
+        layout=row_major[p, k](),
     )
     var b_tt = TileTensor(
         ptr=b.gpu_ptr().unsafe_origin_cast[MutAnyOrigin](),
         layout=row_major[p, n](),
     )
-    matmul[target="gpu"](res_tt, a_t_tt, b_tt, ctx)
+    matmul[target="gpu"](res_tt, a_tt.transpose(), b_tt, ctx)
+
+
+# Attention uses independent matrices in contiguous `(B,H,*,*)` slices. MAX's
+# public matmul API is rank-2, so submit one ordered device matmul per slice;
+# all operands remain on the GPU and no host staging occurs. A true batched
+# MAX matmul layout can replace this dispatcher later without changing ops.
+def gpu_batched_matmul[
+    batches: Int, m: Int, k: Int, n: Int
+](
+    mut res: Tensor[f32, Device.gpu],
+    a: Tensor[f32, Device.gpu],
+    b: Tensor[f32, Device.gpu],
+) raises:
+    var ctx = res.gpu_context()
+    var res_ptr = res.gpu_ptr().unsafe_origin_cast[MutAnyOrigin]()
+    var a_ptr = a.gpu_ptr().unsafe_origin_cast[MutAnyOrigin]()
+    var b_ptr = b.gpu_ptr().unsafe_origin_cast[MutAnyOrigin]()
+    for batch in range(batches):
+        var res_tt = TileTensor(
+            ptr=res_ptr.unsafe_offset(batch * m * n),
+            layout=row_major[m, n](),
+        )
+        var a_tt = TileTensor(
+            ptr=a_ptr.unsafe_offset(batch * m * k),
+            layout=row_major[m, k](),
+        )
+        var b_tt = TileTensor(
+            ptr=b_ptr.unsafe_offset(batch * k * n),
+            layout=row_major[k, n](),
+        )
+        matmul[target="gpu"](res_tt, a_tt, b_tt, ctx)
+
+
+def gpu_batched_matmul_bt[
+    batches: Int, m: Int, p: Int, k: Int
+](
+    mut res: Tensor[f32, Device.gpu],
+    a: Tensor[f32, Device.gpu],
+    b: Tensor[f32, Device.gpu],
+) raises:
+    """Per-batch `a[m,p] @ b[k,p]^T`."""
+    var ctx = res.gpu_context()
+    var res_ptr = res.gpu_ptr().unsafe_origin_cast[MutAnyOrigin]()
+    var a_ptr = a.gpu_ptr().unsafe_origin_cast[MutAnyOrigin]()
+    var b_ptr = b.gpu_ptr().unsafe_origin_cast[MutAnyOrigin]()
+    for batch in range(batches):
+        var res_tt = TileTensor(
+            ptr=res_ptr.unsafe_offset(batch * m * k),
+            layout=row_major[m, k](),
+        )
+        var a_tt = TileTensor(
+            ptr=a_ptr.unsafe_offset(batch * m * p),
+            layout=row_major[m, p](),
+        )
+        var b_tt = TileTensor(
+            ptr=b_ptr.unsafe_offset(batch * k * p),
+            layout=row_major[k, p](),
+        )
+        matmul[target="gpu"](res_tt, a_tt, b_tt.transpose(), ctx)
+
+
+def gpu_batched_matmul_at[
+    batches: Int, p: Int, k: Int, n: Int
+](
+    mut res: Tensor[f32, Device.gpu],
+    a: Tensor[f32, Device.gpu],
+    b: Tensor[f32, Device.gpu],
+) raises:
+    """Per-batch `a[p,k]^T @ b[p,n]`."""
+    var ctx = res.gpu_context()
+    var res_ptr = res.gpu_ptr().unsafe_origin_cast[MutAnyOrigin]()
+    var a_ptr = a.gpu_ptr().unsafe_origin_cast[MutAnyOrigin]()
+    var b_ptr = b.gpu_ptr().unsafe_origin_cast[MutAnyOrigin]()
+    for batch in range(batches):
+        var res_tt = TileTensor(
+            ptr=res_ptr.unsafe_offset(batch * k * n),
+            layout=row_major[k, n](),
+        )
+        var a_tt = TileTensor(
+            ptr=a_ptr.unsafe_offset(batch * p * k),
+            layout=row_major[p, k](),
+        )
+        var b_tt = TileTensor(
+            ptr=b_ptr.unsafe_offset(batch * p * n),
+            layout=row_major[p, n](),
+        )
+        matmul[target="gpu"](res_tt, a_tt.transpose(), b_tt, ctx)
