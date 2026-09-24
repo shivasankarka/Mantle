@@ -27,7 +27,7 @@ from max.algorithm.backend.cpu import parallelize
 
 from mantle import f32, nelts
 from mantle.core.tensor import Tensor, TensorShape, MAX_RANK
-from mantle.core.math_util import add, sub, mul, div, sqrt_simd, max_simd
+from mantle.core.math_util import add, sub, mul, div, sqrt_simd, max_simd, min_simd
 
 
 # ===----------------------------------------------------------------------===#
@@ -891,6 +891,42 @@ def tmax(mut res: Tensor[f32], t: Tensor[f32], axis: Int):
     """
     var starting_value: SIMD[f32, nelts] = min_finite[f32]()
     reduce[max_simd, _reduce_max](res, t, axis, starting_value)
+
+
+@always_inline
+def _reduce_min[
+    type: DType, simd_width: Int
+](x: SIMD[type, simd_width]) -> Scalar[type]:
+    return x.reduce_min()
+
+
+@always_inline
+def tmin(t: Tensor[f32]) -> Scalar[f32]:
+    """
+    Compute the minimum of all elements.
+
+    Args:
+        t: The input tensor.
+
+    Returns:
+        The scalar minimum value.
+    """
+    var starting_value: SIMD[f32, nelts] = max_finite[f32]()
+    return reduce[min_simd, _reduce_min](t, starting_value)
+
+
+@always_inline
+def tmin(mut res: Tensor[f32], t: Tensor[f32], axis: Int):
+    """
+    Min over a single axis.
+
+    Args:
+        res: The output tensor (with axis dimension squeezed).
+        t: The input tensor.
+        axis: The axis to find the min along.
+    """
+    var starting_value: SIMD[f32, nelts] = max_finite[f32]()
+    reduce[min_simd, _reduce_min](res, t, axis, starting_value)
 
 
 # @always_inline

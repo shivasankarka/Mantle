@@ -12,6 +12,7 @@ OP enum and dispatcher for shape inference, forward, and backward passes.
 from std.algorithm import vectorize
 from max.algorithm import parallelize
 from std.sys.info import simd_width_of
+from std.utils.index import IndexList
 
 from .basics import (
     ADD,
@@ -26,6 +27,8 @@ from .basics import (
     SUM,
     MEAN,
     MAX,
+    MIN,
+    ARGMAX,
     FLATTEN,
     RESHAPE,
     TRANSPOSE,
@@ -52,12 +55,13 @@ from .mlops import (
 from .dynamics import CONCAT, SPLIT
 from .conv import CONV2D
 from .pool import MAXPOOL2D, AVGPOOL2D
+from .matmul import dot_transpose_t1, dot_transpose_t2
 
 from std.os import abort
 
 from mantle import f32
 from mantle.autograd.symbol import Symbol
-from mantle.core.tensor import Tensor, TensorShape
+from mantle.core.tensor import Tensor, TensorShape, MAX_RANK
 from mantle.core.device import Device
 from mantle.nn.parameters import Parameters
 from mantle.core.bytes import Bytes
@@ -70,6 +74,9 @@ from .gpu_elementwise import (
     gpu_sub_forward,
     gpu_mul_forward,
     gpu_div_forward,
+    gpu_broadcast_binary_forward,
+    gpu_broadcast_binary_backward_t1,
+    gpu_broadcast_binary_backward_t2,
     gpu_relu_forward,
     gpu_relu_backward,
     gpu_sub_backward_t2,
@@ -78,12 +85,35 @@ from .gpu_elementwise import (
     gpu_div_backward_t2,
     gpu_pow_forward,
     gpu_pow_backward,
+    gpu_exp_forward,
+    gpu_exp_backward,
+    gpu_log_forward,
+    gpu_log_backward,
+    gpu_sqrt_forward,
+    gpu_sqrt_backward,
     gpu_mean_forward,
     gpu_mean_backward,
+    gpu_reduce_last_forward,
+    gpu_reduce_last_backward,
+    gpu_gather_forward,
+    gpu_gather_backward,
+    gpu_gelu_forward,
+    gpu_gelu_backward,
+    gpu_dropout_forward,
+    gpu_dropout_backward,
     gpu_accumulate_grad,
     gpu_write_from_host,
 )
-from .gpu_matmul import gpu_matmul, gpu_matmul_bt, gpu_matmul_at, gpu_matmul_bias
+from .gpu_matmul import (
+    gpu_matmul,
+    gpu_matmul_bt,
+    gpu_matmul_at,
+    gpu_matmul_bias,
+    gpu_batched_matmul,
+    gpu_batched_matmul_bt,
+    gpu_batched_matmul_at,
+    gpu_transpose_4d,
+)
 
 
 # Define operators as named parameter expression
@@ -129,6 +159,8 @@ struct OP(TrivialRegisterPassable, Writable):
     comptime PAD = OP(35, "PAD")
     comptime AVGPOOL2D = OP(36, "AVGPOOL2D")
     comptime LINEAR = OP(37, "LINEAR")
+    comptime MIN = OP(38, "MIN")
+    comptime ARGMAX = OP(39, "ARGMAX")
 
     var id: UInt8
     var name: Bytes[16]
@@ -147,6 +179,15 @@ struct OP(TrivialRegisterPassable, Writable):
 
     def __str__(self) -> String:
         return String(self)
+
+
+@always_inline
+def inverse_transpose_axes(axes: TensorShape) -> TensorShape:
+    """Return the inverse permutation used by TRANSPOSE backward."""
+    var inverse = IndexList[MAX_RANK]()
+    for i in range(axes.rank()):
+        inverse[axes[i]] = i
+    return TensorShape(rank=axes.rank(), shape=inverse)
 
 
 def cpu_add_bias_forward[
@@ -179,6 +220,23 @@ def cpu_bias_grad_accumulate[
 
     def vec[w: Int](j: Int) {mut grad, imm ug}:
         var acc = grad.load[w](j)
+        for i in range(outer):
+            acc += ug.load[w](i * n + j)
+        grad.store[w](j, acc)
+
+    vectorize[nelts](n, vec)
+
+
+def cpu_bias_grad_overwrite[
+    outer: Int, n: Int
+](mut grad: Tensor[f32], ug: Tensor[f32]):
+    """grad[j] = sum_i ug[i,j] — the `overwrite_grad` counterpart of
+    `cpu_bias_grad_accumulate`, for when `grad` is a single-consumer buffer
+    being written directly rather than accumulated into."""
+    comptime nelts = simd_width_of[f32]()
+
+    def vec[w: Int](j: Int) {mut grad, imm ug}:
+        var acc: SIMD[f32, w] = 0
         for i in range(outer):
             acc += ug.load[w](i * n + j)
         grad.store[w](j, acc)
@@ -227,6 +285,10 @@ def static_result_shape(
         return MEAN.result_shape(t1_shape, attributes)
     elif op == OP.MAX:
         return MAX.result_shape(t1_shape, attributes)
+    elif op == OP.MIN:
+        return MIN.result_shape(t1_shape, attributes)
+    elif op == OP.ARGMAX:
+        return ARGMAX.result_shape(t1_shape, attributes)
     elif op == OP.FLATTEN:
         return FLATTEN.result_shape(t1_shape)
     elif op == OP.RESHAPE:
@@ -267,7 +329,47 @@ def static_result_shape(
         return SQRT.result_shape(t1_shape)
     else:
         print("[ERROR] Operator not found.")
-        return TensorShape(-1)
+    return TensorShape(-1)
+
+
+def gpu_binary_op_code(op: OP) -> Int:
+    if op == OP.ADD:
+        return 0
+    elif op == OP.SUB:
+        return 1
+    elif op == OP.MUL:
+        return 2
+    else:
+        return 3
+
+
+def gpu_reduce_op_code(op: OP) -> Int:
+    if op == OP.SUM:
+        return 0
+    elif op == OP.MEAN:
+        return 1
+    else:
+        return 2
+
+
+def matching_batch_dims(t1_shape: TensorShape, t2_shape: TensorShape) -> Bool:
+    if t1_shape.rank() != t2_shape.rank():
+        return False
+    for i in range(t1_shape.rank() - 2):
+        if t1_shape[i] != t2_shape[i]:
+            return False
+    return True
+
+
+def leading_broadcast_compatible(
+    output_shape: TensorShape, input_shape: TensorShape
+) -> Bool:
+    if input_shape.rank() >= output_shape.rank():
+        return False
+    for i in range(input_shape.rank()):
+        if input_shape[i] != output_shape[output_shape.rank() - input_shape.rank() + i]:
+            return False
+    return True
 
 
 def static_result_shape(
@@ -374,11 +476,78 @@ def forward_op[
             rebind[Tensor[f32, Device.gpu]](res),
             rebind[Tensor[f32, Device.gpu]](t1),
         )
+    elif op == OP.EXP:
+        gpu_exp_forward(
+            rebind[Tensor[f32, Device.gpu]](res),
+            rebind[Tensor[f32, Device.gpu]](t1),
+        )
+    elif op == OP.LOG:
+        gpu_log_forward(
+            rebind[Tensor[f32, Device.gpu]](res),
+            rebind[Tensor[f32, Device.gpu]](t1),
+        )
+    elif op == OP.GELU:
+        gpu_gelu_forward(
+            rebind[Tensor[f32, Device.gpu]](res),
+            rebind[Tensor[f32, Device.gpu]](t1),
+        )
+    elif op == OP.DROPOUT:
+        comptime p = attributes["p"].value().to_scalar[f32]()
+        comptime base_seed = UInt64(
+            attributes["seed"].value().to_scalar[DType.int64]()
+        )
+        gpu_dropout_forward(
+            rebind[Tensor[f32, Device.gpu]](res),
+            rebind[Tensor[f32, Device.gpu]](t1),
+            p,
+            base_seed ^ runtime_seed,
+            training,
+        )
     elif op == OP.MEAN and not attributes["axis"]:
         gpu_mean_forward(
             rebind[Tensor[f32, Device.gpu]](res),
             rebind[Tensor[f32, Device.gpu]](t1),
         )
+    elif (
+        (op == OP.SUM or op == OP.MEAN or op == OP.MAX)
+        and attributes["axis"]
+        and attributes["axis"].value().to_int() == t1_shape.rank() - 1
+    ):
+        gpu_reduce_last_forward(
+            rebind[Tensor[f32, Device.gpu]](res),
+            rebind[Tensor[f32, Device.gpu]](t1),
+            t1_shape[-1],
+            gpu_reduce_op_code(op),
+        )
+    elif op == OP.SQRT:
+        gpu_sqrt_forward(
+            rebind[Tensor[f32, Device.gpu]](res),
+            rebind[Tensor[f32, Device.gpu]](t1),
+        )
+    elif op == OP.RESHAPE or op == OP.FLATTEN:
+        # These operators only change metadata. Graph tensors own distinct
+        # buffers today, so preserve that representation with a queued
+        # device-to-device copy instead of falling back through host memory.
+        rebind[Tensor[f32, Device.gpu]](res).copy_from(
+            rebind[Tensor[f32, Device.gpu]](t1)
+        )
+    elif op == OP.TRANSPOSE and t1_shape.rank() == 4:
+        # Multi-head attention uses only rank-4 layout permutations. Keep
+        # them device-resident instead of sending Q/K/V through the CPU.
+        comptime axes_attribute = attributes["axes"]
+        comptime if axes_attribute:
+            comptime axes = axes_attribute.value().to_shape()
+            gpu_transpose_4d(
+                rebind[Tensor[f32, Device.gpu]](res),
+                rebind[Tensor[f32, Device.gpu]](t1),
+                axes,
+            )
+        else:
+            gpu_transpose_4d(
+                rebind[Tensor[f32, Device.gpu]](res),
+                rebind[Tensor[f32, Device.gpu]](t1),
+                TensorShape(3, 2, 1, 0),
+            )
     else:
         # Host round-trip fallback for unary ops without a native GPU
         # kernel yet (e.g. SIGMOID, TANH, axis-reduced MEAN, ...): run the
@@ -414,6 +583,10 @@ def _forward_op_cpu[
         MEAN.forward[t1_shape, attributes](res, t1)
     elif op == OP.MAX:
         MAX.forward[t1_shape, attributes](res, t1)
+    elif op == OP.MIN:
+        MIN.forward[t1_shape, attributes](res, t1)
+    elif op == OP.ARGMAX:
+        ARGMAX.forward[t1_shape, attributes](res, t1)
     elif op == OP.FLATTEN:
         FLATTEN.forward[t1_shape](res, t1)
     elif op == OP.RESHAPE:
@@ -461,7 +634,9 @@ def forward_op[
     attributes: AttributeVector,
     device: Device = Device.cpu,
 ](
-    mut res: Tensor[f32, device], t1: Tensor[f32, device], t2: Tensor[f32, device]
+    mut res: Tensor[f32, device],
+    t1: Tensor[f32, device],
+    t2: Tensor[f32, device],
 ) raises:
     """
     Forward pass for binary operators, dispatching by device.
@@ -508,11 +683,61 @@ def forward_op[
             rebind[Tensor[f32, Device.gpu]](t1),
             rebind[Tensor[f32, Device.gpu]](t2),
         )
+    elif (
+        (op == OP.ADD or op == OP.SUB or op == OP.MUL or op == OP.DIV)
+        and t1_shape.num_elements() > t2_shape.num_elements()
+        and (
+            t2_shape.num_elements() == 1
+            or (t2_shape.rank() == 1 and t2_shape[0] == t1_shape[-1])
+            or (
+                t2_shape.rank() == t1_shape.rank()
+                and t2_shape[-1] == 1
+                and t2_shape.num_elements() * t1_shape[-1]
+                == t1_shape.num_elements()
+            )
+            or leading_broadcast_compatible(t1_shape, t2_shape)
+        )
+    ):
+        comptime vector_mode = (
+            t2_shape.rank() == 1 and t2_shape[0] == t1_shape[-1]
+        )
+        comptime leading_broadcast = leading_broadcast_compatible(t1_shape, t2_shape)
+        comptime repeat = 1 if vector_mode or leading_broadcast else (
+            t1_shape.num_elements() // t2_shape.num_elements()
+        )
+        gpu_broadcast_binary_forward(
+            rebind[Tensor[f32, Device.gpu]](res),
+            rebind[Tensor[f32, Device.gpu]](t1),
+            rebind[Tensor[f32, Device.gpu]](t2),
+            repeat,
+            0 if vector_mode else (2 if leading_broadcast else 1),
+            gpu_binary_op_code(op),
+        )
     elif t1_shape.rank() == 2 and t2_shape.rank() == 2 and op == OP.DOT:
         gpu_matmul[t1_shape[0], t1_shape[1], t2_shape[1]](
             rebind[Tensor[f32, Device.gpu]](res),
             rebind[Tensor[f32, Device.gpu]](t1),
             rebind[Tensor[f32, Device.gpu]](t2),
+        )
+    elif (
+        op == OP.DOT
+        and t1_shape.rank() >= 3
+        and matching_batch_dims(t1_shape, t2_shape)
+    ):
+        comptime batches = t1_shape.num_elements() // (
+            t1_shape[-2] * t1_shape[-1]
+        )
+        gpu_batched_matmul[batches, t1_shape[-2], t1_shape[-1], t2_shape[-1]](
+            rebind[Tensor[f32, Device.gpu]](res),
+            rebind[Tensor[f32, Device.gpu]](t1),
+            rebind[Tensor[f32, Device.gpu]](t2),
+        )
+    elif op == OP.GATHER and t1_shape.rank() == 2:
+        gpu_gather_forward(
+            rebind[Tensor[f32, Device.gpu]](res),
+            rebind[Tensor[f32, Device.gpu]](t1),
+            rebind[Tensor[f32, Device.gpu]](t2),
+            t1_shape[-1],
         )
     elif op == OP.POW:
         gpu_pow_forward(
@@ -521,9 +746,8 @@ def forward_op[
             rebind[Tensor[f32, Device.gpu]](t2),
         )
     else:
-        # Host round-trip fallback: any op without a native GPU kernel
-        # (GATHER, batched DOT, ...), or ADD/SUB/MUL/DIV under
-        # broadcasting. Runs the existing, unmodified CPU implementation
+        # Host round-trip fallback for GPU ops without a native kernel yet.
+        # Runs the existing, unmodified CPU implementation
         # against host copies, then writes the result back into `res`'s
         # existing GPU buffer.
         var res_cpu = res.to_host()
@@ -590,17 +814,19 @@ def forward_op[
             rebind[Tensor[f32, Device.cpu]](t2),
             rebind[Tensor[f32, Device.cpu]](t3),
         )
-    elif op == OP.LINEAR and t1_shape.rank() == 2 and t2_shape.rank() == 2:
-        gpu_matmul_bias[t1_shape[0], t1_shape[1], t2_shape[1]](
+    elif op == OP.LINEAR and t1_shape.rank() >= 2 and t2_shape.rank() == 2:
+        # A Linear layer acts on the final dimension.  The leading dimensions
+        # are contiguous, so `(B, T, K) @ (K, N)` can use the same rank-2
+        # kernel as `(B*T, K) @ (K, N)` without materializing a reshape.
+        comptime outer = t1_shape.num_elements() // t1_shape[-1]
+        gpu_matmul_bias[outer, t1_shape[-1], t2_shape[-1]](
             rebind[Tensor[f32, Device.gpu]](res),
             rebind[Tensor[f32, Device.gpu]](t1),
             rebind[Tensor[f32, Device.gpu]](t2),
             rebind[Tensor[f32, Device.gpu]](t3),
         )
     else:
-        comptime assert False, (
-            "forward_op: ternary GPU support is LINEAR-only (rank 2)"
-        )
+        comptime assert False, "forward_op: ternary GPU support is LINEAR-only"
 
 
 def _forward_op_cpu[
@@ -609,7 +835,12 @@ def _forward_op_cpu[
     t2_shape: TensorShape,
     t3_shape: TensorShape,
     attributes: AttributeVector,
-](mut res: Tensor[f32], t1: Tensor[f32], t2: Tensor[f32], t3: Tensor[f32],) raises:
+](
+    mut res: Tensor[f32],
+    t1: Tensor[f32],
+    t2: Tensor[f32],
+    t3: Tensor[f32],
+) raises:
     """
     Forward pass for ternary operators (CPU implementations).
     """
@@ -628,7 +859,9 @@ def _forward_op_cpu[
         comptime dot_shape = DOT.result_shape(t1_shape, t2_shape)
         comptime n = dot_shape[-1]
         comptime outer = dot_shape.num_elements() // n
-        var dot_res = Tensor[f32](dot_shape)
+        # Matmul overwrites every element, so avoid a full zero-fill of this
+        # short-lived intermediate on every Linear forward pass.
+        var dot_res = Tensor[f32](dot_shape, uninitialized=True)
         DOT.forward[t1_shape, t2_shape](dot_res, t1, t2)
         cpu_add_bias_forward[outer, n](res, dot_res, t3)
     else:
@@ -639,14 +872,18 @@ def forward_op[
     op: OP,
     attributes: AttributeVector,
     device: Device = Device.cpu,
-](inputs: List[Symbol], outputs: List[Symbol], mut parameters: Parameters[device]):
+](
+    inputs: List[Symbol],
+    outputs: List[Symbol],
+    mut parameters: Parameters[device],
+):
     """
     Forward pass for dynamic operators (CPU-only; CONCAT/SPLIT are out of
     scope for the GPU port).
     """
-    comptime assert device.id == Device.cpu.id, (
-        "forward_op: dynamic operators (CONCAT/SPLIT) are CPU-only"
-    )
+    comptime assert (
+        device.id == Device.cpu.id
+    ), "forward_op: dynamic operators (CONCAT/SPLIT) are CPU-only"
     _forward_op_cpu[op, attributes](
         inputs, outputs, rebind[Parameters[Device.cpu]](parameters)
     )
@@ -655,7 +892,11 @@ def forward_op[
 def _forward_op_cpu[
     op: OP,
     attributes: AttributeVector,
-](inputs: List[Symbol], outputs: List[Symbol], mut parameters: Parameters[Device.cpu],):
+](
+    inputs: List[Symbol],
+    outputs: List[Symbol],
+    mut parameters: Parameters[Device.cpu],
+):
     """
     Forward pass for dynamic operators (CPU implementation).
     """
@@ -699,10 +940,81 @@ def backward_op[
             rebind[Tensor[f32, Device.gpu]](t1),
         )
         gpu_accumulate_grad(rebind[Tensor[f32, Device.gpu]](grad), res_grad)
+    elif op == OP.EXP:
+        var res_grad = gpu_exp_backward(
+            rebind[Tensor[f32, Device.gpu]](ug),
+            rebind[Tensor[f32, Device.gpu]](t1),
+        )
+        gpu_accumulate_grad(rebind[Tensor[f32, Device.gpu]](grad), res_grad)
+    elif op == OP.LOG:
+        var res_grad = gpu_log_backward(
+            rebind[Tensor[f32, Device.gpu]](ug),
+            rebind[Tensor[f32, Device.gpu]](t1),
+        )
+        gpu_accumulate_grad(rebind[Tensor[f32, Device.gpu]](grad), res_grad)
+    elif op == OP.GELU:
+        var res_grad = gpu_gelu_backward(
+            rebind[Tensor[f32, Device.gpu]](ug),
+            rebind[Tensor[f32, Device.gpu]](t1),
+        )
+        gpu_accumulate_grad(rebind[Tensor[f32, Device.gpu]](grad), res_grad)
+    elif op == OP.DROPOUT:
+        comptime p = attributes["p"].value().to_scalar[f32]()
+        comptime base_seed = UInt64(
+            attributes["seed"].value().to_scalar[DType.int64]()
+        )
+        var res_grad = gpu_dropout_backward(
+            rebind[Tensor[f32, Device.gpu]](ug),
+            p,
+            base_seed ^ runtime_seed,
+            training,
+        )
+        gpu_accumulate_grad(rebind[Tensor[f32, Device.gpu]](grad), res_grad)
     elif op == OP.MEAN and not attributes["axis"]:
         var res_grad = gpu_mean_backward(
             rebind[Tensor[f32, Device.gpu]](ug), t1_shape
         )
+        gpu_accumulate_grad(rebind[Tensor[f32, Device.gpu]](grad), res_grad)
+    elif (
+        (op == OP.SUM or op == OP.MEAN or op == OP.MAX)
+        and attributes["axis"]
+        and attributes["axis"].value().to_int() == t1_shape.rank() - 1
+    ):
+        var res_grad = gpu_reduce_last_backward(
+            rebind[Tensor[f32, Device.gpu]](ug),
+            rebind[Tensor[f32, Device.gpu]](t1),
+            t1_shape[-1],
+            gpu_reduce_op_code(op),
+        )
+        gpu_accumulate_grad(rebind[Tensor[f32, Device.gpu]](grad), res_grad)
+    elif op == OP.SQRT:
+        var res_grad = gpu_sqrt_backward(
+            rebind[Tensor[f32, Device.gpu]](ug),
+            rebind[Tensor[f32, Device.gpu]](t1),
+        )
+        gpu_accumulate_grad(rebind[Tensor[f32, Device.gpu]](grad), res_grad)
+    elif op == OP.RESHAPE or op == OP.FLATTEN:
+        gpu_accumulate_grad(
+            rebind[Tensor[f32, Device.gpu]](grad),
+            rebind[Tensor[f32, Device.gpu]](ug),
+        )
+    elif op == OP.TRANSPOSE and t1_shape.rank() == 4:
+        var res_grad = Tensor[f32, Device.gpu](t1_shape, uninitialized=True)
+        comptime axes_attribute = attributes["axes"]
+        comptime if axes_attribute:
+            comptime axes = axes_attribute.value().to_shape()
+            comptime inverse_axes = inverse_transpose_axes(axes)
+            gpu_transpose_4d(
+                res_grad,
+                rebind[Tensor[f32, Device.gpu]](ug),
+                inverse_axes,
+            )
+        else:
+            gpu_transpose_4d(
+                res_grad,
+                rebind[Tensor[f32, Device.gpu]](ug),
+                TensorShape(3, 2, 1, 0),
+            )
         gpu_accumulate_grad(rebind[Tensor[f32, Device.gpu]](grad), res_grad)
     else:
         # Host round-trip fallback (mirrors forward_op's).
@@ -743,6 +1055,10 @@ def _backward_op_cpu[
         res_grad = MEAN.backward[ug_shape, t1_shape, attributes](ug, t1)
     elif op == OP.MAX:
         res_grad = MAX.backward[ug_shape, t1_shape, attributes](ug, t1)
+    elif op == OP.MIN:
+        res_grad = MIN.backward[ug_shape, t1_shape, attributes](ug, t1)
+    elif op == OP.ARGMAX:
+        res_grad = ARGMAX.backward[ug_shape, t1_shape, attributes](ug, t1)
     elif op == OP.FLATTEN:
         res_grad = FLATTEN.backward[ug_shape, t1_shape](ug, t1)
     elif op == OP.RESHAPE:
@@ -807,7 +1123,9 @@ def backward_op[
     """
     comptime if device.id == Device.cpu.id:
         comptime assert device.id == Device.cpu.id
-        _backward_op_cpu[tensor_id, op, ug_shape, t1_shape, t2_shape, attributes](
+        _backward_op_cpu[
+            tensor_id, op, ug_shape, t1_shape, t2_shape, attributes
+        ](
             rebind[Tensor[f32, Device.cpu]](ug),
             rebind[Tensor[f32, Device.cpu]](t1),
             rebind[Tensor[f32, Device.cpu]](t2),
@@ -824,7 +1142,9 @@ def backward_op[
             comptime if tensor_id == 0:
                 res_grad = rebind[Tensor[f32, Device.gpu]](ug).copy()
             else:
-                res_grad = gpu_sub_backward_t2(rebind[Tensor[f32, Device.gpu]](ug))
+                res_grad = gpu_sub_backward_t2(
+                    rebind[Tensor[f32, Device.gpu]](ug)
+                )
         elif op == OP.MUL:
             comptime if tensor_id == 0:
                 res_grad = gpu_mul_backward(
@@ -865,6 +1185,48 @@ def backward_op[
                 rebind[Tensor[f32, Device.gpu]](ug), t2_shape[0]
             )
             gpu_accumulate_grad(rebind[Tensor[f32, Device.gpu]](grad), res_grad)
+    elif (
+        (op == OP.ADD or op == OP.SUB or op == OP.MUL or op == OP.DIV)
+        and t1_shape.num_elements() > t2_shape.num_elements()
+        and (
+            t2_shape.num_elements() == 1
+            or (t2_shape.rank() == 1 and t2_shape[0] == t1_shape[-1])
+            or (
+                t2_shape.rank() == t1_shape.rank()
+                and t2_shape[-1] == 1
+                and t2_shape.num_elements() * t1_shape[-1]
+                == t1_shape.num_elements()
+            )
+            or leading_broadcast_compatible(t1_shape, t2_shape)
+        )
+    ):
+        comptime vector_mode = (
+            t2_shape.rank() == 1 and t2_shape[0] == t1_shape[-1]
+        )
+        comptime leading_broadcast = leading_broadcast_compatible(t1_shape, t2_shape)
+        comptime repeat = 1 if vector_mode or leading_broadcast else (
+            t1_shape.num_elements() // t2_shape.num_elements()
+        )
+        comptime if tensor_id == 0:
+            var res_grad = gpu_broadcast_binary_backward_t1(
+                rebind[Tensor[f32, Device.gpu]](ug),
+                rebind[Tensor[f32, Device.gpu]](t1),
+                rebind[Tensor[f32, Device.gpu]](t2),
+                repeat,
+                0 if vector_mode else (2 if leading_broadcast else 1),
+                gpu_binary_op_code(op),
+            )
+            gpu_accumulate_grad(rebind[Tensor[f32, Device.gpu]](grad), res_grad)
+        else:
+            var res_grad = gpu_broadcast_binary_backward_t2(
+                rebind[Tensor[f32, Device.gpu]](ug),
+                rebind[Tensor[f32, Device.gpu]](t1),
+                rebind[Tensor[f32, Device.gpu]](t2),
+                repeat,
+                0 if vector_mode else (2 if leading_broadcast else 1),
+                gpu_binary_op_code(op),
+            )
+            gpu_accumulate_grad(rebind[Tensor[f32, Device.gpu]](grad), res_grad)
     elif t1_shape.rank() == 2 and t2_shape.rank() == 2 and op == OP.DOT:
         comptime if tensor_id == 0:
             var res_grad = Tensor[f32, Device.gpu](t1_shape, uninitialized=True)
@@ -882,6 +1244,45 @@ def backward_op[
                 rebind[Tensor[f32, Device.gpu]](ug),
             )
             gpu_accumulate_grad(rebind[Tensor[f32, Device.gpu]](grad), res_grad)
+    elif (
+        op == OP.DOT
+        and t1_shape.rank() >= 3
+        and matching_batch_dims(t1_shape, t2_shape)
+    ):
+        comptime batches = t1_shape.num_elements() // (
+            t1_shape[-2] * t1_shape[-1]
+        )
+        comptime if tensor_id == 0:
+            var res_grad = Tensor[f32, Device.gpu](t1_shape, uninitialized=True)
+            gpu_batched_matmul_bt[
+                batches, ug_shape[-2], ug_shape[-1], t2_shape[-2]
+            ](
+                res_grad,
+                rebind[Tensor[f32, Device.gpu]](ug),
+                rebind[Tensor[f32, Device.gpu]](t2),
+            )
+            gpu_accumulate_grad(rebind[Tensor[f32, Device.gpu]](grad), res_grad)
+        else:
+            var res_grad = Tensor[f32, Device.gpu](t2_shape, uninitialized=True)
+            gpu_batched_matmul_at[
+                batches, t1_shape[-2], t1_shape[-1], ug_shape[-1]
+            ](
+                res_grad,
+                rebind[Tensor[f32, Device.gpu]](t1),
+                rebind[Tensor[f32, Device.gpu]](ug),
+            )
+            gpu_accumulate_grad(rebind[Tensor[f32, Device.gpu]](grad), res_grad)
+    elif op == OP.GATHER and t1_shape.rank() == 2:
+        comptime if tensor_id == 0:
+            var res_grad = gpu_gather_backward(
+                rebind[Tensor[f32, Device.gpu]](ug),
+                rebind[Tensor[f32, Device.gpu]](t1),
+                rebind[Tensor[f32, Device.gpu]](t2),
+                t1_shape[-1],
+            )
+            gpu_accumulate_grad(rebind[Tensor[f32, Device.gpu]](grad), res_grad)
+        else:
+            comptime assert False, "GATHER does not differentiate indices"
     elif op == OP.POW:
         # The exponent (t2) is never trainable, so the caller
         # (Model.backward) never invokes tensor_id == 1 here.
@@ -893,16 +1294,14 @@ def backward_op[
         )
         gpu_accumulate_grad(rebind[Tensor[f32, Device.gpu]](grad), res_grad)
     else:
-        # Host round-trip fallback: any op without a native GPU kernel
-        # (GATHER, batched DOT, ...), or ADD/SUB/MUL/DIV under
-        # broadcasting.
+        # Host round-trip fallback for GPU ops without a native kernel yet.
         var ug_cpu = ug.to_host()
         var t1_cpu = t1.to_host()
         var t2_cpu = t2.to_host()
         var grad_cpu = grad.to_host()
-        _backward_op_cpu[tensor_id, op, ug_shape, t1_shape, t2_shape, attributes](
-            ug_cpu, t1_cpu, t2_cpu, grad_cpu
-        )
+        _backward_op_cpu[
+            tensor_id, op, ug_shape, t1_shape, t2_shape, attributes
+        ](ug_cpu, t1_cpu, t2_cpu, grad_cpu)
         gpu_write_from_host(rebind[Tensor[f32, Device.gpu]](grad), grad_cpu)
 
 
@@ -913,7 +1312,12 @@ def _backward_op_cpu[
     t1_shape: TensorShape,
     t2_shape: TensorShape,
     attributes: AttributeVector,
-](ug: Tensor[f32], t1: Tensor[f32], t2: Tensor[f32], mut grad: Tensor[f32],) raises:
+](
+    ug: Tensor[f32],
+    t1: Tensor[f32],
+    t2: Tensor[f32],
+    mut grad: Tensor[f32],
+) raises:
     """
     Backward pass for binary operators (CPU implementations).
     """
@@ -987,6 +1391,7 @@ def backward_op[
     t3_shape: TensorShape,
     attributes: AttributeVector,
     device: Device = Device.cpu,
+    overwrite_grad: Bool = False,
 ](
     ug: Tensor[f32, device],
     t1: Tensor[f32, device],
@@ -1000,32 +1405,89 @@ def backward_op[
     """
     comptime if device.id == Device.cpu.id:
         comptime assert device.id == Device.cpu.id
-        _backward_op_cpu[
-            tensor_id, op, ug_shape, t1_shape, t2_shape, t3_shape, attributes
-        ](
-            rebind[Tensor[f32, Device.cpu]](ug),
-            rebind[Tensor[f32, Device.cpu]](t1),
-            rebind[Tensor[f32, Device.cpu]](t2),
-            rebind[Tensor[f32, Device.cpu]](t3),
-            rebind[Tensor[f32, Device.cpu]](grad),
-        )
-    elif op == OP.LINEAR and t1_shape.rank() == 2 and t2_shape.rank() == 2:
+        comptime if overwrite_grad and op == OP.LINEAR and t1_shape.rank() == 2 and t2_shape.rank() == 2:
+            # A single-consumer gradient was zeroed before this backward pass,
+            # so write the matmul result directly into its final buffer.
+            # This avoids both a large temporary tensor and a second full
+            # accumulation pass; shared graph values retain the path below.
+            comptime if tensor_id == 0:
+                dot_transpose_t2[ug_shape, t2_shape](
+                    rebind[Tensor[f32, Device.cpu]](grad),
+                    rebind[Tensor[f32, Device.cpu]](ug),
+                    rebind[Tensor[f32, Device.cpu]](t2),
+                )
+            elif tensor_id == 1:
+                dot_transpose_t1[t1_shape, ug_shape](
+                    rebind[Tensor[f32, Device.cpu]](grad),
+                    rebind[Tensor[f32, Device.cpu]](t1),
+                    rebind[Tensor[f32, Device.cpu]](ug),
+                )
+            else:
+                comptime assert tensor_id == 2
+                comptime n = ug_shape[-1]
+                comptime outer = ug_shape.num_elements() // n
+                cpu_bias_grad_overwrite[outer, n](
+                    rebind[Tensor[f32, Device.cpu]](grad),
+                    rebind[Tensor[f32, Device.cpu]](ug),
+                )
+        else:
+            _backward_op_cpu[
+                tensor_id,
+                op,
+                ug_shape,
+                t1_shape,
+                t2_shape,
+                t3_shape,
+                attributes,
+            ](
+                rebind[Tensor[f32, Device.cpu]](ug),
+                rebind[Tensor[f32, Device.cpu]](t1),
+                rebind[Tensor[f32, Device.cpu]](t2),
+                rebind[Tensor[f32, Device.cpu]](t3),
+                rebind[Tensor[f32, Device.cpu]](grad),
+            )
+    elif op == OP.LINEAR and t1_shape.rank() >= 2 and t2_shape.rank() == 2:
+        # See the forward path: all leading dimensions form one contiguous
+        # matrix row dimension for Linear's input-gradient product.
+        comptime outer = t1_shape.num_elements() // t1_shape[-1]
         comptime if tensor_id == 0:
-            var res_grad = Tensor[f32, Device.gpu](t1_shape, uninitialized=True)
-            gpu_matmul_bt[ug_shape[0], ug_shape[1], t2_shape[0]](
-                res_grad,
-                rebind[Tensor[f32, Device.gpu]](ug),
-                rebind[Tensor[f32, Device.gpu]](t2),
-            )
-            gpu_accumulate_grad(rebind[Tensor[f32, Device.gpu]](grad), res_grad)
+            comptime if overwrite_grad:
+                gpu_matmul_bt[outer, ug_shape[-1], t2_shape[0]](
+                    rebind[Tensor[f32, Device.gpu]](grad),
+                    rebind[Tensor[f32, Device.gpu]](ug),
+                    rebind[Tensor[f32, Device.gpu]](t2),
+                )
+            else:
+                var res_grad = Tensor[f32, Device.gpu](
+                    t1_shape, uninitialized=True
+                )
+                gpu_matmul_bt[outer, ug_shape[-1], t2_shape[0]](
+                    res_grad,
+                    rebind[Tensor[f32, Device.gpu]](ug),
+                    rebind[Tensor[f32, Device.gpu]](t2),
+                )
+                gpu_accumulate_grad(
+                    rebind[Tensor[f32, Device.gpu]](grad), res_grad
+                )
         elif tensor_id == 1:
-            var res_grad = Tensor[f32, Device.gpu](t2_shape, uninitialized=True)
-            gpu_matmul_at[t1_shape[0], t1_shape[1], ug_shape[1]](
-                res_grad,
-                rebind[Tensor[f32, Device.gpu]](t1),
-                rebind[Tensor[f32, Device.gpu]](ug),
-            )
-            gpu_accumulate_grad(rebind[Tensor[f32, Device.gpu]](grad), res_grad)
+            comptime if overwrite_grad:
+                gpu_matmul_at[outer, t1_shape[-1], ug_shape[-1]](
+                    rebind[Tensor[f32, Device.gpu]](grad),
+                    rebind[Tensor[f32, Device.gpu]](t1),
+                    rebind[Tensor[f32, Device.gpu]](ug),
+                )
+            else:
+                var res_grad = Tensor[f32, Device.gpu](
+                    t2_shape, uninitialized=True
+                )
+                gpu_matmul_at[outer, t1_shape[-1], ug_shape[-1]](
+                    res_grad,
+                    rebind[Tensor[f32, Device.gpu]](t1),
+                    rebind[Tensor[f32, Device.gpu]](ug),
+                )
+                gpu_accumulate_grad(
+                    rebind[Tensor[f32, Device.gpu]](grad), res_grad
+                )
         else:
             comptime assert tensor_id == 2
             var res_grad = gpu_bias_grad(
@@ -1033,9 +1495,7 @@ def backward_op[
             )
             gpu_accumulate_grad(rebind[Tensor[f32, Device.gpu]](grad), res_grad)
     else:
-        comptime assert False, (
-            "backward_op: ternary GPU support is LINEAR-only (rank 2)"
-        )
+        comptime assert False, "backward_op: ternary GPU support is LINEAR-only"
 
 
 def _backward_op_cpu[
@@ -1119,9 +1579,9 @@ def backward_op[
     Backward pass for dynamic operators (CPU-only; CONCAT/SPLIT are out of
     scope for the GPU port).
     """
-    comptime assert device.id == Device.cpu.id, (
-        "backward_op: dynamic operators (CONCAT/SPLIT) are CPU-only"
-    )
+    comptime assert (
+        device.id == Device.cpu.id
+    ), "backward_op: dynamic operators (CONCAT/SPLIT) are CPU-only"
     _backward_op_cpu[input_id, op, attributes](
         inputs,
         outputs,

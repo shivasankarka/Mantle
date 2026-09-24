@@ -243,3 +243,26 @@ def max_simd[
         The element-wise maximum of a and b.
     """
     return a.gt(b).select(a, b)
+
+
+@always_inline
+def min_simd[
+    dtype: DType, simd_width: Int
+](a: SIMD[dtype, simd_width], b: SIMD[dtype, simd_width]) -> SIMD[
+    dtype, simd_width
+]:
+    """
+    Element-wise minimum.
+
+    Parameters:
+        dtype: The data type.
+        simd_width: The SIMD vector width.
+
+    Args:
+        a: First operand.
+        b: Second operand.
+
+    Returns:
+        The element-wise minimum of a and b.
+    """
+    return a.lt(b).select(a, b)

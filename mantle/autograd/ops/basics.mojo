@@ -563,6 +563,62 @@ struct MEAN:
         return res_grad^
 
 
+def _extremum_backward_global[
+    t_shape: TensorShape
+](ug: Tensor[f32], t: Tensor[f32], extremum: Scalar[f32]) -> Tensor[f32]:
+    """Shared MAX/MIN.backward (no-axis) tie-splitting logic: the selected
+    element(s)' gradient is `ug[0]` divided by the number of elements
+    equal to `extremum` (ties split the gradient evenly), every other
+    element's gradient is 0. `extremum` is `tmax(t)`/`tmin(t)` — the
+    caller decides which."""
+    var res_grad = Tensor[f32](t_shape)
+
+    var sum_eq: Scalar[f32] = 0
+    for i in range(t.num_elements()):
+        if t[i] == extremum:
+            sum_eq += 1
+
+    var factor = 1 / sum_eq
+    for i in range(res_grad.num_elements()):
+        if t[i] == extremum:
+            res_grad[i] = factor * ug[0]
+
+    return res_grad^
+
+
+def _extremum_backward_axis[
+    ug_shape: TensorShape, t_shape: TensorShape
+](
+    ug: Tensor[f32],
+    t: Tensor[f32],
+    extremum: Tensor[f32],
+    axis: Int,
+) -> Tensor[f32]:
+    """Shared MAX/MIN.backward (`axis` given) tie-splitting logic — see
+    `_extremum_backward_global`. `extremum` is `tmax`/`tmin` reduced along
+    `axis` (shape `ug_shape`)."""
+    var res_grad = Tensor[f32](t_shape)
+    comptime strides = t_shape.strides()
+
+    for i in range(extremum.num_elements()):
+        var index_base = (i % strides[axis]) + (i // strides[axis]) * (
+            strides[axis] * t.dim(axis)
+        )
+
+        var count_1s: Scalar[f32] = 0
+        for j in range(t.dim(axis)):
+            var index = index_base + j * strides[axis]
+            if t[index] == extremum[i]:
+                count_1s += 1
+        var factor = 1 / count_1s
+        for j in range(t.dim(axis)):
+            var index = index_base + j * strides[axis]
+            if t[index] == extremum[i]:
+                res_grad[index] = factor * ug[i]
+
+    return res_grad^
+
+
 struct MAX:
     @staticmethod
     def result_shape(
@@ -608,67 +664,145 @@ struct MAX:
     def backward[
         ug_shape: TensorShape, t_shape: TensorShape
     ](ug: Tensor[f32], t: Tensor[f32]) -> Tensor[f32]:
-        """Backward operation of max."""
-        # This could be changed to something like in tinygrad:
-        # max_1s = CMPEQ(original_tensor, expanded(max_tensor), axis=axis)
-        # sum_max_1s = SUM(max_1s)
-        # div_sum_max_1s = DIV(max_1, sum_max_1s)
-
-        # The selected element gradient is 1.0, the others are 0.0. And if there are
-        # multiple max values, the gradient is divided by the number of max
-        # values (1/n) for each max value.
-
-        var res_grad = Tensor[f32](t_shape)
-
-        # ug_shape size is 1
-        var max_res = tmax(t)
-        var sum_eq: Scalar[f32] = 0
-        for i in range(t.num_elements()):
-            if t[i] == max_res:
-                sum_eq += 1
-
-        var factor = 1 / sum_eq
-        for i in range(res_grad.num_elements()):
-            if t[i] == max_res:
-                res_grad[i] = factor * ug[0]
-
-        return res_grad^
+        """Backward operation of max. The selected element's gradient is
+        `ug[0]`, split evenly across ties; see `_extremum_backward_global`.
+        """
+        return _extremum_backward_global[t_shape](ug, t, tmax(t))
 
     @staticmethod
     def backward[
         ug_shape: TensorShape, t_shape: TensorShape
     ](ug: Tensor[f32], t: Tensor[f32], axis: Int) -> Tensor[f32]:
-        """Backward operation of max."""
-        # The selected element gradient is 1.0, the others are 0.0. And if there are
-        # multiple max values, the gradient is divided by the number of max
-        # values (1/n) for each max value.
-
-        var res_grad = Tensor[f32](t_shape)
+        """Backward operation of max; see `_extremum_backward_axis`."""
         var max_res = Tensor[f32](ug_shape)
-        comptime strides = t_shape.strides()
+        tmax(max_res, t, axis)
+        return _extremum_backward_axis[ug_shape, t_shape](
+            ug, t, max_res, axis
+        )
 
-        tmax(
-            max_res, t, axis
-        )  # To not calculate this again we could receive the result of the forward pass as a parameter
 
-        for i in range(max_res.num_elements()):
+struct MIN:
+    @staticmethod
+    def result_shape(
+        t_shape: TensorShape, attributes: AttributeVector
+    ) -> TensorShape:
+        var axis = attributes["axis"]
+
+        if axis:
+            return get_reduce_shape(t_shape, axis.value().to_int())
+        else:
+            return TensorShape(1)
+
+    @staticmethod
+    def forward[
+        t_shape: TensorShape, attributes: AttributeVector
+    ](mut res: Tensor[f32], t: Tensor[f32]):
+        """
+        Forward pass of the min operation.
+        """
+
+        comptime axis = attributes["axis"]
+
+        comptime if axis:
+            tmin(res, t, axis.value().to_int())
+        else:
+            res[0] = tmin(t)
+
+    @staticmethod
+    def backward[
+        ug_shape: TensorShape, t_shape: TensorShape, attributes: AttributeVector
+    ](ug: Tensor[f32], t: Tensor[f32]) -> Tensor[f32]:
+        """Backward operation of min."""
+        comptime axis = attributes["axis"]
+
+        comptime if axis:
+            return Self.backward[ug_shape, t_shape](
+                ug, t, axis.value().to_int()
+            )
+        else:
+            return Self.backward[ug_shape, t_shape](ug, t)
+
+    @staticmethod
+    def backward[
+        ug_shape: TensorShape, t_shape: TensorShape
+    ](ug: Tensor[f32], t: Tensor[f32]) -> Tensor[f32]:
+        """Backward operation of min; see `_extremum_backward_global`
+        (shared with MAX.backward)."""
+        return _extremum_backward_global[t_shape](ug, t, tmin(t))
+
+    @staticmethod
+    def backward[
+        ug_shape: TensorShape, t_shape: TensorShape
+    ](ug: Tensor[f32], t: Tensor[f32], axis: Int) -> Tensor[f32]:
+        """Backward operation of min; see `_extremum_backward_axis`
+        (shared with MAX.backward)."""
+        var min_res = Tensor[f32](ug_shape)
+        tmin(min_res, t, axis)
+        return _extremum_backward_axis[ug_shape, t_shape](
+            ug, t, min_res, axis
+        )
+
+
+struct ARGMAX:
+    """Forward-only: returns the index (as f32) of the maximum element,
+    globally or along `axis`. Non-differentiable (argmax has zero gradient
+    almost everywhere), so backward just returns zeros — this is meant for
+    inference-time predictions/metrics, not training-graph math."""
+
+    @staticmethod
+    def result_shape(
+        t_shape: TensorShape, attributes: AttributeVector
+    ) -> TensorShape:
+        var axis = attributes["axis"]
+
+        if axis:
+            return get_reduce_shape(t_shape, axis.value().to_int())
+        else:
+            return TensorShape(1)
+
+    @staticmethod
+    def forward[
+        t_shape: TensorShape, attributes: AttributeVector
+    ](mut res: Tensor[f32], t: Tensor[f32]):
+        comptime axis = attributes["axis"]
+
+        comptime if axis:
+            Self._forward_axis(res, t, axis.value().to_int())
+        else:
+            var best_idx = 0
+            var best_val = t[0]
+            for i in range(1, t.num_elements()):
+                if t[i] > best_val:
+                    best_val = t[i]
+                    best_idx = i
+            res[0] = Scalar[f32](best_idx)
+
+    @staticmethod
+    def _forward_axis(mut res: Tensor[f32], t: Tensor[f32], axis: Int):
+        var strides = t.strides()
+
+        for i in range(res.num_elements()):
             var index_base = (i % strides[axis]) + (i // strides[axis]) * (
                 strides[axis] * t.dim(axis)
             )
 
-            var count_1s: Scalar[f32] = 0
-            # Count the number of values equal to max_res
-            for j in range(t.dim(axis)):
+            var best_idx = 0
+            var best_val = t[index_base]
+            for j in range(1, t.dim(axis)):
                 var index = index_base + j * strides[axis]
-                if t[index] == max_res[i]:
-                    count_1s += 1
-            # Divide 1.0 by the number of max values (n) and multiply by upper gradient value
-            var factor = 1 / count_1s
-            for j in range(t.dim(axis)):
-                var index = index_base + j * strides[axis]
-                if t[index] == max_res[i]:
-                    res_grad[index] = factor * ug[i]
+                if t[index] > best_val:
+                    best_val = t[index]
+                    best_idx = j
+            res[i] = Scalar[f32](best_idx)
 
+    @staticmethod
+    def backward[
+        ug_shape: TensorShape, t_shape: TensorShape, attributes: AttributeVector
+    ](ug: Tensor[f32], t: Tensor[f32]) -> Tensor[f32]:
+        """ARGMAX has no gradient — every element maps to a discrete index,
+        so the incoming upstream gradient is dropped and zeros propagate
+        back."""
+        var res_grad = Tensor[f32](t_shape)
         return res_grad^
 
 

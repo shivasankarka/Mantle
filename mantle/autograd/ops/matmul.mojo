@@ -10,8 +10,10 @@
 Rank-2 matmul (via MAX's own `linalg.matmul`, CPU target) with batched and
 transpose variants built on top of it.
 """
-from std.memory import unsafe_memset_zero, Pointer
+from std.memory import Pointer
+from std.sys import CompilationTarget
 from linalg.matmul import matmul
+from linalg.matmul.cpu.apple_accelerate import apple_matmul
 from layout import TileTensor
 from layout.tile_layout import row_major
 
@@ -63,7 +65,12 @@ def dot[
         ptr=t2.unsafe_mut_cast[True]().unsafe_origin_cast[MutAnyOrigin](),
         layout=row_major[K, N](),
     )
-    matmul[target="cpu"](res_tt, t1_tt, t2_tt)
+    # Accelerate's SGEMM is the optimized CPU backend on Apple Silicon.
+    # Keep the portable linalg kernel for Linux and other targets.
+    comptime if CompilationTarget.is_macos():
+        apple_matmul(res_tt, t1_tt, t2_tt)
+    else:
+        matmul[target="cpu"](res_tt, t1_tt, t2_tt)
 
 
 def dot_transpose_t2[
@@ -76,23 +83,72 @@ def dot_transpose_t2[
     A_shape: TensorShape,
     B_shape: TensorShape,
 ](
-    mut C: Pointer[Scalar[f32], origin_res],
+    C: Pointer[Scalar[f32], origin_res],
     A: Pointer[Scalar[f32], origin_t1],
     B: Pointer[Scalar[f32], origin_t2],
 ) raises:
-    dot[A_shape, TensorShape(B_shape[1], B_shape[0])](
-        C, A, transpose_2D[B_shape](B)
+    comptime M = A_shape[0]
+    comptime K = A_shape[1]
+    comptime N = B_shape[0]
+
+    var c_tt = TileTensor(
+        ptr=C.unsafe_mut_cast[True]().unsafe_origin_cast[MutAnyOrigin](),
+        layout=row_major[M, N](),
     )
+    var a_tt = TileTensor(
+        ptr=A.unsafe_mut_cast[True]().unsafe_origin_cast[MutAnyOrigin](),
+        layout=row_major[M, K](),
+    )
+    var b_tt = TileTensor(
+        ptr=B.unsafe_mut_cast[True]().unsafe_origin_cast[MutAnyOrigin](),
+        layout=row_major[N, K](),
+    )
+    # Pass B's transpose as an explicit BLAS flag rather than a TileTensor
+    # view: Accelerate receives the original contiguous storage and correct
+    # leading dimension.
+    comptime if CompilationTarget.is_macos():
+        apple_matmul[transpose_b=True](c_tt, a_tt, b_tt)
+    else:
+        matmul[target="cpu"](c_tt, a_tt, b_tt.transpose())
 
 
 def dot_transpose_t2[
     A_shape: TensorShape, B_shape: TensorShape
 ](mut C: Tensor[f32], A: Tensor[f32], B: Tensor[f32]) raises:
-    unsafe_memset_zero(C.ptr(), C.num_elements())
+    dot_transpose_t2[A_shape, B_shape](C.ptr(), A.ptr(), B.ptr())
 
-    dot[A_shape, TensorShape(B_shape[1], B_shape[0])](
-        C, A, transpose_2D[B_shape](B)
+
+def dot_transpose_t1[
+    mut1: Bool,
+    mut2: Bool,
+    origin_res: MutOrigin,
+    origin_t1: Origin[mut=mut1],
+    origin_t2: Origin[mut=mut2],
+    //,
+    A_shape: TensorShape,
+    B_shape: TensorShape,
+](
+    C: Pointer[Scalar[f32], origin_res],
+    A: Pointer[Scalar[f32], origin_t1],
+    B: Pointer[Scalar[f32], origin_t2],
+) raises:
+    comptime M = A_shape[1]
+    comptime K = A_shape[0]
+    comptime N = B_shape[1]
+
+    var c_tt = TileTensor(
+        ptr=C.unsafe_mut_cast[True]().unsafe_origin_cast[MutAnyOrigin](),
+        layout=row_major[M, N](),
     )
+    var a_tt = TileTensor(
+        ptr=A.unsafe_mut_cast[True]().unsafe_origin_cast[MutAnyOrigin](),
+        layout=row_major[K, M](),
+    )
+    var b_tt = TileTensor(
+        ptr=B.unsafe_mut_cast[True]().unsafe_origin_cast[MutAnyOrigin](),
+        layout=row_major[K, N](),
+    )
+    matmul[target="cpu"](c_tt, a_tt.transpose(), b_tt)
 
 
 # ===----------------------------------------------------------------------===#
@@ -153,20 +209,16 @@ def batched_dot_transpose_t2[
     comptime A_step = 0 if A_batches == 1 else M * K
     comptime B_step = 0 if B_batches == 1 else N * K
 
-    unsafe_memset_zero(C.ptr(), C.num_elements())
-
     var C_ptr = C.ptr()
     var A_ptr = A.ptr()
     var B_ptr = B.ptr()
 
     for b in range(batches):
-        var B_t = transpose_2D[TensorShape(N, K)](
-            B_ptr.unsafe_offset(b * B_step)
+        dot_transpose_t2[TensorShape(M, K), TensorShape(N, K)](
+            C_ptr.unsafe_offset(b * M * N),
+            A_ptr.unsafe_offset(b * A_step),
+            B_ptr.unsafe_offset(b * B_step),
         )
-        dot[TensorShape(M, K), TensorShape(K, N)](
-            C_ptr.unsafe_offset(b * M * N), A_ptr.unsafe_offset(b * A_step), B_t
-        )
-        B_t.unsafe_free()
 
 
 def batched_dot_transpose_t1[
@@ -183,27 +235,24 @@ def batched_dot_transpose_t1[
     comptime A_step = 0 if A_batches == 1 else K * M
     comptime B_step = 0 if B_batches == 1 else K * N
 
-    unsafe_memset_zero(C.ptr(), C.num_elements())
-
     var C_ptr = C.ptr()
     var A_ptr = A.ptr()
     var B_ptr = B.ptr()
 
     for b in range(batches):
-        var A_t = transpose_2D[TensorShape(K, M)](
-            A_ptr.unsafe_offset(b * A_step)
+        dot_transpose_t1[TensorShape(K, M), TensorShape(K, N)](
+            C_ptr.unsafe_offset(b * M * N),
+            A_ptr.unsafe_offset(b * A_step),
+            B_ptr.unsafe_offset(b * B_step),
         )
-        dot[TensorShape(M, K), TensorShape(K, N)](
-            C_ptr.unsafe_offset(b * M * N), A_t, B_ptr.unsafe_offset(b * B_step)
-        )
-        A_t.unsafe_free()
 
 
 def dot_transpose_t1[
     A_shape: TensorShape, B_shape: TensorShape
 ](mut C: Tensor[f32], A: Tensor[f32], B: Tensor[f32]) raises:
-    unsafe_memset_zero(C.ptr(), C.num_elements())
-
-    dot[TensorShape(A_shape[1], A_shape[0]), B_shape](
-        C, transpose_2D[A_shape](A), B
-    )
+    # `apple_matmul` exposes a transposed-right-hand operand, but not a
+    # transposed left-hand operand.  Materializing this small activation
+    # transpose lets the following `dot` use Accelerate SGEMM for the much
+    # larger weight-gradient product.
+    var A_t = transpose_2D[A_shape](A)
+    dot[TensorShape(A_shape[1], A_shape[0]), B_shape](C, A_t, B)
