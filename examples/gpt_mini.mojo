@@ -1,5 +1,25 @@
 """GPT-mini: a char-level GPT trained on tiny-shakespeare.
 
+Mirrors nanoGPT's `data/shakespeare_char` + `config/train_shakespeare_char.py`
+example (https://github.com/karpathy/nanoGPT) as closely as this static-graph
+framework allows, specifically so the two are directly cross-checkable:
+  - same `input.txt` (byte-identical — see `examples/data/tinyshakespeare.txt`)
+  - same tokenizer: sorted-unique-char vocab, same stoi/itos order
+  - same 90/10 train/val split
+  - same default hyperparameters (n_layer/n_head/n_embd/block_size/batch_size/
+    dropout/lr schedule/betas/weight_decay) as `train_shakespeare_char.py`
+  - same eval methodology: periodic train/val loss averaged over `eval_iters`
+    batches, dropout disabled during eval
+  - same per-iteration timing print, and the same "tokens per iteration"
+    figure, for an apples-to-apples speed comparison
+
+Known differences from nanoGPT, not closed here:
+  - nanoGPT's Linear/LayerNorm default to `bias=False`; this framework's
+    layers always include a bias.
+  - no gradient clipping on the GPU path (`clip_grad_norm` here is CPU-only).
+  - nanoGPT uses gradient_accumulation_steps and optional torch.compile /
+    bf16 autocast; none of that applies here.
+
 Architecture: token embedding + positional embedding -> N causal
 TransformerBlocks -> final LayerNorm -> output projection to vocab.
 Trained with next-token-prediction (CrossEntropyLoss) and sampled
@@ -37,7 +57,8 @@ def build_vocab(
     text: String, mut vocab: List[String], mut char_ids: List[Int]
 ) raises:
     """Fills `vocab` with sorted unique chars and `char_ids` with text
-    mapped through that vocab."""
+    mapped through that vocab -- same as nanoGPT's `sorted(list(set(data)))`
+    stoi/itos construction, so both frameworks tokenize identically."""
     for i in range(text.byte_length()):
         var ch = String(text[byte=i])
         var found = False
@@ -73,6 +94,7 @@ def create_gpt_mini(
     num_heads: Int,
     d_ff: Int,
     num_blocks: Int,
+    dropout_p: Float32,
 ) -> Graph:
     var g = Graph()
     var ids = g.input(TensorShape(batch_size, seq_len))
@@ -82,7 +104,7 @@ def create_gpt_mini(
 
     for _ in range(num_blocks):
         x = nn.TransformerBlock(
-            g, x, num_heads, d_ff, dropout_p=0.1, causal=True
+            g, x, num_heads, d_ff, dropout_p=dropout_p, causal=True
         )
 
     x = nn.LayerNorm(g, x, d_model)
@@ -105,19 +127,21 @@ def create_gpt_mini(
 
 
 def make_random_batch(
-    char_ids: List[Int],
+    ids: List[Int],
     batch_size: Int,
     seq_len: Int,
     vocab_size: Int,
     mut x: Tensor[f32],
     mut y_onehot: Tensor[f32],
 ):
-    var n = len(char_ids)
+    """Samples `batch_size` random contiguous windows from `ids` -- pass
+    `train_ids` or `val_ids` to draw from the matching nanoGPT split."""
+    var n = len(ids)
     for b in range(batch_size):
         var start = Int(random_ui64(0, UInt64(n - seq_len - 1)))
         for t in range(seq_len):
-            x[b * seq_len + t] = Float32(char_ids[start + t])
-            var target = char_ids[start + t + 1]
+            x[b * seq_len + t] = Float32(ids[start + t])
+            var target = ids[start + t + 1]
             y_onehot[(b * seq_len + t) * vocab_size + target] = 1.0
 
 
@@ -212,20 +236,74 @@ def sample[
     return generated^
 
 
+def estimate_loss[
+    g: Graph
+](
+    mut model: nn.Model[g, device=Device.gpu],
+    train_ids: List[Int],
+    val_ids: List[Int],
+    batch_size: Int,
+    seq_len: Int,
+    vocab_size: Int,
+    eval_iters: Int,
+) raises -> Tuple[Scalar[f32], Scalar[f32]]:
+    """Averages loss over `eval_iters` random batches from each split, with
+    dropout disabled (`training=False`) -- mirrors nanoGPT's
+    `estimate_loss()` (`model.eval()` / `model.train()` around the same
+    averaging loop), for train/val numbers that are directly comparable."""
+    # var x_host = Tensor[f32](TensorShape(batch_size, seq_len))
+    # var y_host = Tensor[f32](TensorShape(batch_size * seq_len, vocab_size))
+
+    var train_sum: Scalar[f32] = 0
+    for _ in range(eval_iters):
+        var x_host = Tensor[f32](TensorShape(batch_size, seq_len))
+        var y_host = Tensor[f32](TensorShape(batch_size * seq_len, vocab_size))
+        make_random_batch(
+            train_ids, batch_size, seq_len, vocab_size, x_host, y_host
+        )
+        var loss = model.forward(
+            x_host.to_gpu(), y_host.to_gpu(), training=False
+        )
+        train_sum += loss.to_host()[0]
+
+    var val_sum: Scalar[f32] = 0
+    for _ in range(eval_iters):
+        var x_host = Tensor[f32](TensorShape(batch_size, seq_len))
+        var y_host = Tensor[f32](TensorShape(batch_size * seq_len, vocab_size))
+        make_random_batch(
+            val_ids, batch_size, seq_len, vocab_size, x_host, y_host
+        )
+        var loss = model.forward(
+            x_host.to_gpu(), y_host.to_gpu(), training=False
+        )
+        val_sum += loss.to_host()[0]
+
+    return (
+        train_sum / Scalar[f32](eval_iters),
+        val_sum / Scalar[f32](eval_iters),
+    )
+
+
 def main() raises:
-    # Scaled up from the original 16/4/32/4/128/1 smoke config now that GPU
-    # training, attention, and the native-kernel fallback audit are clean.
-    comptime seq_len = 64
-    comptime batch_size = 8
-    comptime d_model = 128
-    comptime num_heads = 16
-    comptime d_ff = 512
-    comptime num_blocks = 2
-    comptime learning_rate = 3e-4
-    comptime weight_decay = 0.01
-    comptime warmup_steps = 200
-    comptime num_steps = 1000
-    comptime sample_every = 250
+    # Same defaults as nanoGPT's config/train_shakespeare_char.py (the "baby
+    # GPT" config) -- lower max_iters/eval_iters here for a quick check, the
+    # full 5000/200 for a real cross-comparison run.
+    comptime seq_len = 256  # block_size
+    comptime batch_size = 64
+    comptime d_model = 384  # n_embd
+    comptime num_heads = 6  # n_head
+    comptime d_ff = 4 * d_model
+    comptime num_blocks = 6  # n_layer
+    comptime dropout_p = 0.2
+    comptime learning_rate = 1e-3
+    comptime weight_decay = 0.1
+    comptime beta2 = 0.99
+    comptime warmup_steps = 100  # warmup_iters
+    comptime min_lr = 1e-4
+    comptime num_steps = 5000  # max_iters
+    comptime eval_interval = 250
+    comptime eval_iters = 200
+    comptime sample_every = 2500
 
     print("Loading data from", DATA_PATH, "...")
     var text = open(String(DATA_PATH), "r").read()
@@ -238,8 +316,8 @@ def main() raises:
     for j in range(len(vocab)):
         char_to_id[vocab[j]] = j
 
+    print("length of dataset in characters:", len(char_ids))
     print("vocab size:", len(vocab))
-    print("text length:", len(char_ids))
     if len(vocab) != VOCAB_SIZE:
         print(
             "[ERROR] VOCAB_SIZE constant (",
@@ -250,6 +328,18 @@ def main() raises:
         )
         return
 
+    # Same 90/10 split as nanoGPT's prepare.py: data[:int(n*0.9)] / rest.
+    var split = Int(Float64(len(char_ids)) * 0.9)
+    var train_ids = List[Int]()
+    var val_ids = List[Int]()
+    for i in range(split):
+        train_ids.append(char_ids[i])
+    for i in range(split, len(char_ids)):
+        val_ids.append(char_ids[i])
+    print("train has", len(train_ids), "tokens")
+    print("val has", len(val_ids), "tokens")
+    print("tokens per iteration will be:", batch_size * seq_len)
+
     comptime graph = create_gpt_mini(
         batch_size,
         seq_len,
@@ -258,16 +348,20 @@ def main() raises:
         num_heads,
         d_ff,
         num_blocks,
+        dropout_p,
     )
     var model = nn.Model[graph, device=TRAIN_DEVICE]()
     var optim = nn.optim.AdamW[graph, device=TRAIN_DEVICE](
-        model.parameters, lr=learning_rate, weight_decay=weight_decay
+        model.parameters,
+        lr=learning_rate,
+        beta2=beta2,
+        weight_decay=weight_decay,
     )
     var lr_schedule = nn.optim.WarmupCosineSchedule(
         base_lr=learning_rate,
         warmup_steps=warmup_steps,
         total_steps=num_steps,
-        min_lr=learning_rate * 0.1,
+        min_lr=min_lr,
     )
 
     print(
@@ -275,7 +369,7 @@ def main() raises:
         num_steps,
         "steps, batch size",
         batch_size,
-        ", seq len",
+        ", block size",
         seq_len,
         ")",
     )
@@ -284,12 +378,33 @@ def main() raises:
     for step in range(num_steps):
         optim.lr = lr_schedule.get_lr(step)
 
+        if step % eval_interval == 0 or step == num_steps - 1:
+            var losses = estimate_loss(
+                model,
+                train_ids,
+                val_ids,
+                batch_size,
+                seq_len,
+                VOCAB_SIZE,
+                eval_iters,
+            )
+            print(
+                "step",
+                step,
+                ": train loss",
+                losses[0],
+                ", val loss",
+                losses[1],
+            )
+
+        var iter_start = now()
+
         var x_host = Tensor[f32](TensorShape(batch_size, seq_len))
         var y_onehot_host = Tensor[f32](
             TensorShape(batch_size * seq_len, VOCAB_SIZE)
         )
         make_random_batch(
-            char_ids, batch_size, seq_len, VOCAB_SIZE, x_host, y_onehot_host
+            train_ids, batch_size, seq_len, VOCAB_SIZE, x_host, y_onehot_host
         )
 
         var loss = model.forward(x_host.to_gpu(), y_onehot_host.to_gpu())
@@ -298,17 +413,17 @@ def main() raises:
         model.backward()
         optim.step()
 
-        if step % 50 == 0 or step == num_steps - 1:
+        var iter_ms = Float64(now() - iter_start) / 1e6
+        if step % 10 == 0:
             var loss_host = loss.to_host()
             print(
-                "step",
+                "iter",
                 step,
-                "/",
-                num_steps,
-                "\tloss:",
+                ": loss",
                 loss_host[0],
-                "\tlr:",
-                optim.lr,
+                ", time",
+                iter_ms,
+                "ms",
             )
 
         if step > 0 and step % sample_every == 0:
@@ -324,10 +439,10 @@ def main() raises:
                     seq_len,
                     batch_size,
                     VOCAB_SIZE,
-                    80,
+                    200,
                 ),
                 "\n---",
             )
 
     print("Training finished:", Float64(now() - start) / 1e9, "seconds")
-    print("GPU smoke training completed.")
+    print("GPU gpt-mini training completed.")
