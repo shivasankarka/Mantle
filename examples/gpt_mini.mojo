@@ -3,10 +3,7 @@
 Architecture: token embedding + positional embedding -> N causal
 TransformerBlocks -> final LayerNorm -> output projection to vocab.
 Trained with next-token-prediction (CrossEntropyLoss) and sampled
-greedily during/after training. This is the acceptance test for the
-Phase 1/2 transformer building blocks (batched DOT, GATHER/Embedding,
-GELU, LayerNorm, MultiHeadAttention, FeedForward, TransformerBlock,
-PositionalEmbedding).
+greedily during/after training.
 
 The graph is fully comptime, so vocab size must be known at compile
 time -- tiny-shakespeare has exactly 65 distinct characters.

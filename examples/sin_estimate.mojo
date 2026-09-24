@@ -29,7 +29,7 @@ def create_simple_nn(batch_size: Int, n_inputs: Int, n_outputs: Int) -> Graph:
 
 
 def main() raises:
-    comptime batch_size = 32
+    comptime batch_size = 1024
     comptime n_inputs = 1
     comptime n_outputs = 1
     comptime learning_rate = 0.01
