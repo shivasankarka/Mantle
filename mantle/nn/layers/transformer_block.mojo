@@ -9,13 +9,11 @@
 ------------------------------------------------
 Pre-norm Transformer block: x + MHA(LN(x)), then x + FF(LN(x)).
 """
-from std.reflection import reflect_fn
-
 from mantle import f32
 from mantle.autograd.graph import Graph
 from mantle.autograd.symbol import Symbol
 from mantle.autograd.ops import OP
-from mantle.nn.module import Layer
+from mantle.nn.module import Expr, Layer, Module
 from mantle.nn.layers.layernorm import LayerNorm
 from mantle.nn.layers.attention import MultiHeadAttention
 from mantle.nn.layers.feedforward import FeedForward
@@ -58,8 +56,21 @@ def TransformerBlock(
     var ff = FeedForward(g, normed2, d_ff, dropout_p, num_blocks)
     var res2 = g.op(OP.ADD, res1, ff)
 
-    g.set_scope_from(before, reflect_fn[TransformerBlock].display_name())
+    g.set_scope_from(before, "TransformerBlock")
     return res2
+
+
+def TransformerBlock(
+    num_heads: Int,
+    d_ff: Int,
+    dropout_p: Float32 = 0.0,
+    causal: Bool = True,
+    num_blocks: Int = 1,
+) -> TransformerBlockLayer:
+    """Create a transformer block for ``Sequential`` or a custom module."""
+    return TransformerBlockLayer(
+        num_heads, d_ff, dropout_p, causal, num_blocks
+    )
 
 
 # ===----------------------------------------------------------------------===#
@@ -67,7 +78,7 @@ def TransformerBlock(
 # ===----------------------------------------------------------------------===#
 
 
-struct TransformerBlockLayer(Copyable, Layer, Movable):
+struct TransformerBlockLayer(Copyable, Layer, Module, Movable):
     """
     `Layer`-conforming wrapper around `TransformerBlock`, for use in a
     reflection-based Module struct.
@@ -110,3 +121,20 @@ struct TransformerBlockLayer(Copyable, Layer, Movable):
             self.causal,
             self.num_blocks,
         )
+
+    def forward(mut self, input: Expr) -> Expr:
+        return Expr(
+            input.graph,
+            TransformerBlock(
+                input.graph[],
+                input.symbol,
+                self.num_heads,
+                self.d_ff,
+                self.dropout_p,
+                self.causal,
+                self.num_blocks,
+            ),
+        )
+
+    def __call__(mut self, input: Expr) -> Expr:
+        return self.forward(input)

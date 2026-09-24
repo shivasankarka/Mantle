@@ -10,13 +10,12 @@
 Position-wise feed-forward block used inside a Transformer block:
 Linear(d_ff) -> GELU -> Linear(d_model) -> Dropout.
 """
-from std.reflection import reflect_fn
 from std.math import sqrt
 
 from mantle import f32
 from mantle.autograd.graph import Graph
 from mantle.autograd.symbol import Symbol
-from mantle.nn.module import Layer
+from mantle.nn.module import Expr, Layer, Module
 from mantle.nn.layers.linear import Linear
 from mantle.nn.layers.dropout import Dropout
 from mantle.nn.activations import GELU
@@ -52,8 +51,15 @@ def FeedForward(
     if dropout_p > 0.0:
         res = Dropout(g, res, dropout_p)
 
-    g.set_scope_from(before, reflect_fn[FeedForward].display_name())
+    g.set_scope_from(before, "FeedForward")
     return res
+
+
+def FeedForward(
+    d_ff: Int, dropout_p: Float32 = 0.0, num_blocks: Int = 1
+) -> FeedForwardLayer:
+    """Create a feed-forward layer for ``Sequential`` or a custom module."""
+    return FeedForwardLayer(d_ff, dropout_p, num_blocks)
 
 
 # ===----------------------------------------------------------------------===#
@@ -61,7 +67,7 @@ def FeedForward(
 # ===----------------------------------------------------------------------===#
 
 
-struct FeedForwardLayer(Copyable, Layer, Movable):
+struct FeedForwardLayer(Copyable, Layer, Module, Movable):
     """
     `Layer`-conforming wrapper around `FeedForward`, for use in a
     reflection-based Module struct.
@@ -87,3 +93,18 @@ struct FeedForwardLayer(Copyable, Layer, Movable):
         return FeedForward(
             g, input, self.d_ff, self.dropout_p, self.num_blocks
         )
+
+    def forward(mut self, input: Expr) -> Expr:
+        return Expr(
+            input.graph,
+            FeedForward(
+                input.graph[],
+                input.symbol,
+                self.d_ff,
+                self.dropout_p,
+                self.num_blocks,
+            ),
+        )
+
+    def __call__(mut self, input: Expr) -> Expr:
+        return self.forward(input)

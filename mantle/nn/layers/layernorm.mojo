@@ -10,8 +10,6 @@
 Fused layer normalization over the last axis with learnable gamma/beta of
 shape `(normalized_shape,)`.
 """
-from std.reflection import reflect_fn
-
 from mantle import f32
 from mantle.autograd.graph import Graph
 from mantle.autograd.symbol import Symbol
@@ -19,7 +17,7 @@ from mantle.autograd.ops import OP
 from mantle.autograd.attributes import Attribute, AttributeVector
 from mantle.autograd.params import Param
 from mantle.core.tensor import Tensor, TensorShape
-from mantle.nn.module import Layer
+from mantle.nn.module import Expr, Layer, Module
 
 
 # ===----------------------------------------------------------------------===#
@@ -62,8 +60,15 @@ def LayerNorm(
         attributes=AttributeVector(Attribute("epsilon", Scalar[f32](epsilon))),
     )
 
-    g.set_scope_from(before, reflect_fn[LayerNorm].display_name())
+    g.set_scope_from(before, "LayerNorm")
     return res
+
+
+def LayerNorm(
+    normalized_shape: Int, epsilon: Float32 = 1e-5
+) -> LayerNormLayer:
+    """Create a LayerNorm layer for ``Sequential`` or a custom module."""
+    return LayerNormLayer(normalized_shape, epsilon)
 
 
 # ===----------------------------------------------------------------------===#
@@ -71,7 +76,7 @@ def LayerNorm(
 # ===----------------------------------------------------------------------===#
 
 
-struct LayerNormLayer(Copyable, Layer, Movable):
+struct LayerNormLayer(Copyable, Layer, Module, Movable):
     """
     `Layer`-conforming wrapper around `LayerNorm`, for use in a
     reflection-based Module struct.
@@ -90,3 +95,17 @@ struct LayerNormLayer(Copyable, Layer, Movable):
 
     def forward(self, mut g: Graph, input: Symbol) -> Symbol:
         return LayerNorm(g, input, self.normalized_shape, self.epsilon)
+
+    def forward(mut self, input: Expr) -> Expr:
+        return Expr(
+            input.graph,
+            LayerNorm(
+                input.graph[],
+                input.symbol,
+                self.normalized_shape,
+                self.epsilon,
+            ),
+        )
+
+    def __call__(mut self, input: Expr) -> Expr:
+        return self.forward(input)

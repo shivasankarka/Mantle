@@ -92,8 +92,13 @@ def GELU(mut g: Graph, input: Symbol) -> Symbol:
     return g.op(OP.GELU, input)
 
 
+def GELU() -> GELULayer:
+    """Create a GELU layer for ``Sequential`` or a custom module."""
+    return GELULayer()
+
+
 @fieldwise_init
-struct GELULayer(Copyable, Layer, Movable):
+struct GELULayer(Copyable, Layer, Module, Movable):
     """
     `Layer`-conforming wrapper around `GELU`, for use in a reflection-based
     Module struct.
@@ -101,6 +106,12 @@ struct GELULayer(Copyable, Layer, Movable):
 
     def forward(self, mut g: Graph, input: Symbol) -> Symbol:
         return GELU(g, input)
+
+    def forward(mut self, input: Expr) -> Expr:
+        return Expr(input.graph, GELU(input.graph[], input.symbol))
+
+    def __call__(mut self, input: Expr) -> Expr:
+        return self.forward(input)
 
 
 # ===----------------------------------------------------------------------===#

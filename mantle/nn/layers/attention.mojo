@@ -12,7 +12,6 @@ Scaled dot-product multi-head self-attention, composed from existing ops
 autoregressive (GPT-style) models.
 """
 from std.math import sqrt
-from std.reflection import reflect_fn
 
 from mantle import f32
 from mantle.autograd.graph import Graph
@@ -21,7 +20,7 @@ from mantle.autograd.ops import OP
 from mantle.autograd.attributes import Attribute, AttributeVector
 from mantle.autograd.params import Param
 from mantle.core.tensor import Tensor, TensorShape
-from mantle.nn.module import Layer
+from mantle.nn.module import Expr, Layer, Module
 from mantle.nn.layers.linear import Linear
 from mantle.nn.layers.dropout import Dropout
 from mantle.nn.activations import Softmax
@@ -144,8 +143,18 @@ def MultiHeadAttention(
     var output_scale = 1.0 / sqrt(2.0 * Float64(num_blocks))
     var res = Linear(g, merged_flat, d_model, Float32(output_scale))
 
-    g.set_scope_from(before, reflect_fn[MultiHeadAttention].display_name())
+    g.set_scope_from(before, "MultiHeadAttention")
     return res
+
+
+def MultiHeadAttention(
+    num_heads: Int,
+    dropout_p: Float32 = 0.0,
+    causal: Bool = False,
+    num_blocks: Int = 1,
+) -> MultiHeadAttentionLayer:
+    """Create a multi-head-attention layer for a custom module."""
+    return MultiHeadAttentionLayer(num_heads, dropout_p, causal, num_blocks)
 
 
 # ===----------------------------------------------------------------------===#
@@ -153,7 +162,7 @@ def MultiHeadAttention(
 # ===----------------------------------------------------------------------===#
 
 
-struct MultiHeadAttentionLayer(Copyable, Layer, Movable):
+struct MultiHeadAttentionLayer(Copyable, Layer, Module, Movable):
     """
     `Layer`-conforming wrapper around `MultiHeadAttention`, for use in a
     reflection-based Module struct.
@@ -191,3 +200,19 @@ struct MultiHeadAttentionLayer(Copyable, Layer, Movable):
             self.causal,
             self.num_blocks,
         )
+
+    def forward(mut self, input: Expr) -> Expr:
+        return Expr(
+            input.graph,
+            MultiHeadAttention(
+                input.graph[],
+                input.symbol,
+                self.num_heads,
+                self.dropout_p,
+                self.causal,
+                self.num_blocks,
+            ),
+        )
+
+    def __call__(mut self, input: Expr) -> Expr:
+        return self.forward(input)
