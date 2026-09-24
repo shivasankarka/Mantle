@@ -71,7 +71,9 @@ from .gpu_elementwise import (
     gpu_div_backward_t1,
     gpu_div_backward_t2,
     gpu_accumulate_grad,
+    gpu_write_from_host,
 )
+from .gpu_matmul import gpu_matmul, gpu_matmul_bt, gpu_matmul_at
 
 
 # Define operators as named parameter expression
@@ -323,7 +325,16 @@ def forward_op[
             rebind[Tensor[f32, Device.gpu]](t1),
         )
     else:
-        abort("forward_op: unary operator " + String(op) + " is not supported on GPU")
+        # Host round-trip fallback for unary ops without a native GPU
+        # kernel yet (e.g. MEAN, SIGMOID, TANH, ...): run the existing,
+        # unmodified CPU implementation against host copies, then write the
+        # result back into `res`'s existing GPU buffer.
+        var res_cpu = res.to_host()
+        var t1_cpu = t1.to_host()
+        _forward_op_cpu[op, t1_shape, attributes](
+            res_cpu, t1_cpu, runtime_seed, training
+        )
+        gpu_write_from_host(rebind[Tensor[f32, Device.gpu]](res), res_cpu)
 
 
 def _forward_op_cpu[
@@ -407,34 +418,49 @@ def forward_op[
             rebind[Tensor[f32, Device.cpu]](t1),
             rebind[Tensor[f32, Device.cpu]](t2),
         )
-    elif t1_shape != t2_shape:
-        abort("forward_op: GPU binary operators do not support broadcasting")
-    elif op == OP.ADD:
+    elif t1_shape == t2_shape and op == OP.ADD:
         gpu_add_forward(
             rebind[Tensor[f32, Device.gpu]](res),
             rebind[Tensor[f32, Device.gpu]](t1),
             rebind[Tensor[f32, Device.gpu]](t2),
         )
-    elif op == OP.SUB:
+    elif t1_shape == t2_shape and op == OP.SUB:
         gpu_sub_forward(
             rebind[Tensor[f32, Device.gpu]](res),
             rebind[Tensor[f32, Device.gpu]](t1),
             rebind[Tensor[f32, Device.gpu]](t2),
         )
-    elif op == OP.MUL:
+    elif t1_shape == t2_shape and op == OP.MUL:
         gpu_mul_forward(
             rebind[Tensor[f32, Device.gpu]](res),
             rebind[Tensor[f32, Device.gpu]](t1),
             rebind[Tensor[f32, Device.gpu]](t2),
         )
-    elif op == OP.DIV:
+    elif t1_shape == t2_shape and op == OP.DIV:
         gpu_div_forward(
             rebind[Tensor[f32, Device.gpu]](res),
             rebind[Tensor[f32, Device.gpu]](t1),
             rebind[Tensor[f32, Device.gpu]](t2),
         )
+    elif t1_shape.rank() == 2 and t2_shape.rank() == 2 and op == OP.DOT:
+        gpu_matmul(
+            rebind[Tensor[f32, Device.gpu]](res),
+            rebind[Tensor[f32, Device.gpu]](t1),
+            rebind[Tensor[f32, Device.gpu]](t2),
+        )
     else:
-        abort("forward_op: binary operator " + String(op) + " is not supported on GPU")
+        # Host round-trip fallback: any op without a native GPU kernel
+        # (POW, GATHER, batched DOT, ...), or ADD/SUB/MUL/DIV under
+        # broadcasting. Runs the existing, unmodified CPU implementation
+        # against host copies, then writes the result back into `res`'s
+        # existing GPU buffer.
+        var res_cpu = res.to_host()
+        var t1_cpu = t1.to_host()
+        var t2_cpu = t2.to_host()
+        _forward_op_cpu[op, t1_shape, t2_shape, attributes](
+            res_cpu, t1_cpu, t2_cpu
+        )
+        gpu_write_from_host(rebind[Tensor[f32, Device.gpu]](res), res_cpu)
 
 
 def _forward_op_cpu[
@@ -583,7 +609,14 @@ def backward_op[
         )
         gpu_accumulate_grad(rebind[Tensor[f32, Device.gpu]](grad), res_grad)
     else:
-        abort("backward_op: unary operator " + String(op) + " is not supported on GPU")
+        # Host round-trip fallback (mirrors forward_op's).
+        var ug_cpu = ug.to_host()
+        var t1_cpu = t1.to_host()
+        var grad_cpu = grad.to_host()
+        _backward_op_cpu[tensor_id, op, ug_shape, t1_shape, attributes](
+            ug_cpu, t1_cpu, grad_cpu, runtime_seed, training
+        )
+        gpu_write_from_host(rebind[Tensor[f32, Device.gpu]](grad), grad_cpu)
 
 
 def _backward_op_cpu[
@@ -684,9 +717,9 @@ def backward_op[
             rebind[Tensor[f32, Device.cpu]](t2),
             rebind[Tensor[f32, Device.cpu]](grad),
         )
-    elif t1_shape != t2_shape:
-        abort("backward_op: GPU binary operators do not support broadcasting")
-    else:
+    elif t1_shape == t2_shape and (
+        op == OP.ADD or op == OP.SUB or op == OP.MUL or op == OP.DIV
+    ):
         var res_grad: Tensor[f32, Device.gpu]
 
         comptime if op == OP.ADD:
@@ -707,7 +740,8 @@ def backward_op[
                     rebind[Tensor[f32, Device.gpu]](ug),
                     rebind[Tensor[f32, Device.gpu]](t1),
                 )
-        elif op == OP.DIV:
+        else:
+            comptime assert op == OP.DIV
             comptime if tensor_id == 0:
                 res_grad = gpu_div_backward_t1(
                     rebind[Tensor[f32, Device.gpu]](ug),
@@ -719,10 +753,37 @@ def backward_op[
                     rebind[Tensor[f32, Device.gpu]](t1),
                     rebind[Tensor[f32, Device.gpu]](t2),
                 )
-        else:
-            abort("backward_op: binary operator " + String(op) + " is not supported on GPU")
 
         gpu_accumulate_grad(rebind[Tensor[f32, Device.gpu]](grad), res_grad)
+    elif t1_shape.rank() == 2 and t2_shape.rank() == 2 and op == OP.DOT:
+        comptime if tensor_id == 0:
+            var res_grad = Tensor[f32, Device.gpu](t1_shape)
+            gpu_matmul_bt(
+                res_grad,
+                rebind[Tensor[f32, Device.gpu]](ug),
+                rebind[Tensor[f32, Device.gpu]](t2),
+            )
+            gpu_accumulate_grad(rebind[Tensor[f32, Device.gpu]](grad), res_grad)
+        else:
+            var res_grad = Tensor[f32, Device.gpu](t2_shape)
+            gpu_matmul_at(
+                res_grad,
+                rebind[Tensor[f32, Device.gpu]](t1),
+                rebind[Tensor[f32, Device.gpu]](ug),
+            )
+            gpu_accumulate_grad(rebind[Tensor[f32, Device.gpu]](grad), res_grad)
+    else:
+        # Host round-trip fallback: any op without a native GPU kernel
+        # (POW, GATHER, batched DOT, ...), or ADD/SUB/MUL/DIV under
+        # broadcasting.
+        var ug_cpu = ug.to_host()
+        var t1_cpu = t1.to_host()
+        var t2_cpu = t2.to_host()
+        var grad_cpu = grad.to_host()
+        _backward_op_cpu[tensor_id, op, ug_shape, t1_shape, t2_shape, attributes](
+            ug_cpu, t1_cpu, t2_cpu, grad_cpu
+        )
+        gpu_write_from_host(rebind[Tensor[f32, Device.gpu]](grad), grad_cpu)
 
 
 def _backward_op_cpu[
