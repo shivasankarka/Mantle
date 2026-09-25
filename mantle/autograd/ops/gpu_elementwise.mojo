@@ -417,13 +417,13 @@ def gpu_reduce_last_forward(
     )
 
 
-def gpu_reduce_last_backward(
+def gpu_reduce_last_backward_into(
+    mut dst: Tensor[f32, Device.gpu],
     ug: Tensor[f32, Device.gpu],
     src: Tensor[f32, Device.gpu],
     axis_len: Int,
     mode: Int,
-) raises -> Tensor[f32, Device.gpu]:
-    var dst = Tensor[f32, Device.gpu](src.shape(), uninitialized=True)
+) raises:
     var ctx = dst.gpu_context()
     var n = src.num_elements()
     _cached_reduce_last_bw_kernel()._call_with_pack_checked(
@@ -437,6 +437,16 @@ def gpu_reduce_last_backward(
         grid_dim=(ceildiv(n, _BLOCK),),
         block_dim=(_BLOCK,),
     )
+
+
+def gpu_reduce_last_backward(
+    ug: Tensor[f32, Device.gpu],
+    src: Tensor[f32, Device.gpu],
+    axis_len: Int,
+    mode: Int,
+) raises -> Tensor[f32, Device.gpu]:
+    var dst = Tensor[f32, Device.gpu](src.shape(), uninitialized=True)
+    gpu_reduce_last_backward_into(dst, ug, src, axis_len, mode)
     return dst^
 
 
@@ -600,21 +610,29 @@ def gpu_gelu_forward(
     )
 
 
-def gpu_gelu_backward(
-    ug: Tensor[f32, Device.gpu], t1: Tensor[f32, Device.gpu]
-) raises -> Tensor[f32, Device.gpu]:
-    var res_grad = Tensor[f32, Device.gpu](t1.shape(), uninitialized=True)
-    var ctx = res_grad.gpu_context()
-    var n = res_grad.num_elements()
+def gpu_gelu_backward_into(
+    mut grad: Tensor[f32, Device.gpu],
+    ug: Tensor[f32, Device.gpu],
+    t1: Tensor[f32, Device.gpu],
+) raises:
+    var ctx = grad.gpu_context()
+    var n = grad.num_elements()
     _cached_gelu_bw_kernel()._call_with_pack_checked(
         ctx,
-        res_grad.gpu_ptr(),
+        grad.gpu_ptr(),
         t1.gpu_ptr(),
         ug.gpu_ptr(),
         Int64(n),
         grid_dim=ceildiv(n, _BLOCK),
         block_dim=min(n, _BLOCK),
     )
+
+
+def gpu_gelu_backward(
+    ug: Tensor[f32, Device.gpu], t1: Tensor[f32, Device.gpu]
+) raises -> Tensor[f32, Device.gpu]:
+    var res_grad = Tensor[f32, Device.gpu](t1.shape(), uninitialized=True)
+    gpu_gelu_backward_into(res_grad, ug, t1)
     return res_grad^
 
 
@@ -915,8 +933,18 @@ def gpu_dropout_backward(
     training: Bool,
 ) raises -> Tensor[f32, Device.gpu]:
     var res_grad = Tensor[f32, Device.gpu](ug.shape(), uninitialized=True)
-    gpu_dropout_forward(res_grad, ug, p, seed, training)
+    gpu_dropout_backward_into(res_grad, ug, p, seed, training)
     return res_grad^
+
+
+def gpu_dropout_backward_into(
+    mut grad: Tensor[f32, Device.gpu],
+    ug: Tensor[f32, Device.gpu],
+    p: Scalar[f32],
+    seed: UInt64,
+    training: Bool,
+) raises:
+    gpu_dropout_forward(grad, ug, p, seed, training)
 
 
 def _accumulate_kernel(
@@ -1356,21 +1384,29 @@ def gpu_sqrt_forward(
     )
 
 
-def gpu_sqrt_backward(
-    ug: Tensor[f32, Device.gpu], t1: Tensor[f32, Device.gpu]
-) raises -> Tensor[f32, Device.gpu]:
-    var res_grad = Tensor[f32, Device.gpu](t1.shape(), uninitialized=True)
-    var ctx = res_grad.gpu_context()
-    var n = res_grad.num_elements()
+def gpu_sqrt_backward_into(
+    mut grad: Tensor[f32, Device.gpu],
+    ug: Tensor[f32, Device.gpu],
+    t1: Tensor[f32, Device.gpu],
+) raises:
+    var ctx = grad.gpu_context()
+    var n = grad.num_elements()
     _cached_sqrt_bw_kernel()._call_with_pack_checked(
         ctx,
-        res_grad.gpu_ptr(),
+        grad.gpu_ptr(),
         t1.gpu_ptr(),
         ug.gpu_ptr(),
         Int64(n),
         grid_dim=ceildiv(n, _BLOCK),
         block_dim=min(n, _BLOCK),
     )
+
+
+def gpu_sqrt_backward(
+    ug: Tensor[f32, Device.gpu], t1: Tensor[f32, Device.gpu]
+) raises -> Tensor[f32, Device.gpu]:
+    var res_grad = Tensor[f32, Device.gpu](t1.shape(), uninitialized=True)
+    gpu_sqrt_backward_into(res_grad, ug, t1)
     return res_grad^
 
 
@@ -1389,21 +1425,29 @@ def gpu_exp_forward(
     )
 
 
-def gpu_exp_backward(
-    ug: Tensor[f32, Device.gpu], t1: Tensor[f32, Device.gpu]
-) raises -> Tensor[f32, Device.gpu]:
-    var res_grad = Tensor[f32, Device.gpu](t1.shape(), uninitialized=True)
-    var ctx = res_grad.gpu_context()
-    var n = res_grad.num_elements()
+def gpu_exp_backward_into(
+    mut grad: Tensor[f32, Device.gpu],
+    ug: Tensor[f32, Device.gpu],
+    t1: Tensor[f32, Device.gpu],
+) raises:
+    var ctx = grad.gpu_context()
+    var n = grad.num_elements()
     _cached_exp_bw_kernel()._call_with_pack_checked(
         ctx,
-        res_grad.gpu_ptr(),
+        grad.gpu_ptr(),
         t1.gpu_ptr(),
         ug.gpu_ptr(),
         Int64(n),
         grid_dim=ceildiv(n, _BLOCK),
         block_dim=min(n, _BLOCK),
     )
+
+
+def gpu_exp_backward(
+    ug: Tensor[f32, Device.gpu], t1: Tensor[f32, Device.gpu]
+) raises -> Tensor[f32, Device.gpu]:
+    var res_grad = Tensor[f32, Device.gpu](t1.shape(), uninitialized=True)
+    gpu_exp_backward_into(res_grad, ug, t1)
     return res_grad^
 
 
@@ -1422,21 +1466,29 @@ def gpu_log_forward(
     )
 
 
-def gpu_log_backward(
-    ug: Tensor[f32, Device.gpu], t1: Tensor[f32, Device.gpu]
-) raises -> Tensor[f32, Device.gpu]:
-    var res_grad = Tensor[f32, Device.gpu](t1.shape(), uninitialized=True)
-    var ctx = res_grad.gpu_context()
-    var n = res_grad.num_elements()
+def gpu_log_backward_into(
+    mut grad: Tensor[f32, Device.gpu],
+    ug: Tensor[f32, Device.gpu],
+    t1: Tensor[f32, Device.gpu],
+) raises:
+    var ctx = grad.gpu_context()
+    var n = grad.num_elements()
     _cached_log_bw_kernel()._call_with_pack_checked(
         ctx,
-        res_grad.gpu_ptr(),
+        grad.gpu_ptr(),
         t1.gpu_ptr(),
         ug.gpu_ptr(),
         Int64(n),
         grid_dim=ceildiv(n, _BLOCK),
         block_dim=min(n, _BLOCK),
     )
+
+
+def gpu_log_backward(
+    ug: Tensor[f32, Device.gpu], t1: Tensor[f32, Device.gpu]
+) raises -> Tensor[f32, Device.gpu]:
+    var res_grad = Tensor[f32, Device.gpu](t1.shape(), uninitialized=True)
+    gpu_log_backward_into(res_grad, ug, t1)
     return res_grad^
 
 

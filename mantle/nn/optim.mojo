@@ -80,14 +80,53 @@ def get_direct_overwrite_gradients(g: Graph) -> List[Symbol]:
                 continue
 
             var supports_overwrite = node.operator == OP.LINEAR or (
-                node.operator == OP.RELU and input_id == 0
+                (
+                    node.operator == OP.RELU
+                    or node.operator == OP.EXP
+                    or node.operator == OP.LOG
+                    or node.operator == OP.GELU
+                    or node.operator == OP.DROPOUT
+                    or node.operator == OP.SQRT
+                    or node.operator == OP.RESHAPE
+                    or node.operator == OP.FLATTEN
+                )
+                and input_id == 0
             ) or (
                 node.operator == OP.MEAN
                 and input_id == 0
                 and not node.attributes["axis"]
+            ) or (
+                (node.operator == OP.SUM or node.operator == OP.MEAN or node.operator == OP.MAX)
+                and input_id == 0
+                and node.attributes["axis"]
+                and node.attributes["axis"].value().to_int()
+                == node.inputs[0].shape.rank() - 1
             ) or (node.operator == OP.POW and input_id == 0) or (
                 (node.operator == OP.SUB or node.operator == OP.MUL or node.operator == OP.DIV)
                 and node.inputs[0].shape == node.inputs[1].shape
+            ) or (
+                node.operator == OP.ADD
+                and node.inputs[0].shape == node.inputs[1].shape
+            ) or (
+                node.operator == OP.ADD
+                and input_id == 0
+                and node.inputs[0].shape.rank() >= 2
+                and node.inputs[1].shape.rank() == 1
+                and node.inputs[1].shape[0] == node.inputs[0].shape[-1]
+            ) or (
+                node.operator == OP.ADD
+                and input_id == 1
+                and node.inputs[0].shape.rank() >= 2
+                and node.inputs[1].shape.rank() == 1
+                and node.inputs[1].shape[0] == node.inputs[0].shape[-1]
+            ) or (
+                node.operator == OP.DOT
+                and node.inputs[0].shape.rank() == 2
+                and node.inputs[1].shape.rank() == 2
+            ) or (
+                node.operator == OP.TRANSPOSE
+                and input_id == 0
+                and node.inputs[0].shape.rank() == 4
             )
             if not supports_overwrite:
                 continue
