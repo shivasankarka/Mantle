@@ -20,6 +20,13 @@ from mantle.autograd.attributes import Attribute, AttributeVector
 from mantle.nn.module import Expr, Layer, Module, build_graph
 
 
+trait Loss:
+    """A loss builder that operates on opaque module expressions."""
+
+    def forward(mut self, prediction: Expr, target: Expr) -> Expr:
+        ...
+
+
 # ===----------------------------------------------------------------------===#
 # MSELoss
 # ===----------------------------------------------------------------------===#
@@ -37,8 +44,24 @@ def MSELoss(
     var loss = g.op(OP.POW, diff, 2)
     var mean_loss = g.op(OP.MEAN, loss)
 
-    g.set_scope_from(before, reflect_fn[MSELoss].display_name())
+    g.set_scope_from(before, "MSELoss")
     return mean_loss
+
+
+struct MSELossFn(Copyable, Loss, Movable):
+    def __init__(out self):
+        pass
+
+    def forward(mut self, prediction: Expr, target: Expr) -> Expr:
+        return Expr(
+            prediction.graph,
+            MSELoss(prediction.graph[], prediction.symbol, target.symbol),
+        )
+
+
+def MSELoss() -> MSELossFn:
+    """Create an MSE objective for ``supervised_graph``."""
+    return MSELossFn()
 
 
 # ===----------------------------------------------------------------------===#
@@ -63,8 +86,24 @@ def L1Loss(
     var abs_diff = g.op(OP.ABS, diff)
     var mean_loss = g.op(OP.MEAN, abs_diff)
 
-    g.set_scope_from(before, reflect_fn[L1Loss].display_name())
+    g.set_scope_from(before, "L1Loss")
     return mean_loss
+
+
+struct L1LossFn(Copyable, Loss, Movable):
+    def __init__(out self):
+        pass
+
+    def forward(mut self, prediction: Expr, target: Expr) -> Expr:
+        return Expr(
+            prediction.graph,
+            L1Loss(prediction.graph[], prediction.symbol, target.symbol),
+        )
+
+
+def L1Loss() -> L1LossFn:
+    """Create an L1 objective for ``supervised_graph``."""
+    return L1LossFn()
 
 
 def CrossEntropyLoss(
@@ -98,8 +137,57 @@ def CrossEntropyLoss(
     var ret = g.op(OP.SUM, targets_log_softmax)
     var negDivN = g.op(OP.MUL, ret, -1.0 / Float64(y_pred.shape[0]))
 
-    g.set_scope_from(before, reflect_fn[CrossEntropyLoss].display_name())
+    g.set_scope_from(before, "CrossEntropyLoss")
     return negDivN
+
+
+struct CrossEntropyLossFn(Copyable, Loss, Movable):
+    var label_smoothing: Float64
+
+    def __init__(out self, label_smoothing: Float64 = 0.0):
+        self.label_smoothing = label_smoothing
+
+    def forward(mut self, prediction: Expr, target: Expr) -> Expr:
+        return Expr(
+            prediction.graph,
+            CrossEntropyLoss(
+                prediction.graph[],
+                prediction.symbol,
+                target.symbol,
+                self.label_smoothing,
+            ),
+        )
+
+
+def CrossEntropyLoss(
+    label_smoothing: Float64 = 0.0,
+) -> CrossEntropyLossFn:
+    """Create a cross-entropy objective for ``supervised_graph``."""
+    return CrossEntropyLossFn(label_smoothing)
+
+
+def supervised_graph[T: AnyType, L: Loss](
+    mut network: T,
+    input_shape: TensorShape,
+    target_shape: TensorShape,
+    mut loss: L,
+) -> Graph:
+    """Build a static supervised graph from a model definition and objective."""
+    var g = Graph()
+    var inputs = g.input(input_shape)
+    var prediction: Expr
+    comptime if conforms_to(T, Module):
+        prediction = network.forward(Expr(g, inputs))
+    elif conforms_to(T, Layer):
+        prediction = Expr(g, network.forward(g, inputs))
+    else:
+        prediction = Expr(g, build_graph(network, g, inputs))
+
+    var target = Expr(g, g.input(target_shape))
+    var objective = loss.forward(prediction, target)
+    g.out(prediction.symbol)
+    g.loss(objective.symbol)
+    return g^
 
 
 def classification_graph[T: AnyType](

@@ -42,7 +42,14 @@ from .layers.attention import (
 from .layers.feedforward import FeedForward, FeedForwardLayer
 from .layers.transformer_block import TransformerBlock, TransformerBlockLayer
 
-from .loss import MSELoss, CrossEntropyLoss, L1Loss, classification_graph
+from .loss import (
+    Loss,
+    MSELoss,
+    CrossEntropyLoss,
+    L1Loss,
+    classification_graph,
+    supervised_graph,
+)
 from .metrics import accuracy
 import mantle.nn.optim as optim
 from .activations import (
