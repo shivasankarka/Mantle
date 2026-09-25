@@ -34,6 +34,7 @@ def test_reflected_model_definition() raises:
     )
 
     var model = nn.Model[graph]()
+    model.summary()
     var inputs = Tensor[f32](TensorShape(2, 2))
     var labels = Tensor[f32](TensorShape(2, 3))
     var loss = model.forward(inputs, labels)

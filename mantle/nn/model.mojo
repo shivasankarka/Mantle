@@ -662,6 +662,61 @@ struct Model[
     ):
         pass
 
+    def summary(self, training: Bool = True, show_ops: Bool = True):
+        """Print the static graph's shapes, parameters, and execution plan.
+
+        Unlike eager-framework summaries, this reports the exact graph that
+        ``Model[graph]`` will execute.  Layer scopes come from graph builders;
+        unscoped custom operations are still listed by operator name.
+        """
+        var parameter_count = 0
+        var trainable_parameter_count = 0
+        comptime for param in Self.g.params.symbols:
+            parameter_count += param.shape.num_elements()
+            if param.trainable:
+                trainable_parameter_count += param.shape.num_elements()
+
+        print("Mantle Model Summary")
+        print("  device: ", String(Self.device))
+        print(
+            "  inputs: ",
+            comptime(len(Self.g.inputs)),
+            "  outputs: ",
+            comptime(len(Self.g.outputs)),
+        )
+        print("  graph nodes: ", comptime(len(Self.g.nodes)))
+        print(
+            "  parameters: ",
+            parameter_count,
+            " (trainable: ",
+            trainable_parameter_count,
+            ")",
+        )
+
+        comptime for input in Self.g.inputs:
+            print("  input  ", input.name, ": ", input.shape)
+        comptime for output in Self.g.outputs:
+            print("  output ", output.name, ": ", output.shape)
+
+        if show_ops:
+            print("  operations:")
+            comptime for index in range(len(Self.g.nodes)):
+                comptime node = Self.g.nodes[index]
+                comptime output = node.outputs[0]
+                var scope = String(node.scope)
+                if scope.byte_length() == 0:
+                    scope = String(node.operator.name)
+                print(
+                    "    ",
+                    index,
+                    "  ",
+                    scope,
+                    "  -> ",
+                    output.shape,
+                )
+
+        self.print_memory_summary(training=training)
+
     def print_memory_summary(self, training: Bool = True):
         """Print the executor's persistent f32 tensor footprint.
 
