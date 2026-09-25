@@ -29,6 +29,8 @@ def test_supervised_graph_executes() raises:
     var targets = Tensor[f32](TensorShape(2, 1))
     var objective = model.forward(inputs, targets)
     assert_true(objective[0] == objective[0], "objective should be finite")
+    var prediction = model.predict(inputs)
+    assert_true(prediction[0] == prediction[0], "prediction should be finite")
     print("test_supervised_graph_executes: PASSED")
 
 

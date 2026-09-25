@@ -188,6 +188,21 @@ struct Model[
             outputs.append(self.parameters.tensors[sym].copy())
         return outputs^
 
+    def predict(
+        mut self, input: Tensor[f32, Self.device]
+    ) raises -> Tensor[f32, Self.device]:
+        """Run a one-input graph and return its first prediction tensor.
+
+        Supervised graph builders declare the feature tensor first and add
+        targets only after the prediction graph is complete.  ``predict``
+        therefore needs only the feature tensor; it never evaluates or binds
+        the target input.  Use ``inference`` for graphs with multiple model
+        inputs or multiple outputs.
+        """
+        self.execute_one_input[Self.n_inference_nodes.value()](input)
+        comptime output = Self.g.outputs[0]
+        return self.parameters.tensors[output].copy()
+
     def execute[
         num_nodes: Int
     ](
@@ -196,12 +211,29 @@ struct Model[
         seed: UInt64 = 0,
         training: Bool = True,
     ) raises:
-        # 1. Write inputs to allocated input memory
+        # 1. Write inputs to allocated input memory.
         comptime for i in range(len(Self.g.inputs)):
             comptime sym = Self.g.inputs[i]
             self.parameters.tensors[sym] = t_input[i].copy()
 
-        # 2. Loop over all nodes and execute forward operations
+        self.execute_nodes[num_nodes](seed, training)
+
+    def execute_one_input[
+        num_nodes: Int
+    ](
+        mut self, input: Tensor[f32, Self.device]
+    ) raises:
+        """Execute a prefix whose only external input is graph input zero."""
+        comptime input_symbol = Self.g.inputs[0]
+        self.parameters.tensors[input_symbol] = input.copy()
+        self.execute_nodes[num_nodes](seed=0, training=False)
+
+    def execute_nodes[
+        num_nodes: Int
+    ](
+        mut self, seed: UInt64 = 0, training: Bool = True
+    ) raises:
+        # Loop over all nodes and execute forward operations.
         comptime for i in range(num_nodes):
             comptime op = Self.g.nodes[i].operator
             comptime attrs = Self.g.nodes[i].attributes

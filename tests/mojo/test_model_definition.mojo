@@ -39,6 +39,10 @@ def test_reflected_model_definition() raises:
     var labels = Tensor[f32](TensorShape(2, 3))
     var loss = model.forward(inputs, labels)
     assert_true(loss[0] == loss[0], "loss should be finite")
+    var prediction = model.predict(inputs)
+    assert_true(
+        prediction[0] == prediction[0], "prediction should be finite"
+    )
     print("test_reflected_model_definition: PASSED")
 
 

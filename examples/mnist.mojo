@@ -127,7 +127,7 @@ def main() raises:
         for bb in range(batch.labels.dim(0)):
             labels_one_hot[bb * 10 + Int(batch.labels[bb])] = 1.0
 
-        var logits = model.inference(batch.data, labels_one_hot)[0].copy()
+        var logits = model.predict(batch.data)
         correct += nn.accuracy(logits, labels_one_hot) * Float32(
             batch.labels.dim(0)
         )

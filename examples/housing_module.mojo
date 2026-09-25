@@ -91,13 +91,8 @@ def main():
     # batch_size, so the (much smaller) test set is cycled to fill one
     # full batch; the MSE below is only averaged over the `n_test` real
     # rows, ignoring the cycled padding.
-    # model.inference() requires a tensor for every graph input in
-    # declared order, even ones (like y_true) that the inference subgraph
-    # itself doesn't read.
     var test_x_padded = cycle_pad_rows(test_x, batch_size)
-    var dummy_y = Tensor[f32](TensorShape(batch_size, 1))
-    var inference_outputs = model.inference(test_x_padded, dummy_y)
-    var predictions = inference_outputs[0].copy()
+    var predictions = model.predict(test_x_padded)
 
     var mse: Float32 = 0.0
     for i in range(n_test):
