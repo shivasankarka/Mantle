@@ -65,6 +65,30 @@ def LeakyReLU(
     )
 
 
+def LeakyReLU(negative_slope: Scalar[f32] = 0.01) -> LeakyReLULayer:
+    """Create a leaky-ReLU layer for ``Sequential`` or a custom module."""
+    return LeakyReLULayer(negative_slope)
+
+
+struct LeakyReLULayer(Copyable, Layer, Module, Movable):
+    var negative_slope: Scalar[f32]
+
+    def __init__(out self, negative_slope: Scalar[f32] = 0.01):
+        self.negative_slope = negative_slope
+
+    def forward(self, mut g: Graph, input: Symbol) -> Symbol:
+        return LeakyReLU(g, input, self.negative_slope)
+
+    def forward(mut self, input: Expr) -> Expr:
+        return Expr(
+            input.graph,
+            LeakyReLU(input.graph[], input.symbol, self.negative_slope),
+        )
+
+    def __call__(mut self, input: Expr) -> Expr:
+        return self.forward(input)
+
+
 # ===----------------------------------------------------------------------===#
 # Sigmoid
 # ===----------------------------------------------------------------------===#
@@ -74,6 +98,23 @@ def Sigmoid(mut g: Graph, input: Symbol) -> Symbol:
     return g.op(OP.SIGMOID, input)
 
 
+def Sigmoid() -> SigmoidLayer:
+    """Create a sigmoid layer for ``Sequential`` or a custom module."""
+    return SigmoidLayer()
+
+
+@fieldwise_init
+struct SigmoidLayer(Copyable, Layer, Module, Movable):
+    def forward(self, mut g: Graph, input: Symbol) -> Symbol:
+        return Sigmoid(g, input)
+
+    def forward(mut self, input: Expr) -> Expr:
+        return Expr(input.graph, Sigmoid(input.graph[], input.symbol))
+
+    def __call__(mut self, input: Expr) -> Expr:
+        return self.forward(input)
+
+
 # ===----------------------------------------------------------------------===#
 # Tanh
 # ===----------------------------------------------------------------------===#
@@ -81,6 +122,23 @@ def Sigmoid(mut g: Graph, input: Symbol) -> Symbol:
 
 def Tanh(mut g: Graph, input: Symbol) -> Symbol:
     return g.op(OP.TANH, input)
+
+
+def Tanh() -> TanhLayer:
+    """Create a tanh layer for ``Sequential`` or a custom module."""
+    return TanhLayer()
+
+
+@fieldwise_init
+struct TanhLayer(Copyable, Layer, Module, Movable):
+    def forward(self, mut g: Graph, input: Symbol) -> Symbol:
+        return Tanh(g, input)
+
+    def forward(mut self, input: Expr) -> Expr:
+        return Expr(input.graph, Tanh(input.graph[], input.symbol))
+
+    def __call__(mut self, input: Expr) -> Expr:
+        return self.forward(input)
 
 
 # ===----------------------------------------------------------------------===#
@@ -135,8 +193,13 @@ def Softmax(mut g: Graph, input: Symbol, axis: Int) -> Symbol:
     return g.op(OP.DIV, exp_values, sum_values)
 
 
+def Softmax(axis: Int = 1) -> SoftmaxLayer:
+    """Create a softmax layer for ``Sequential`` or a custom module."""
+    return SoftmaxLayer(axis)
+
+
 @fieldwise_init
-struct SoftmaxLayer(Copyable, Layer, Movable):
+struct SoftmaxLayer(Copyable, Layer, Module, Movable):
     """
     `Layer`-conforming wrapper around `Softmax`, for use in a reflection-based
     Module struct or `Sequential`.
@@ -146,6 +209,12 @@ struct SoftmaxLayer(Copyable, Layer, Movable):
 
     def forward(self, mut g: Graph, input: Symbol) -> Symbol:
         return Softmax(g, input, self.axis)
+
+    def forward(mut self, input: Expr) -> Expr:
+        return Expr(input.graph, Softmax(input.graph[], input.symbol, self.axis))
+
+    def __call__(mut self, input: Expr) -> Expr:
+        return self.forward(input)
 
 
 # ===----------------------------------------------------------------------===#
@@ -168,3 +237,26 @@ def LogSoftmax(mut g: Graph, input: Symbol, axis: Int) -> Symbol:
     var log_values = g.op(OP.LOG, sum_values)
 
     return g.op(OP.SUB, input_minus_max, log_values)
+
+
+def LogSoftmax(axis: Int = 1) -> LogSoftmaxLayer:
+    """Create a log-softmax layer for ``Sequential`` or a custom module."""
+    return LogSoftmaxLayer(axis)
+
+
+struct LogSoftmaxLayer(Copyable, Layer, Module, Movable):
+    var axis: Int
+
+    def __init__(out self, axis: Int = 1):
+        self.axis = axis
+
+    def forward(self, mut g: Graph, input: Symbol) -> Symbol:
+        return LogSoftmax(g, input, self.axis)
+
+    def forward(mut self, input: Expr) -> Expr:
+        return Expr(
+            input.graph, LogSoftmax(input.graph[], input.symbol, self.axis)
+        )
+
+    def __call__(mut self, input: Expr) -> Expr:
+        return self.forward(input)

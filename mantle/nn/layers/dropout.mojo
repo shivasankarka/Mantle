@@ -14,7 +14,7 @@ from mantle.autograd.graph import Graph
 from mantle.autograd.symbol import Symbol
 from mantle.autograd.ops import OP
 from mantle.autograd.attributes import Attribute, AttributeVector
-from mantle.nn.module import Layer
+from mantle.nn.module import Expr, Layer, Module
 from mantle.core.tensor import Tensor, TensorShape
 
 
@@ -38,12 +38,17 @@ def Dropout(mut g: Graph, inputs: Symbol, p: Float32, seed: Int = 42) -> Symbol:
     )
 
 
+def Dropout(p: Float32 = 0.5) -> DropoutLayer:
+    """Create a dropout layer for ``Sequential`` or a custom module."""
+    return DropoutLayer(p)
+
+
 # ===----------------------------------------------------------------------===#
 # DropoutLayer
 # ===----------------------------------------------------------------------===#
 
 
-struct DropoutLayer(Copyable, Layer, Movable):
+struct DropoutLayer(Copyable, Layer, Module, Movable):
     """
     `Layer`-conforming wrapper around `Dropout`, for use in a reflection-based
     Module struct.
@@ -58,3 +63,9 @@ struct DropoutLayer(Copyable, Layer, Movable):
 
     def forward(self, mut g: Graph, input: Symbol) -> Symbol:
         return Dropout(g, input, self.p, self.seed)
+
+    def forward(mut self, input: Expr) -> Expr:
+        return Expr(input.graph, Dropout(input.graph[], input.symbol, self.p, self.seed))
+
+    def __call__(mut self, input: Expr) -> Expr:
+        return self.forward(input)
