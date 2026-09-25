@@ -192,6 +192,7 @@ struct DataLoaderIterator(Movable):
         batch_size: Int,
         drop_last: Bool,
         shuffle: Bool,
+        seed: UInt64,
     ):
         self.data = data^
         self.labels = labels^
@@ -210,8 +211,14 @@ struct DataLoaderIterator(Movable):
             self._indices.reserve(self.data.dim(0))
             for i in range(self.data.dim(0)):
                 self._indices.append(i)
+            var state = seed
+            if state == 0:
+                state = 88172645463325252
             for i in range(self.data.dim(0) - 1, 0, -1):
-                var j = Int(random_ui64(0, UInt64.MAX) % UInt64(i + 1))
+                state = state ^ (state << 13)
+                state = state ^ (state >> 7)
+                state = state ^ (state << 17)
+                var j = Int(state % UInt64(i + 1))
                 var value = self._indices[i]
                 self._indices[i] = self._indices[j]
                 self._indices[j] = value
@@ -249,6 +256,7 @@ struct DataLoader(Copyable, Movable):
     var batch_size: Int
     var drop_last: Bool
     var shuffle: Bool
+    var seed: UInt64
     var _current_index: Int
     var _num_batches: Int
     var _data_batch_shape: TensorShape
@@ -261,12 +269,14 @@ struct DataLoader(Copyable, Movable):
         batch_size: Int,
         drop_last: Bool = True,
         shuffle: Bool = False,
+        seed: Int = -1,
     ):
         self.data = data.copy()
         self.labels = labels.copy()
         self.batch_size = batch_size
         self.drop_last = drop_last
         self.shuffle = shuffle
+        self.seed = random_ui64(0, UInt64.MAX) if seed < 0 else UInt64(seed)
 
         self._current_index = 0
         self._num_batches = self.data.dim(0) // self.batch_size
@@ -294,6 +304,7 @@ struct DataLoader(Copyable, Movable):
             self.batch_size,
             self.drop_last,
             self.shuffle,
+            self.seed,
         )
 
     def reset(mut self):

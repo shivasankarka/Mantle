@@ -60,8 +60,33 @@ def test_epoch_iterator_shares_dataset_storage() raises:
     print("test_epoch_iterator_shares_dataset_storage: PASSED")
 
 
+def test_shuffle_seed_is_reproducible() raises:
+    var data = Tensor[f32](TensorShape(8, 1))
+    var labels = Tensor[f32](TensorShape(8, 1))
+    for i in range(8):
+        data[i] = Float32(i)
+        labels[i] = Float32(i)
+    var first = DataLoader(data, labels, batch_size=2, shuffle=True, seed=42)
+    var second = DataLoader(data, labels, batch_size=2, shuffle=True, seed=42)
+    var first_order = List[Float32]()
+    var second_order = List[Float32]()
+    for batch in first:
+        for i in range(batch.labels.num_elements()):
+            first_order.append(batch.labels[i])
+    for batch in second:
+        for i in range(batch.labels.num_elements()):
+            second_order.append(batch.labels[i])
+    for i in range(8):
+        assert_true(
+            first_order[i] == second_order[i],
+            "equal shuffle seeds should produce equal orders",
+        )
+    print("test_shuffle_seed_is_reproducible: PASSED")
+
+
 def main() raises:
     test_drop_last_default()
     test_keeps_final_partial_batch()
     test_shuffle_keeps_data_and_labels_aligned()
     test_epoch_iterator_shares_dataset_storage()
+    test_shuffle_seed_is_reproducible()
