@@ -22,7 +22,9 @@ def make_graph(batch_size: Int) -> Graph:
 
 
 def make_sequential_graph() -> Graph:
-    var network = nn.Sequential(nn.Linear(4), nn.ReLU(), nn.Linear(3))
+    var network = nn.Sequential(
+        nn.Linear(4), nn.BatchNorm2d(), nn.ReLU(), nn.Linear(3)
+    )
     return nn.classification_graph(network, TensorShape(2, 2))
 
 

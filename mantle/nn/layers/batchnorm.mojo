@@ -17,7 +17,7 @@ from mantle.autograd.ops import OP
 from mantle.autograd.attributes import Attribute, AttributeVector
 from mantle.autograd.params import Param
 from mantle.core.tensor import Tensor, TensorShape
-from mantle.nn.module import Layer
+from mantle.nn.module import Expr, Layer, Module
 
 
 # ===----------------------------------------------------------------------===#
@@ -62,12 +62,17 @@ def BatchNorm2d(
     )
 
 
+def BatchNorm2d(epsilon: Float32 = 1e-5) -> BatchNorm2dLayer:
+    """Create a batch-normalization layer for a model definition."""
+    return BatchNorm2dLayer(epsilon)
+
+
 # ===----------------------------------------------------------------------===#
 # BatchNorm2dLayer
 # ===----------------------------------------------------------------------===#
 
 
-struct BatchNorm2dLayer(Copyable, Layer, Movable):
+struct BatchNorm2dLayer(Copyable, Layer, Module, Movable):
     """
     `Layer`-conforming wrapper around `BatchNorm2d`, for use in a
     reflection-based Module struct.
@@ -83,3 +88,12 @@ struct BatchNorm2dLayer(Copyable, Layer, Movable):
 
     def forward(self, mut g: Graph, input: Symbol) -> Symbol:
         return BatchNorm2d(g, input, self.epsilon)
+
+    def forward(mut self, input: Expr) -> Expr:
+        return Expr(
+            input.graph,
+            BatchNorm2d(input.graph[], input.symbol, self.epsilon),
+        )
+
+    def __call__(mut self, input: Expr) -> Expr:
+        return self.forward(input)
