@@ -21,6 +21,14 @@ pixi run mojo -I ./ benchmarks/training_workloads_gpu.mojo | tee /tmp/mantle-gpu
 PYTHONUNBUFFERED=1 pixi run -e test python benchmarks/training_workloads_gpu_torch.py | tee /tmp/pytorch-mps-current.csv
 ```
 
+To diagnose the GPU MNIST-medium path, this profiler synchronizes after each
+phase and reports the total for 100 steps. It is intentionally not a throughput
+measurement:
+
+```bash
+pixi run mojo -I ./ benchmarks/profile_mnist_gpu.mojo
+```
+
 The isolated pre-optimization checkout is at
 `/Users/shivasankar/.codex/worktrees/mantle-pre-optimizations/basalt-main`.
 Run the same source against its historical Mantle implementation:

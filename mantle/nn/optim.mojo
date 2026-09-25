@@ -23,6 +23,7 @@ from mantle.autograd.graph import Graph
 from mantle.autograd.symbol import Symbol
 from mantle.core.tensor import Tensor, TensorShape
 from mantle.autograd.collection import Collection
+from mantle.autograd.ops import OP
 from mantle.core.device import Device
 from mantle.core.math_util import add, sub, mul, div
 from mantle.autograd.ops.gpu_elementwise import gpu_adam_step, gpu_adamw_step
@@ -61,6 +62,31 @@ def get_trainable_parameters(g: Graph) -> List[Symbol]:
             trainable_parameters.append(g.params.symbols[i])
 
     return trainable_parameters^
+
+
+def get_single_consumer_linear_parameters(g: Graph) -> List[Symbol]:
+    """Return parameters whose GPU Linear backward writes their grad directly.
+
+    A buffer can skip ``zero_grad`` only when exactly one graph node consumes
+    it and that node's GPU backward honours ``overwrite_grad``.  Keep this
+    deliberately conservative: shared weights and every other operator still
+    receive the usual zero fill.
+    """
+    var direct_parameters = List[Symbol]()
+    for parameter in g.params.symbols:
+        if not parameter.trainable:
+            continue
+        var users = 0
+        var only_linear = True
+        for node in g.nodes:
+            for input in node.inputs:
+                if input == parameter:
+                    users += 1
+                    if not node.operator == OP.LINEAR:
+                        only_linear = False
+        if users == 1 and only_linear:
+            direct_parameters.append(parameter)
+    return direct_parameters^
 
 
 # ===----------------------------------------------------------------------===#
@@ -144,6 +170,7 @@ struct Adam[
 
     var rms_grads: Collection[Self.device]
     var momentum_grads: Collection[Self.device]
+    var direct_overwrite_parameters: List[Symbol]
 
     def __init__(
         out self,
@@ -167,12 +194,20 @@ struct Adam[
         # Capacity of the collections should be the n of trainable parameters
         self.rms_grads = Collection[Self.device](capacity=len(tr))
         self.momentum_grads = Collection[Self.device](capacity=len(tr))
+        self.direct_overwrite_parameters = get_single_consumer_linear_parameters(
+            Self.g
+        )
 
         self.allocate_rms_and_momentum()
 
     def zero_grad(mut self) raises:
         """Set all gradients to zero."""
-        self.parameters[].grads.set_zero()
+        comptime if Self.device.id == Device.cpu.id:
+            self.parameters[].grads.set_zero()
+        else:
+            self.parameters[].grads.set_zero_except(
+                self.direct_overwrite_parameters
+            )
 
     def step(mut self) raises:
         """Update model parameters."""

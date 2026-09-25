@@ -252,3 +252,27 @@ struct Collection[device: Device = Device.cpu](Copyable, Movable, Sized):
                 # following backward kernels.  Synchronize once at an
                 # explicit host-observation boundary, not per tensor.
                 self.data_ref[unsafe_offset=i].enqueue_fill(0)
+
+    def set_zero_except(
+        mut self, excluded: List[Symbol]
+    ) raises:
+        """Clear GPU gradients except buffers whose next writer overwrites.
+
+        ``excluded`` is intentionally a runtime list of graph symbols rather
+        than a property of the collection: whether an autograd buffer needs
+        initialization depends on the graph's backward writer.  This avoids
+        clearing large parameter gradients when a single native backward
+        kernel will overwrite them directly.
+        """
+        comptime if Self.device.id == Device.cpu.id:
+            self.set_zero()
+        else:
+            comptime assert Self.device.id == Device.gpu.id
+            for i in range(self.size):
+                var should_clear = True
+                for symbol in excluded:
+                    if self.symbols_ref[unsafe_offset=i] == symbol.name:
+                        should_clear = False
+                        break
+                if should_clear:
+                    self.data_ref[unsafe_offset=i].enqueue_fill(0)
