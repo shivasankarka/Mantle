@@ -187,7 +187,7 @@ def build_module_graph[T: Module](
 # ===----------------------------------------------------------------------===#
 
 
-struct Sequential[*Ts: Layer & Movable & Deinitable](Layer, Movable):
+struct Sequential[*Ts: Layer & Movable & Deinitable](Layer, Module, Movable):
     """
     A plain ordered list of heterogeneous `Layer`s, chained in the order
     given to the constructor: `Sequential(LinearLayer(32), ReLULayer())`.
@@ -203,3 +203,10 @@ struct Sequential[*Ts: Layer & Movable & Deinitable](Layer, Movable):
         comptime for i in range(Self.Ts.__len__()):
             x = self.layers[i].forward(g, x)
         return x
+
+    def forward(mut self, input: Expr) -> Expr:
+        """Build this ordered layer list inside a custom module graph."""
+        return Expr(input.graph, self.forward(input.graph[], input.symbol))
+
+    def __call__(mut self, input: Expr) -> Expr:
+        return self.forward(input)

@@ -21,6 +21,11 @@ def make_graph(batch_size: Int) -> Graph:
     )
 
 
+def make_sequential_graph() -> Graph:
+    var network = nn.Sequential(nn.Linear(4), nn.ReLU(), nn.Linear(3))
+    return nn.classification_graph(network, TensorShape(2, 2))
+
+
 def test_reflected_model_definition() raises:
     comptime graph = make_graph(2)
     assert_true(
@@ -46,5 +51,18 @@ def test_reflected_model_definition() raises:
     print("test_reflected_model_definition: PASSED")
 
 
+def test_sequential_model_definition() raises:
+    comptime graph = make_sequential_graph()
+    var model = nn.Model[graph]()
+    var inputs = Tensor[f32](TensorShape(2, 2))
+    var prediction = model.predict(inputs)
+    assert_true(
+        prediction.shape() == TensorShape(2, 3),
+        "Sequential should build classifier logits",
+    )
+    print("test_sequential_model_definition: PASSED")
+
+
 def main() raises:
     test_reflected_model_definition()
+    test_sequential_model_definition()
