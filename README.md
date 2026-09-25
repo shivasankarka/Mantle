@@ -61,6 +61,26 @@ Mantle is capable of achieving performance comparable to established frameworks 
 
 ## Quick Start
 
+The default Pixi environment contains only Mojo and MAX, so core builds do not
+install Python ML packages. Run Mojo examples with:
+
+```bash
+pixi run mojo -I . examples/mnist.mojo
+```
+
+Optional environments install only the dependencies for their purpose:
+
+```bash
+# PyTorch comparison examples, plus pandas/matplotlib and ONNX export
+pixi run -e examples python examples/mnist.py
+
+# Mojo and Python-backed test suite
+pixi run -e test test
+
+# ONNX graph rendering with Netron
+pixi run -e visualize python mantle/serialize/graph_render.py
+```
+
 Run the example models:
 
 ```bash
