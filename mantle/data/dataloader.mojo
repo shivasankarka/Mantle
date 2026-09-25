@@ -11,6 +11,7 @@ Mini-batch iteration and row-slicing utilities.
 """
 from std.testing import assert_equal
 from std.memory import unsafe_memcpy
+from std.random import random_ui64
 
 from mantle import f32, nelts
 from mantle.core.tensor import Tensor, TensorShape
@@ -124,6 +125,39 @@ struct Batch[dtype: DType](Copyable, Movable):
             count=batch_labels_shape.num_elements(),
         )
 
+    def __init__(
+        out self,
+        df_data: Tensor[Self.dtype],
+        df_labels: Tensor[Self.dtype],
+        indices: List[Int],
+        start: Int,
+        batch_data_shape: TensorShape,
+        batch_labels_shape: TensorShape,
+    ):
+        """Copy a batch selected by a shuffled row permutation."""
+        self.data = Tensor[Self.dtype](batch_data_shape)
+        self.labels = Tensor[Self.dtype](batch_labels_shape)
+        var data_row_stride = batch_data_shape.strides()[0]
+        var label_row_stride = batch_labels_shape.strides()[0]
+        var source_data_row_stride = df_data.strides()[0]
+        var source_label_row_stride = df_labels.strides()[0]
+        for row in range(batch_data_shape[0]):
+            var source_row = indices[start + row]
+            unsafe_memcpy(
+                dest=self.data.ptr().unsafe_offset(row * data_row_stride),
+                src=df_data.ptr().unsafe_offset(
+                    source_row * source_data_row_stride
+                ),
+                count=data_row_stride,
+            )
+            unsafe_memcpy(
+                dest=self.labels.ptr().unsafe_offset(row * label_row_stride),
+                src=df_labels.ptr().unsafe_offset(
+                    source_row * source_label_row_stride
+                ),
+                count=label_row_stride,
+            )
+
     def __getitem__(self, index: Int) -> Tensor[Self.dtype]:
         if index == 0:
             return self.data.copy()
@@ -139,11 +173,82 @@ struct Batch[dtype: DType](Copyable, Movable):
 # ===----------------------------------------------------------------------===#
 
 
+struct DataLoaderIterator(Movable):
+    """An epoch iterator that shares dataset storage with its loader."""
+
+    var data: Tensor[f32]
+    var labels: Tensor[f32]
+    var batch_size: Int
+    var _current_index: Int
+    var _num_batches: Int
+    var _data_batch_shape: TensorShape
+    var _label_batch_shape: TensorShape
+    var _indices: List[Int]
+
+    def __init__(
+        out self,
+        var data: Tensor[f32],
+        var labels: Tensor[f32],
+        batch_size: Int,
+        drop_last: Bool,
+        shuffle: Bool,
+    ):
+        self.data = data^
+        self.labels = labels^
+        self.batch_size = batch_size
+        self._current_index = 0
+        self._num_batches = self.data.dim(0) // self.batch_size
+        if not drop_last and self.data.dim(0) % self.batch_size != 0:
+            self._num_batches += 1
+
+        self._data_batch_shape = self.data.shape()
+        self._label_batch_shape = self.labels.shape()
+        self._data_batch_shape[0] = self.batch_size
+        self._label_batch_shape[0] = self.batch_size
+        self._indices = List[Int]()
+        if shuffle:
+            self._indices.reserve(self.data.dim(0))
+            for i in range(self.data.dim(0)):
+                self._indices.append(i)
+            for i in range(self.data.dim(0) - 1, 0, -1):
+                var j = Int(random_ui64(0, UInt64.MAX) % UInt64(i + 1))
+                var value = self._indices[i]
+                self._indices[i] = self._indices[j]
+                self._indices[j] = value
+
+    def __iter__(self) -> Self:
+        return self^
+
+    def __next__(mut self) raises StopIteration -> Batch[f32]:
+        if self._num_batches <= 0:
+            raise StopIteration()
+        var start = self._current_index
+        var rows = min(self.batch_size, self.data.dim(0) - start)
+        self._current_index += rows
+        self._num_batches -= 1
+
+        var data_shape = self._data_batch_shape.copy()
+        var label_shape = self._label_batch_shape.copy()
+        data_shape[0] = rows
+        label_shape[0] = rows
+        if len(self._indices) == 0:
+            return Batch[f32](self.data, self.labels, start, data_shape, label_shape)
+        return Batch[f32](
+            self.data,
+            self.labels,
+            self._indices,
+            start,
+            data_shape,
+            label_shape,
+        )
+
+
 struct DataLoader(Copyable, Movable):
     var data: Tensor[f32]
     var labels: Tensor[f32]
     var batch_size: Int
     var drop_last: Bool
+    var shuffle: Bool
     var _current_index: Int
     var _num_batches: Int
     var _data_batch_shape: TensorShape
@@ -155,11 +260,13 @@ struct DataLoader(Copyable, Movable):
         labels: Tensor[f32],
         batch_size: Int,
         drop_last: Bool = True,
+        shuffle: Bool = False,
     ):
         self.data = data.copy()
         self.labels = labels.copy()
         self.batch_size = batch_size
         self.drop_last = drop_last
+        self.shuffle = shuffle
 
         self._current_index = 0
         self._num_batches = self.data.dim(0) // self.batch_size
@@ -175,14 +282,19 @@ struct DataLoader(Copyable, Movable):
     @always_inline
     def __len__(self) -> Int:
         """
-        Returns the number of the batches left in the dataset.
+        Returns the number of batches in one epoch.
         """
         return self._num_batches
 
-    def __iter__(self) -> Self:
-        # TODO: Starting the iterator requires to return (COPY!) the whole dataloader which containts the whole dataset
-        # Does this mean that the whole dataset is copied every epoch ?!
-        return self.copy()
+    def __iter__(self) -> DataLoaderIterator:
+        """Start a fresh epoch without copying the dataset buffers."""
+        return DataLoaderIterator(
+            self.data.share(),
+            self.labels.share(),
+            self.batch_size,
+            self.drop_last,
+            self.shuffle,
+        )
 
     def reset(mut self):
         """Restart iteration without reconstructing the loader."""
