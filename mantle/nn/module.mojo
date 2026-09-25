@@ -61,6 +61,29 @@ struct Expr(Copyable, Movable):
             self.graph, self.graph[].op(OP.ADD, self.symbol, other.symbol)
         )
 
+    def reshape(self, shape: TensorShape) -> Self:
+        return Expr(
+            self.graph,
+            self.graph[].op(
+                OP.RESHAPE,
+                self.symbol,
+                attributes=AttributeVector(Attribute("shape", shape)),
+            ),
+        )
+
+    def transpose(self, axes: TensorShape) -> Self:
+        return Expr(
+            self.graph,
+            self.graph[].op(
+                OP.TRANSPOSE,
+                self.symbol,
+                attributes=AttributeVector(Attribute("axes", axes)),
+            ),
+        )
+
+    def flatten(self) -> Self:
+        return Expr(self.graph, self.graph[].op(OP.FLATTEN, self.symbol))
+
 
 trait Module:
     """A custom model block built from opaque graph expressions."""

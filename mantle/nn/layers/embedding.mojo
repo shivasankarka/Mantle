@@ -16,7 +16,7 @@ from mantle.autograd.symbol import Symbol
 from mantle.autograd.ops import OP
 from mantle.autograd.attributes import Attribute, AttributeVector
 from mantle.autograd.params import Param
-from mantle.nn.module import Layer
+from mantle.nn.module import Expr, Layer, Module
 
 
 # ===----------------------------------------------------------------------===#
@@ -39,13 +39,18 @@ def Embedding(
     return g.op(OP.GATHER, table, indices)
 
 
+def Embedding(vocab_size: Int, embed_dim: Int) -> EmbeddingLayer:
+    """Create a token embedding layer for a custom module."""
+    return EmbeddingLayer(vocab_size, embed_dim)
+
+
 # ===----------------------------------------------------------------------===#
 # EmbeddingLayer
 # ===----------------------------------------------------------------------===#
 
 
 @fieldwise_init
-struct EmbeddingLayer(Copyable, Layer, Movable):
+struct EmbeddingLayer(Copyable, Layer, Module, Movable):
     """
     `Layer`-conforming wrapper around `Embedding`, for use in a
     reflection-based Module struct.
@@ -56,6 +61,17 @@ struct EmbeddingLayer(Copyable, Layer, Movable):
 
     def forward(self, mut g: Graph, input: Symbol) -> Symbol:
         return Embedding(g, input, self.vocab_size, self.embed_dim)
+
+    def forward(mut self, input: Expr) -> Expr:
+        return Expr(
+            input.graph,
+            Embedding(
+                input.graph[], input.symbol, self.vocab_size, self.embed_dim
+            ),
+        )
+
+    def __call__(mut self, input: Expr) -> Expr:
+        return self.forward(input)
 
 
 # ===----------------------------------------------------------------------===#
@@ -88,3 +104,27 @@ def PositionalEmbedding(
         ),
     )
     return g.op(OP.ADD, inputs, pos)
+
+
+def PositionalEmbedding(max_seq_len: Int) -> PositionalEmbeddingLayer:
+    """Create a learned positional-embedding layer for a custom module."""
+    return PositionalEmbeddingLayer(max_seq_len)
+
+
+@fieldwise_init
+struct PositionalEmbeddingLayer(Copyable, Layer, Module, Movable):
+    """Layer wrapper around ``PositionalEmbedding``."""
+
+    var max_seq_len: Int
+
+    def forward(self, mut g: Graph, input: Symbol) -> Symbol:
+        return PositionalEmbedding(g, input, self.max_seq_len)
+
+    def forward(mut self, input: Expr) -> Expr:
+        return Expr(
+            input.graph,
+            PositionalEmbedding(input.graph[], input.symbol, self.max_seq_len),
+        )
+
+    def __call__(mut self, input: Expr) -> Expr:
+        return self.forward(input)

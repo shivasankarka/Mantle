@@ -31,6 +31,28 @@ struct TinyTransformer(nn.Module, Movable):
         return self.block(input)
 
 
+@fieldwise_init
+struct TinyTokenTransformer(nn.Module, Movable):
+    var tokens: nn.EmbeddingLayer
+    var positions: nn.PositionalEmbeddingLayer
+    var block: nn.TransformerBlockLayer
+    var norm: nn.LayerNormLayer
+
+    def forward(mut self, input: nn.Expr) -> nn.Expr:
+        var x = self.tokens(input)
+        x = self.positions(x)
+        x = self.block(x)
+        return self.norm(x)
+
+
+struct ReshapeModule(nn.Module, Copyable, Movable):
+    def __init__(out self):
+        pass
+
+    def forward(mut self, input: nn.Expr) -> nn.Expr:
+        return input.transpose(TensorShape(0, 2, 1)).reshape(TensorShape(2, 4))
+
+
 def make_graph(batch_size: Int) -> Graph:
     var architecture = ResidualMLP(nn.Linear(2), nn.Linear(2))
     return nn.classification_graph(
@@ -56,6 +78,21 @@ def make_transformer_graph(batch_size: Int) -> Graph:
     return nn.build_module_graph(
         architecture, TensorShape(batch_size, 2, 4)
     )
+
+
+def make_token_transformer_graph(batch_size: Int) -> Graph:
+    var architecture = TinyTokenTransformer(
+        nn.Embedding(8, 4),
+        nn.PositionalEmbedding(2),
+        nn.TransformerBlock(num_heads=2, d_ff=8, dropout_p=0.0, causal=True),
+        nn.LayerNorm(4),
+    )
+    return nn.build_module_graph(architecture, TensorShape(batch_size, 2))
+
+
+def make_reshape_graph() -> Graph:
+    var architecture = ReshapeModule()
+    return nn.build_module_graph(architecture, TensorShape(2, 2, 2))
 
 
 def test_custom_module_builds_static_graph() raises:
@@ -104,7 +141,34 @@ def test_custom_transformer_module_builds_static_graph() raises:
     print("test_custom_transformer_module_builds_static_graph: PASSED")
 
 
+def test_custom_token_transformer_builds_static_graph() raises:
+    comptime graph = make_token_transformer_graph(2)
+    comptime output = graph.outputs[0]
+    assert_true(
+        output.shape == TensorShape(2, 2, 4),
+        "token transformer should map tokens to sequence embeddings",
+    )
+
+    var model = nn.Model[graph](inference_only=True)
+    var tokens = Tensor[f32](TensorShape(2, 2))
+    var result = model.inference(tokens)[0].copy()
+    assert_true(result[0] == result[0], "token transformer should execute finitely")
+    print("test_custom_token_transformer_builds_static_graph: PASSED")
+
+
+def test_expr_shape_helpers_build_static_graph() raises:
+    comptime graph = make_reshape_graph()
+    comptime output = graph.outputs[0]
+    assert_true(
+        output.shape == TensorShape(2, 4),
+        "Expr transpose and reshape should compose in a module",
+    )
+    print("test_expr_shape_helpers_build_static_graph: PASSED")
+
+
 def main() raises:
     test_custom_module_builds_static_graph()
     test_custom_conv_module_builds_static_graph()
     test_custom_transformer_module_builds_static_graph()
+    test_custom_token_transformer_builds_static_graph()
+    test_expr_shape_helpers_build_static_graph()
