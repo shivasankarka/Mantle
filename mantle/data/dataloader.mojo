@@ -143,6 +143,7 @@ struct DataLoader(Copyable, Movable):
     var data: Tensor[f32]
     var labels: Tensor[f32]
     var batch_size: Int
+    var drop_last: Bool
     var _current_index: Int
     var _num_batches: Int
     var _data_batch_shape: TensorShape
@@ -153,15 +154,17 @@ struct DataLoader(Copyable, Movable):
         data: Tensor[f32],
         labels: Tensor[f32],
         batch_size: Int,
+        drop_last: Bool = True,
     ):
         self.data = data.copy()
         self.labels = labels.copy()
         self.batch_size = batch_size
+        self.drop_last = drop_last
 
-        # Number of batches to iter, NOTE: ignore the remainder for now
-        # var remainder = 1 if self.data.dim(0) % self.batch_size != 0 else 0
         self._current_index = 0
-        self._num_batches = self.data.dim(0) // self.batch_size  # + remainder
+        self._num_batches = self.data.dim(0) // self.batch_size
+        if not self.drop_last and self.data.dim(0) % self.batch_size != 0:
+            self._num_batches += 1
 
         # Batch shapes
         self._data_batch_shape = self.data.shape()
@@ -181,16 +184,32 @@ struct DataLoader(Copyable, Movable):
         # Does this mean that the whole dataset is copied every epoch ?!
         return self.copy()
 
+    def reset(mut self):
+        """Restart iteration without reconstructing the loader."""
+        self._current_index = 0
+        self._num_batches = self.data.dim(0) // self.batch_size
+        if not self.drop_last and self.data.dim(0) % self.batch_size != 0:
+            self._num_batches += 1
+
     def __next__(mut self) raises StopIteration -> Batch[f32]:
         if self._num_batches <= 0:
             raise StopIteration()
         var temp_current_index = self._current_index
-        self._current_index += self.batch_size
+        var rows = self.batch_size
+        var remaining = self.data.dim(0) - temp_current_index
+        if remaining < rows:
+            rows = remaining
+        self._current_index += rows
         self._num_batches -= 1
+
+        var data_shape = self._data_batch_shape.copy()
+        var label_shape = self._label_batch_shape.copy()
+        data_shape[0] = rows
+        label_shape[0] = rows
         return Batch[f32](
             self.data,
             self.labels,
             temp_current_index,
-            self._data_batch_shape,
-            self._label_batch_shape,
+            data_shape,
+            label_shape,
         )
