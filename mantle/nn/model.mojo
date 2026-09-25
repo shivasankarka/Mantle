@@ -22,6 +22,7 @@ from mantle.core.tensor import Tensor, TensorShape
 from mantle.core.device import Device
 from mantle.autograd.ops import forward_op, backward_op
 from mantle.nn.parameters import Parameters
+from mantle.nn.optim import Optimizer
 from .initializers import initialize_tensor
 from mantle.autograd.ops.gpu_elementwise import (
     gpu_rand_uniform,
@@ -503,6 +504,18 @@ struct Model[
                                     t3
                                 ],  # grad to be updated: inputs[2]
                             )
+
+    def train_step[O: Optimizer](
+        mut self,
+        mut optimizer: O,
+        *t_inputs: Tensor[f32, Self.device],
+    ) raises -> Tensor[f32, Self.device]:
+        """Run one optimizer update for the graph's configured loss."""
+        optimizer.zero_grad()
+        var loss = self.forward(*t_inputs).copy()
+        self.backward()
+        optimizer.step()
+        return loss^
 
     def allocate_tensor_memory(mut self) raises:
         comptime for i in range(len(Self.g.inputs)):

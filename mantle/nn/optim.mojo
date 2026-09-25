@@ -28,6 +28,16 @@ from mantle.core.math_util import add, sub, mul, div
 from mantle.autograd.ops.gpu_elementwise import gpu_adam_step, gpu_adamw_step
 
 
+trait Optimizer:
+    """Minimal optimizer interface used by model training helpers."""
+
+    def zero_grad(mut self) raises:
+        ...
+
+    def step(mut self) raises:
+        ...
+
+
 # ===----------------------------------------------------------------------===#
 # Helpers
 # ===----------------------------------------------------------------------===#
@@ -123,7 +133,7 @@ struct Adam[
     g: Graph,
     trainable_parameters: List[Symbol] = get_trainable_parameters(g),
     device: Device = Device.cpu,
-]:
+](Optimizer):
     var parameters: Pointer[Parameters[Self.device], MutUntrackedOrigin]
 
     var lr: Scalar[f32]
@@ -310,7 +320,7 @@ struct AdamW[
     g: Graph,
     trainable_parameters: List[Symbol] = get_trainable_parameters(g),
     device: Device = Device.cpu,
-]:
+](Optimizer):
     """
     Adam with decoupled weight decay (Loshchilov & Hutter, 2019).
 
@@ -495,7 +505,7 @@ struct AdamW[
 struct SGD[
     g: Graph,
     trainable_parameters: List[Symbol] = get_trainable_parameters(g),
-]:
+](Optimizer):
     """
     Stochastic Gradient Descent optimizer with optional momentum.
 
