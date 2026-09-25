@@ -1311,17 +1311,17 @@ def gpu_pow_forward(
     )
 
 
-def gpu_pow_backward(
+def gpu_pow_backward_into(
+    mut grad: Tensor[f32, Device.gpu],
     ug: Tensor[f32, Device.gpu],
     t1: Tensor[f32, Device.gpu],
     exponent: Tensor[f32, Device.gpu],
-) raises -> Tensor[f32, Device.gpu]:
-    var res_grad = Tensor[f32, Device.gpu](t1.shape(), uninitialized=True)
-    var ctx = res_grad.gpu_context()
-    var n = res_grad.num_elements()
+) raises:
+    var ctx = grad.gpu_context()
+    var n = grad.num_elements()
     _cached_pow_bw_kernel()._call_with_pack_checked(
         ctx,
-        res_grad.gpu_ptr(),
+        grad.gpu_ptr(),
         t1.gpu_ptr(),
         ug.gpu_ptr(),
         exponent.gpu_ptr(),
@@ -1329,6 +1329,15 @@ def gpu_pow_backward(
         grid_dim=ceildiv(n, _BLOCK),
         block_dim=min(n, _BLOCK),
     )
+
+
+def gpu_pow_backward(
+    ug: Tensor[f32, Device.gpu],
+    t1: Tensor[f32, Device.gpu],
+    exponent: Tensor[f32, Device.gpu],
+) raises -> Tensor[f32, Device.gpu]:
+    var res_grad = Tensor[f32, Device.gpu](t1.shape(), uninitialized=True)
+    gpu_pow_backward_into(res_grad, ug, t1, exponent)
     return res_grad^
 
 
@@ -1446,20 +1455,26 @@ def gpu_mean_forward(
     )
 
 
-def gpu_mean_backward(
-    ug: Tensor[f32, Device.gpu], t_shape: TensorShape
-) raises -> Tensor[f32, Device.gpu]:
-    var res_grad = Tensor[f32, Device.gpu](t_shape, uninitialized=True)
-    var ctx = res_grad.gpu_context()
-    var n = res_grad.num_elements()
+def gpu_mean_backward_into(
+    mut grad: Tensor[f32, Device.gpu], ug: Tensor[f32, Device.gpu]
+) raises:
+    var ctx = grad.gpu_context()
+    var n = grad.num_elements()
     _cached_mean_bw_kernel()._call_with_pack_checked(
         ctx,
-        res_grad.gpu_ptr(),
+        grad.gpu_ptr(),
         ug.gpu_ptr(),
         Int64(n),
         grid_dim=ceildiv(n, _BLOCK),
         block_dim=min(n, _BLOCK),
     )
+
+
+def gpu_mean_backward(
+    ug: Tensor[f32, Device.gpu], t_shape: TensorShape
+) raises -> Tensor[f32, Device.gpu]:
+    var res_grad = Tensor[f32, Device.gpu](t_shape, uninitialized=True)
+    gpu_mean_backward_into(res_grad, ug)
     return res_grad^
 
 
@@ -1967,38 +1982,52 @@ def gpu_relu_forward(
     )
 
 
-def gpu_relu_backward(
-    ug: Tensor[f32, Device.gpu], t1: Tensor[f32, Device.gpu]
-) raises -> Tensor[f32, Device.gpu]:
-    var res_grad = Tensor[f32, Device.gpu](ug.shape(), uninitialized=True)
-    var ctx = res_grad.gpu_context()
-    var n = res_grad.num_elements()
+def gpu_relu_backward_into(
+    mut grad: Tensor[f32, Device.gpu],
+    ug: Tensor[f32, Device.gpu],
+    t1: Tensor[f32, Device.gpu],
+) raises:
+    var ctx = grad.gpu_context()
+    var n = grad.num_elements()
     _cached_relu_bw_kernel()._call_with_pack_checked(
         ctx,
-        res_grad.gpu_ptr(),
+        grad.gpu_ptr(),
         t1.gpu_ptr(),
         ug.gpu_ptr(),
         Int64(n),
         grid_dim=ceildiv(n, _BLOCK),
         block_dim=min(n, _BLOCK),
     )
+
+
+def gpu_relu_backward(
+    ug: Tensor[f32, Device.gpu], t1: Tensor[f32, Device.gpu]
+) raises -> Tensor[f32, Device.gpu]:
+    var res_grad = Tensor[f32, Device.gpu](ug.shape(), uninitialized=True)
+    gpu_relu_backward_into(res_grad, ug, t1)
     return res_grad^
+
+
+def gpu_sub_backward_t2_into(
+    mut grad: Tensor[f32, Device.gpu], ug: Tensor[f32, Device.gpu]
+) raises:
+    var ctx = grad.gpu_context()
+    var n = grad.num_elements()
+    _cached_neg_kernel()._call_with_pack_checked(
+        ctx,
+        grad.gpu_ptr(),
+        ug.gpu_ptr(),
+        Int64(n),
+        grid_dim=ceildiv(n, _BLOCK),
+        block_dim=min(n, _BLOCK),
+    )
 
 
 def gpu_sub_backward_t2(
     ug: Tensor[f32, Device.gpu]
 ) raises -> Tensor[f32, Device.gpu]:
     var res_grad = Tensor[f32, Device.gpu](ug.shape(), uninitialized=True)
-    var ctx = res_grad.gpu_context()
-    var n = res_grad.num_elements()
-    _cached_neg_kernel()._call_with_pack_checked(
-        ctx,
-        res_grad.gpu_ptr(),
-        ug.gpu_ptr(),
-        Int64(n),
-        grid_dim=ceildiv(n, _BLOCK),
-        block_dim=min(n, _BLOCK),
-    )
+    gpu_sub_backward_t2_into(res_grad, ug)
     return res_grad^
 
 

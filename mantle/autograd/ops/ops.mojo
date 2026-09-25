@@ -81,12 +81,15 @@ from .gpu_elementwise import (
     gpu_broadcast_binary_backward_t2,
     gpu_relu_forward,
     gpu_relu_backward,
+    gpu_relu_backward_into,
     gpu_sub_backward_t2,
+    gpu_sub_backward_t2_into,
     gpu_mul_backward,
     gpu_div_backward_t1,
     gpu_div_backward_t2,
     gpu_pow_forward,
     gpu_pow_backward,
+    gpu_pow_backward_into,
     gpu_exp_forward,
     gpu_exp_backward,
     gpu_log_forward,
@@ -95,6 +98,7 @@ from .gpu_elementwise import (
     gpu_sqrt_backward,
     gpu_mean_forward,
     gpu_mean_backward,
+    gpu_mean_backward_into,
     gpu_reduce_last_forward,
     gpu_reduce_last_backward,
     gpu_gather_forward,
@@ -1068,11 +1072,18 @@ def backward_op[
             training,
         )
     elif op == OP.RELU:
-        var res_grad = gpu_relu_backward(
-            rebind[Tensor[f32, Device.gpu]](ug),
-            rebind[Tensor[f32, Device.gpu]](t1),
-        )
-        gpu_accumulate_grad(rebind[Tensor[f32, Device.gpu]](grad), res_grad)
+        comptime if overwrite_grad:
+            gpu_relu_backward_into(
+                rebind[Tensor[f32, Device.gpu]](grad),
+                rebind[Tensor[f32, Device.gpu]](ug),
+                rebind[Tensor[f32, Device.gpu]](t1),
+            )
+        else:
+            var res_grad = gpu_relu_backward(
+                rebind[Tensor[f32, Device.gpu]](ug),
+                rebind[Tensor[f32, Device.gpu]](t1),
+            )
+            gpu_accumulate_grad(rebind[Tensor[f32, Device.gpu]](grad), res_grad)
     elif op == OP.EXP:
         var res_grad = gpu_exp_backward(
             rebind[Tensor[f32, Device.gpu]](ug),
@@ -1104,10 +1115,16 @@ def backward_op[
         )
         gpu_accumulate_grad(rebind[Tensor[f32, Device.gpu]](grad), res_grad)
     elif op == OP.MEAN and not attributes["axis"]:
-        var res_grad = gpu_mean_backward(
-            rebind[Tensor[f32, Device.gpu]](ug), t1_shape
-        )
-        gpu_accumulate_grad(rebind[Tensor[f32, Device.gpu]](grad), res_grad)
+        comptime if overwrite_grad:
+            gpu_mean_backward_into(
+                rebind[Tensor[f32, Device.gpu]](grad),
+                rebind[Tensor[f32, Device.gpu]](ug),
+            )
+        else:
+            var res_grad = gpu_mean_backward(
+                rebind[Tensor[f32, Device.gpu]](ug), t1_shape
+            )
+            gpu_accumulate_grad(rebind[Tensor[f32, Device.gpu]](grad), res_grad)
     elif (
         (op == OP.SUM or op == OP.MEAN or op == OP.MAX)
         and attributes["axis"]
@@ -1276,9 +1293,16 @@ def backward_op[
     elif t1_shape == t2_shape and (
         op == OP.ADD or op == OP.SUB or op == OP.MUL or op == OP.DIV
     ):
-        comptime if overwrite_grad and op == OP.ADD:
+        comptime if overwrite_grad and (
+            op == OP.ADD or (op == OP.SUB and tensor_id == 0)
+        ):
             rebind[Tensor[f32, Device.gpu]](grad).copy_from(
                 rebind[Tensor[f32, Device.gpu]](ug)
+            )
+        elif overwrite_grad and op == OP.SUB:
+            gpu_sub_backward_t2_into(
+                rebind[Tensor[f32, Device.gpu]](grad),
+                rebind[Tensor[f32, Device.gpu]](ug),
             )
         else:
             var res_grad: Tensor[f32, Device.gpu]
@@ -1448,12 +1472,20 @@ def backward_op[
         # The exponent (t2) is never trainable, so the caller
         # (Model.backward) never invokes tensor_id == 1 here.
         comptime assert tensor_id == 0
-        var res_grad = gpu_pow_backward(
-            rebind[Tensor[f32, Device.gpu]](ug),
-            rebind[Tensor[f32, Device.gpu]](t1),
-            rebind[Tensor[f32, Device.gpu]](t2),
-        )
-        gpu_accumulate_grad(rebind[Tensor[f32, Device.gpu]](grad), res_grad)
+        comptime if overwrite_grad:
+            gpu_pow_backward_into(
+                rebind[Tensor[f32, Device.gpu]](grad),
+                rebind[Tensor[f32, Device.gpu]](ug),
+                rebind[Tensor[f32, Device.gpu]](t1),
+                rebind[Tensor[f32, Device.gpu]](t2),
+            )
+        else:
+            var res_grad = gpu_pow_backward(
+                rebind[Tensor[f32, Device.gpu]](ug),
+                rebind[Tensor[f32, Device.gpu]](t1),
+                rebind[Tensor[f32, Device.gpu]](t2),
+            )
+            gpu_accumulate_grad(rebind[Tensor[f32, Device.gpu]](grad), res_grad)
     else:
         # Host round-trip fallback for GPU ops without a native kernel yet.
         var ug_cpu = ug.to_host()

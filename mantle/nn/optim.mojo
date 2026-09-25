@@ -64,29 +64,42 @@ def get_trainable_parameters(g: Graph) -> List[Symbol]:
     return trainable_parameters^
 
 
-def get_single_consumer_linear_parameters(g: Graph) -> List[Symbol]:
-    """Return parameters whose GPU Linear backward writes their grad directly.
+def get_direct_overwrite_gradients(g: Graph) -> List[Symbol]:
+    """Return gradients written directly by a single native GPU backward op.
 
-    A buffer can skip ``zero_grad`` only when exactly one graph node consumes
-    it and that node's GPU backward honours ``overwrite_grad``.  Keep this
-    deliberately conservative: shared weights and every other operator still
-    receive the usual zero fill.
+    A gradient buffer may skip ``zero_grad`` only if one downstream node
+    consumes its value and that exact backward path overwrites the buffer.
+    This deliberately excludes shared values, broadcasts, and every operator
+    still using a temporary-plus-accumulate implementation.
     """
-    var direct_parameters = List[Symbol]()
-    for parameter in g.params.symbols:
-        if not parameter.trainable:
-            continue
-        var users = 0
-        var only_linear = True
-        for node in g.nodes:
-            for input in node.inputs:
-                if input == parameter:
-                    users += 1
-                    if not node.operator == OP.LINEAR:
-                        only_linear = False
-        if users == 1 and only_linear:
-            direct_parameters.append(parameter)
-    return direct_parameters^
+    var direct_gradients = List[Symbol]()
+    for node in g.nodes:
+        for input_id in range(len(node.inputs)):
+            var symbol = node.inputs[input_id]
+            if not symbol.trainable:
+                continue
+
+            var supports_overwrite = node.operator == OP.LINEAR or (
+                node.operator == OP.RELU and input_id == 0
+            ) or (
+                node.operator == OP.MEAN
+                and input_id == 0
+                and not node.attributes["axis"]
+            ) or (node.operator == OP.POW and input_id == 0) or (
+                node.operator == OP.SUB
+                and node.inputs[0].shape == node.inputs[1].shape
+            )
+            if not supports_overwrite:
+                continue
+
+            var users = 0
+            for other_node in g.nodes:
+                for other_input in other_node.inputs:
+                    if other_input == symbol:
+                        users += 1
+            if users == 1:
+                direct_gradients.append(symbol)
+    return direct_gradients^
 
 
 # ===----------------------------------------------------------------------===#
@@ -170,7 +183,7 @@ struct Adam[
 
     var rms_grads: Collection[Self.device]
     var momentum_grads: Collection[Self.device]
-    var direct_overwrite_parameters: List[Symbol]
+    var direct_overwrite_gradients: List[Symbol]
 
     def __init__(
         out self,
@@ -194,9 +207,7 @@ struct Adam[
         # Capacity of the collections should be the n of trainable parameters
         self.rms_grads = Collection[Self.device](capacity=len(tr))
         self.momentum_grads = Collection[Self.device](capacity=len(tr))
-        self.direct_overwrite_parameters = get_single_consumer_linear_parameters(
-            Self.g
-        )
+        self.direct_overwrite_gradients = get_direct_overwrite_gradients(Self.g)
 
         self.allocate_rms_and_momentum()
 
@@ -206,7 +217,7 @@ struct Adam[
             self.parameters[].grads.set_zero()
         else:
             self.parameters[].grads.set_zero_except(
-                self.direct_overwrite_parameters
+                self.direct_overwrite_gradients
             )
 
     def step(mut self) raises:
