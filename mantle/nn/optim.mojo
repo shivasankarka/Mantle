@@ -86,7 +86,7 @@ def get_direct_overwrite_gradients(g: Graph) -> List[Symbol]:
                 and input_id == 0
                 and not node.attributes["axis"]
             ) or (node.operator == OP.POW and input_id == 0) or (
-                node.operator == OP.SUB
+                (node.operator == OP.SUB or node.operator == OP.MUL or node.operator == OP.DIV)
                 and node.inputs[0].shape == node.inputs[1].shape
             )
             if not supports_overwrite:

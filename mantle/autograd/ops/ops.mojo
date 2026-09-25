@@ -85,8 +85,11 @@ from .gpu_elementwise import (
     gpu_sub_backward_t2,
     gpu_sub_backward_t2_into,
     gpu_mul_backward,
+    gpu_mul_backward_into,
     gpu_div_backward_t1,
+    gpu_div_backward_t1_into,
     gpu_div_backward_t2,
+    gpu_div_backward_t2_into,
     gpu_pow_forward,
     gpu_pow_backward,
     gpu_pow_backward_into,
@@ -1304,6 +1307,33 @@ def backward_op[
                 rebind[Tensor[f32, Device.gpu]](grad),
                 rebind[Tensor[f32, Device.gpu]](ug),
             )
+        elif overwrite_grad and op == OP.MUL:
+            comptime if tensor_id == 0:
+                gpu_mul_backward_into(
+                    rebind[Tensor[f32, Device.gpu]](grad),
+                    rebind[Tensor[f32, Device.gpu]](ug),
+                    rebind[Tensor[f32, Device.gpu]](t2),
+                )
+            else:
+                gpu_mul_backward_into(
+                    rebind[Tensor[f32, Device.gpu]](grad),
+                    rebind[Tensor[f32, Device.gpu]](ug),
+                    rebind[Tensor[f32, Device.gpu]](t1),
+                )
+        elif overwrite_grad and op == OP.DIV:
+            comptime if tensor_id == 0:
+                gpu_div_backward_t1_into(
+                    rebind[Tensor[f32, Device.gpu]](grad),
+                    rebind[Tensor[f32, Device.gpu]](ug),
+                    rebind[Tensor[f32, Device.gpu]](t2),
+                )
+            else:
+                gpu_div_backward_t2_into(
+                    rebind[Tensor[f32, Device.gpu]](grad),
+                    rebind[Tensor[f32, Device.gpu]](ug),
+                    rebind[Tensor[f32, Device.gpu]](t1),
+                    rebind[Tensor[f32, Device.gpu]](t2),
+                )
         else:
             var res_grad: Tensor[f32, Device.gpu]
             comptime if op == OP.ADD:

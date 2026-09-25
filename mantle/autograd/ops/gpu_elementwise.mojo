@@ -2031,40 +2031,76 @@ def gpu_sub_backward_t2(
     return res_grad^
 
 
-def gpu_mul_backward(
-    ug: Tensor[f32, Device.gpu], other: Tensor[f32, Device.gpu]
-) raises -> Tensor[f32, Device.gpu]:
-    var res_grad = Tensor[f32, Device.gpu](ug.shape(), uninitialized=True)
-    var ctx = res_grad.gpu_context()
-    var n = res_grad.num_elements()
+def gpu_mul_backward_into(
+    mut grad: Tensor[f32, Device.gpu],
+    ug: Tensor[f32, Device.gpu],
+    other: Tensor[f32, Device.gpu],
+) raises:
+    var ctx = grad.gpu_context()
+    var n = grad.num_elements()
     _cached_mul_kernel()._call_with_pack_checked(
         ctx,
-        res_grad.gpu_ptr(),
+        grad.gpu_ptr(),
         ug.gpu_ptr(),
         other.gpu_ptr(),
         Int64(n),
         grid_dim=ceildiv(n, _BLOCK),
         block_dim=min(n, _BLOCK),
     )
+
+
+def gpu_mul_backward(
+    ug: Tensor[f32, Device.gpu], other: Tensor[f32, Device.gpu]
+) raises -> Tensor[f32, Device.gpu]:
+    var res_grad = Tensor[f32, Device.gpu](ug.shape(), uninitialized=True)
+    gpu_mul_backward_into(res_grad, ug, other)
     return res_grad^
 
 
-def gpu_div_backward_t1(
-    ug: Tensor[f32, Device.gpu], t2: Tensor[f32, Device.gpu]
-) raises -> Tensor[f32, Device.gpu]:
-    var res_grad = Tensor[f32, Device.gpu](ug.shape(), uninitialized=True)
-    var ctx = res_grad.gpu_context()
-    var n = res_grad.num_elements()
+def gpu_div_backward_t1_into(
+    mut grad: Tensor[f32, Device.gpu],
+    ug: Tensor[f32, Device.gpu],
+    t2: Tensor[f32, Device.gpu],
+) raises:
+    var ctx = grad.gpu_context()
+    var n = grad.num_elements()
     _cached_div_kernel()._call_with_pack_checked(
         ctx,
-        res_grad.gpu_ptr(),
+        grad.gpu_ptr(),
         ug.gpu_ptr(),
         t2.gpu_ptr(),
         Int64(n),
         grid_dim=ceildiv(n, _BLOCK),
         block_dim=min(n, _BLOCK),
     )
+
+
+def gpu_div_backward_t1(
+    ug: Tensor[f32, Device.gpu], t2: Tensor[f32, Device.gpu]
+) raises -> Tensor[f32, Device.gpu]:
+    var res_grad = Tensor[f32, Device.gpu](ug.shape(), uninitialized=True)
+    gpu_div_backward_t1_into(res_grad, ug, t2)
     return res_grad^
+
+
+def gpu_div_backward_t2_into(
+    mut grad: Tensor[f32, Device.gpu],
+    ug: Tensor[f32, Device.gpu],
+    t1: Tensor[f32, Device.gpu],
+    t2: Tensor[f32, Device.gpu],
+) raises:
+    var ctx = grad.gpu_context()
+    var n = grad.num_elements()
+    _cached_div_bw_t2_kernel()._call_with_pack_checked(
+        ctx,
+        grad.gpu_ptr(),
+        t1.gpu_ptr(),
+        t2.gpu_ptr(),
+        ug.gpu_ptr(),
+        Int64(n),
+        grid_dim=ceildiv(n, _BLOCK),
+        block_dim=min(n, _BLOCK),
+    )
 
 
 def gpu_div_backward_t2(
@@ -2073,16 +2109,5 @@ def gpu_div_backward_t2(
     t2: Tensor[f32, Device.gpu],
 ) raises -> Tensor[f32, Device.gpu]:
     var res_grad = Tensor[f32, Device.gpu](ug.shape(), uninitialized=True)
-    var ctx = res_grad.gpu_context()
-    var n = res_grad.num_elements()
-    _cached_div_bw_t2_kernel()._call_with_pack_checked(
-        ctx,
-        res_grad.gpu_ptr(),
-        t1.gpu_ptr(),
-        t2.gpu_ptr(),
-        ug.gpu_ptr(),
-        Int64(n),
-        grid_dim=ceildiv(n, _BLOCK),
-        block_dim=min(n, _BLOCK),
-    )
+    gpu_div_backward_t2_into(res_grad, ug, t1, t2)
     return res_grad^
