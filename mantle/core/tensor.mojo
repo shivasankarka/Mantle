@@ -325,8 +325,6 @@ struct Tensor[dtype: DType, device: Device = Device.cpu](
         self._shape = shape
         self._host_buffer = None
         self._device_buffer = None
-        # No `raises` on this constructor, so a failed allocation aborts
-        # instead of propagating.
         try:
             var ctx = _shared_device_context()
             comptime if Self.device.id == Device.cpu.id:

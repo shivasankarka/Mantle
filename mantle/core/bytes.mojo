@@ -39,12 +39,7 @@ struct Bytes[capacity: Int](
     """The underlying byte storage."""
 
     def __init__(out self):
-        var data = StaticTuple[UInt8, Self.capacity](0)
-
-        for i in range(Self.capacity):
-            data[i] = 0
-
-        self.data = data
+        self.data = StaticTuple[UInt8, Self.capacity](fill=0)
 
     def __init__(out self, s: String):
         """
