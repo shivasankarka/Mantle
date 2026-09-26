@@ -173,7 +173,7 @@ struct Batch[dtype: DType](Copyable, Movable):
 # ===----------------------------------------------------------------------===#
 
 
-struct DataLoaderIterator(Movable):
+struct DataLoaderIterator(Movable, Copyable):
     """An epoch iterator that shares dataset storage with its loader."""
 
     var data: Tensor[f32]
@@ -224,7 +224,7 @@ struct DataLoaderIterator(Movable):
                 self._indices[j] = value
 
     def __iter__(self) -> Self:
-        return self^
+        return self.copy()
 
     def __next__(mut self) raises StopIteration -> Batch[f32]:
         if self._num_batches <= 0:
