@@ -20,7 +20,12 @@ from mantle.autograd.graph import Graph
 from mantle.autograd.symbol import Symbol
 from mantle.core.tensor import Tensor, TensorShape
 from mantle.core.device import Device
-from mantle.autograd.ops import forward_op, backward_op
+from mantle.autograd.ops import (
+    OP,
+    forward_op,
+    backward_op,
+    backward_conv2d_parameters,
+)
 from mantle.nn.parameters import Parameters
 from mantle.nn.optim import Optimizer
 from .initializers import initialize_tensor
@@ -220,9 +225,7 @@ struct Model[
 
     def execute_one_input[
         num_nodes: Int
-    ](
-        mut self, input: Tensor[f32, Self.device]
-    ) raises:
+    ](mut self, input: Tensor[f32, Self.device]) raises:
         """Execute a prefix whose only external input is graph input zero."""
         comptime input_symbol = Self.g.inputs[0]
         self.parameters.tensors[input_symbol] = input.copy()
@@ -230,9 +233,7 @@ struct Model[
 
     def execute_nodes[
         num_nodes: Int
-    ](
-        mut self, seed: UInt64 = 0, training: Bool = True
-    ) raises:
+    ](mut self, seed: UInt64 = 0, training: Bool = True) raises:
         # Loop over all nodes and execute forward operations.
         comptime for i in range(num_nodes):
             comptime op = Self.g.nodes[i].operator
@@ -461,7 +462,29 @@ struct Model[
                                 self.parameters.grads[t1],
                             )
 
-                    comptime if t2.trainable:
+                    comptime fused_conv_parameters = (
+                        Self.device.id == Device.gpu.id
+                        and op == OP.CONV2D
+                        and t2.trainable
+                        and t3.trainable
+                        and gradient_contributor_count(Self.g, t2) == 1
+                        and gradient_contributor_count(Self.g, t3) == 1
+                    )
+                    comptime if fused_conv_parameters:
+                        var upper_grad = self.parameters.grads[out]
+                        var conv_input = self.parameters.tensors[t1]
+                        var kernel_grad = self.parameters.grads[t2]
+                        var bias_grad = self.parameters.grads[t3]
+                        backward_conv2d_parameters[
+                            t1.shape, t2.shape, t3.shape, attrs
+                        ](
+                            rebind[Tensor[f32, Device.gpu]](upper_grad),
+                            rebind[Tensor[f32, Device.gpu]](conv_input),
+                            rebind[Tensor[f32, Device.gpu]](kernel_grad),
+                            rebind[Tensor[f32, Device.gpu]](bias_grad),
+                        )
+
+                    comptime if t2.trainable and not fused_conv_parameters:
                         comptime if gradient_contributor_count(Self.g, t2) == 1:
                             backward_op[
                                 1,
@@ -498,7 +521,7 @@ struct Model[
                                 self.parameters.grads[t2],
                             )
 
-                    comptime if t3.trainable:
+                    comptime if t3.trainable and not fused_conv_parameters:
                         comptime if gradient_contributor_count(Self.g, t3) == 1:
                             backward_op[
                                 2,
@@ -537,7 +560,9 @@ struct Model[
                                 ],  # grad to be updated: inputs[2]
                             )
 
-    def train_step[O: Optimizer](
+    def train_step[
+        O: Optimizer
+    ](
         mut self,
         mut optimizer: O,
         *t_inputs: Tensor[f32, Self.device],
@@ -725,11 +750,11 @@ struct Model[
         print("  device: ", String(Self.device))
         print(
             "  inputs: ",
-            comptime(len(Self.g.inputs)),
+            comptime (len(Self.g.inputs)),
             "  outputs: ",
-            comptime(len(Self.g.outputs)),
+            comptime (len(Self.g.outputs)),
         )
-        print("  graph nodes: ", comptime(len(Self.g.nodes)))
+        print("  graph nodes: ", comptime (len(Self.g.nodes)))
         print(
             "  parameters: ",
             parameter_count,

@@ -137,6 +137,7 @@ from .gpu_conv import (
     gpu_conv2d_input_backward,
     gpu_conv2d_kernel_backward,
     gpu_conv2d_bias_backward,
+    gpu_conv2d_parameter_backward_direct,
 )
 from .gpu_pool import gpu_maxpool2d_forward, gpu_maxpool2d_backward
 
@@ -1112,6 +1113,43 @@ def _forward_op_cpu[
         SPLIT.forward[attributes](inputs, outputs, parameters)
     else:
         print("[ERROR] Operator not found.")
+
+
+def backward_conv2d_parameters[
+    t1_shape: TensorShape,
+    t2_shape: TensorShape,
+    t3_shape: TensorShape,
+    attributes: AttributeVector,
+](
+    ug: Tensor[f32, Device.gpu],
+    t1: Tensor[f32, Device.gpu],
+    mut kernel_grad: Tensor[f32, Device.gpu],
+    mut bias_grad: Tensor[f32, Device.gpu],
+) raises:
+    """Write Conv2d filter and bias gradients using shared temporaries."""
+    comptime padding = attributes["padding"].value().to_static[2]()
+    comptime stride = attributes["stride"].value().to_static[2]()
+    comptime dilation = attributes["dilation"].value().to_static[2]()
+    comptime out_shape = CONV2D.result_shape(
+        t1_shape, t2_shape, t3_shape, attributes
+    )
+    gpu_conv2d_parameter_backward_direct[
+        t1_shape[0],
+        t1_shape[1],
+        t1_shape[2],
+        t1_shape[3],
+        t2_shape[0],
+        t2_shape[2],
+        t2_shape[3],
+        out_shape[2],
+        out_shape[3],
+        padding[0],
+        padding[1],
+        stride[0],
+        stride[1],
+        dilation[0],
+        dilation[1],
+    ](kernel_grad, bias_grad, t1, ug)
 
 
 def backward_op[

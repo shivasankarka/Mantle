@@ -17,8 +17,6 @@ from mantle.core.device import Device
 from .gpu_matmul import (
     gpu_matmul,
     gpu_matmul_bt,
-    gpu_matmul_at,
-    gpu_transpose_4d,
 )
 
 comptime _BLOCK = 256
@@ -56,8 +54,26 @@ def gpu_conv2d_forward_max[
     var output_nhwc = Tensor[f32, Device.gpu](
         TensorShape(batch, out_h, out_w, out_channels), uninitialized=True
     )
-    gpu_transpose_4d(input_nhwc, inputs, TensorShape(0, 2, 3, 1))
-    gpu_transpose_4d(filter_rscf, kernel, TensorShape(2, 3, 1, 0))
+    _cached_spatial_from_nchw_kernel[
+        channels, in_h, in_w
+    ]()._call_with_pack_checked(
+        output.gpu_context(),
+        input_nhwc.gpu_ptr(),
+        inputs.gpu_ptr(),
+        Int64(inputs.num_elements()),
+        grid_dim=ceildiv(inputs.num_elements(), _BLOCK),
+        block_dim=min(inputs.num_elements(), _BLOCK),
+    )
+    _cached_filter_oihw_to_rscf_kernel[
+        channels, out_channels, kh, kw
+    ]()._call_with_pack_checked(
+        output.gpu_context(),
+        filter_rscf.gpu_ptr(),
+        kernel.gpu_ptr(),
+        Int64(kernel.num_elements()),
+        grid_dim=ceildiv(kernel.num_elements(), _BLOCK),
+        block_dim=min(kernel.num_elements(), _BLOCK),
+    )
     var input_tt = TileTensor(
         ptr=input_nhwc.gpu_ptr().unsafe_origin_cast[MutAnyOrigin](),
         layout=row_major[batch, in_h, in_w, channels](),
@@ -89,15 +105,14 @@ def gpu_conv2d_forward_max[
     )
     # NHWC is spatial-major, which is the same flattened layout consumed by
     # this conversion kernel. Fold the bias add into the NHWC -> NCHW pass.
-    _cached_nchw_from_spatial_kernel()._call_with_pack_checked(
+    _cached_nchw_from_spatial_kernel[
+        out_channels, out_h, out_w
+    ]()._call_with_pack_checked(
         output.gpu_context(),
         output.gpu_ptr(),
         output_nhwc.gpu_ptr(),
         bias.gpu_ptr(),
         Int64(output.num_elements()),
-        Int64(out_channels),
-        Int64(out_h),
-        Int64(out_w),
         grid_dim=ceildiv(output.num_elements(), _BLOCK),
         block_dim=min(output.num_elements(), _BLOCK),
     )
@@ -169,23 +184,32 @@ def _cached_im2col_kernel() raises -> (
     return _im2col_kernel_global.get_or_create_ptr()[unsafe_offset=0].copy()
 
 
-def _nchw_from_spatial_kernel(
+def _nchw_from_spatial_kernel[
+    channels: Int, out_h: Int, out_w: Int
+](
     output: Pointer[Scalar[f32], MutAnyOrigin],
     spatial: Pointer[Scalar[f32], MutAnyOrigin],
     bias: Pointer[Scalar[f32], MutAnyOrigin],
     n: Int64,
-    channels: Int64,
-    out_h: Int64,
-    out_w: Int64,
 ):
+    """NHWC (spatial-major) -> NCHW plus a fused bias add.
+
+    `channels`/`out_h`/`out_w` are compile-time parameters rather than
+    runtime arguments -- like the weight-gradient kernels above, this
+    kernel's index math is all division/modulo by these three, and a
+    compile-time-constant divisor is far cheaper on GPU than a runtime one.
+    """
+    comptime channels64 = Int64(channels)
+    comptime spatial64 = Int64(out_h * out_w)
+
     var i = Int64(block_idx.x * block_dim.x + thread_idx.x)
     if i < n:
-        var position = i % (out_h * out_w)
-        var channel = (i // (out_h * out_w)) % channels
-        var batch = i // (channels * out_h * out_w)
+        var position = i % spatial64
+        var channel = (i // spatial64) % channels64
+        var batch = i // (channels64 * spatial64)
         var spatial_index = (
-            batch * out_h * out_w + position
-        ) * channels + channel
+            batch * spatial64 + position
+        ) * channels64 + channel
         output.unsafe_store(
             Int(i),
             spatial.unsafe_load(Int(spatial_index))
@@ -193,20 +217,25 @@ def _nchw_from_spatial_kernel(
         )
 
 
-comptime _nchw_from_spatial_kernel_global = _Global[
-    "mantle_gpu_kernel_nchw_from_spatial",
-    _make_kernel_fn[_nchw_from_spatial_kernel],
-]
-
-
-def _cached_nchw_from_spatial_kernel() raises -> (
-    type_of(
-        _shared_device_context().compile_function[_nchw_from_spatial_kernel]()
-    )
+def _cached_nchw_from_spatial_kernel[
+    channels: Int, out_h: Int, out_w: Int
+]() raises -> type_of(
+    _shared_device_context().compile_function[
+        _nchw_from_spatial_kernel[channels, out_h, out_w]
+    ]()
 ):
-    return _nchw_from_spatial_kernel_global.get_or_create_ptr()[
-        unsafe_offset=0
-    ].copy()
+    comptime name = (
+        "mantle_gpu_kernel_nchw_from_spatial_"
+        + String(channels)
+        + "_"
+        + String(out_h)
+        + "_"
+        + String(out_w)
+    )
+    comptime global_ = _Global[
+        name, _make_kernel_fn[_nchw_from_spatial_kernel[channels, out_h, out_w]]
+    ]
+    return global_.get_or_create_ptr()[unsafe_offset=0].copy()
 
 
 def gpu_conv2d_forward_native[
@@ -262,15 +291,14 @@ def gpu_conv2d_forward_native[
         block_dim=min(col.num_elements(), _BLOCK),
     )
     gpu_matmul_bt[rows, kernel_values, out_channels](spatial, col, kernel)
-    _cached_nchw_from_spatial_kernel()._call_with_pack_checked(
+    _cached_nchw_from_spatial_kernel[
+        out_channels, out_h, out_w
+    ]()._call_with_pack_checked(
         ctx,
         output.gpu_ptr(),
         spatial.gpu_ptr(),
         bias.gpu_ptr(),
         Int64(output.num_elements()),
-        Int64(out_channels),
-        Int64(out_h),
-        Int64(out_w),
         grid_dim=ceildiv(output.num_elements(), _BLOCK),
         block_dim=min(output.num_elements(), _BLOCK),
     )
@@ -318,39 +346,101 @@ def gpu_conv2d_forward[
     ](output, inputs, kernel, bias)
 
 
-def _spatial_from_nchw_kernel(
+def _spatial_from_nchw_kernel[
+    channels: Int, height: Int, width: Int
+](
     spatial: Pointer[Scalar[f32], MutAnyOrigin],
     src: Pointer[Scalar[f32], MutAnyOrigin],
     n: Int64,
-    channels: Int64,
-    height: Int64,
-    width: Int64,
 ):
+    """NCHW -> NHWC (spatial-major); see `_nchw_from_spatial_kernel` above
+    for why `channels`/`height`/`width` are compile-time parameters."""
+    comptime channels64 = Int64(channels)
+    comptime spatial64 = Int64(height * width)
+
     var i = Int64(block_idx.x * block_dim.x + thread_idx.x)
     if i < n:
-        var position = i % (height * width)
-        var channel = (i // (height * width)) % channels
-        var batch = i // (channels * height * width)
+        var position = i % spatial64
+        var channel = (i // spatial64) % channels64
+        var batch = i // (channels64 * spatial64)
         spatial.unsafe_store(
-            Int((batch * height * width + position) * channels + channel),
+            Int((batch * spatial64 + position) * channels64 + channel),
             src.unsafe_load(Int(i)),
         )
 
 
-comptime _spatial_from_nchw_kernel_global = _Global[
-    "mantle_gpu_kernel_spatial_from_nchw",
-    _make_kernel_fn[_spatial_from_nchw_kernel],
-]
-
-
-def _cached_spatial_from_nchw_kernel() raises -> (
-    type_of(
-        _shared_device_context().compile_function[_spatial_from_nchw_kernel]()
-    )
+def _cached_spatial_from_nchw_kernel[
+    channels: Int, height: Int, width: Int
+]() raises -> type_of(
+    _shared_device_context().compile_function[
+        _spatial_from_nchw_kernel[channels, height, width]
+    ]()
 ):
-    return _spatial_from_nchw_kernel_global.get_or_create_ptr()[
-        unsafe_offset=0
-    ].copy()
+    comptime name = (
+        "mantle_gpu_kernel_spatial_from_nchw_"
+        + String(channels)
+        + "_"
+        + String(height)
+        + "_"
+        + String(width)
+    )
+    comptime global_ = _Global[
+        name,
+        _make_kernel_fn[_spatial_from_nchw_kernel[channels, height, width]],
+    ]
+    return global_.get_or_create_ptr()[unsafe_offset=0].copy()
+
+
+def _filter_oihw_to_rscf_kernel[
+    channels: Int, out_channels: Int, kh: Int, kw: Int
+](
+    output: Pointer[Scalar[f32], MutAnyOrigin],
+    kernel: Pointer[Scalar[f32], MutAnyOrigin],
+    n: Int64,
+):
+    """Convert Mantle OIHW filters to MAX's RSCF layout."""
+    comptime channels64 = Int64(channels)
+    comptime out_channels64 = Int64(out_channels)
+    comptime kh64 = Int64(kh)
+    comptime kw64 = Int64(kw)
+    var i = Int64(block_idx.x * block_dim.x + thread_idx.x)
+    if i < n:
+        var out_channel = i % out_channels64
+        var remaining = i // out_channels64
+        var channel = remaining % channels64
+        remaining //= channels64
+        var kernel_x = remaining % kw64
+        var kernel_y = remaining // kw64
+        var source = (
+            (out_channel * channels64 + channel) * kh64 + kernel_y
+        ) * kw64 + kernel_x
+        output.unsafe_store(Int(i), kernel.unsafe_load(Int(source)))
+
+
+def _cached_filter_oihw_to_rscf_kernel[
+    channels: Int, out_channels: Int, kh: Int, kw: Int
+]() raises -> type_of(
+    _shared_device_context().compile_function[
+        _filter_oihw_to_rscf_kernel[channels, out_channels, kh, kw]
+    ]()
+):
+    comptime name = (
+        "mantle_gpu_kernel_filter_oihw_to_rscf_"
+        + String(channels)
+        + "_"
+        + String(out_channels)
+        + "_"
+        + String(kh)
+        + "_"
+        + String(kw)
+    )
+    comptime global_ = _Global[
+        name,
+        _make_kernel_fn[
+            _filter_oihw_to_rscf_kernel[channels, out_channels, kh, kw]
+        ],
+    ]
+    return global_.get_or_create_ptr()[unsafe_offset=0].copy()
 
 
 def _col2im_kernel(
@@ -414,69 +504,322 @@ def _cached_col2im_kernel() raises -> (
     return _col2im_kernel_global.get_or_create_ptr()[unsafe_offset=0].copy()
 
 
-def _transpose_kernel_gradient_kernel(
-    output: Pointer[Scalar[f32], MutAnyOrigin],
-    source: Pointer[Scalar[f32], MutAnyOrigin],
+comptime _CONV_WEIGHT_TARGET_THREADS = 32768
+"""Target thread count for the weight/bias-gradient reductions below.
+
+Both `_conv_kernel_gradient_partial_kernel` and
+`_conv_bias_gradient_partial_kernel` reduce over the batch axis in two
+passes: a first pass gives every (output element, batch-*chunk*) pair its
+own thread, then `_sum_rows_kernel` folds the (small) chunk axis down to the
+final gradient.
+
+Notes:
+    This constant balances occupancy across layers with varying output
+    element counts, avoiding hand-picked per-layer thresholds.
+"""
+
+
+def _conv_kernel_gradient_partial_kernel[
+    batch_size: Int,
+    channels: Int,
+    in_h: Int,
+    in_w: Int,
+    out_channels: Int,
+    kh: Int,
+    kw: Int,
+    out_h: Int,
+    out_w: Int,
+    pad_h: Int,
+    pad_w: Int,
+    stride_h: Int,
+    stride_w: Int,
+    dilation_h: Int,
+    dilation_w: Int,
+    num_chunks: Int,
+    chunk_size: Int,
+](
+    partial: Pointer[Scalar[f32], MutAnyOrigin],
+    inputs: Pointer[Scalar[f32], MutAnyOrigin],
+    upper_grad: Pointer[Scalar[f32], MutAnyOrigin],
     n: Int64,
-    kernel_values: Int64,
-    out_channels: Int64,
 ):
+    """One thread per (output-weight, batch-chunk) pair.
+
+    Each thread only reduces over `chunk_size` batch samples (times the
+    spatial output positions), rather than the whole batch -- see
+    `_CONV_WEIGHT_TARGET_THREADS` for how `chunk_size` is picked.
+    `_sum_rows_kernel` folds the chunk axis afterwards.
+
+    Notes:
+        Every shape dimension is a compile-time parameter, not a runtime
+        argument, because integer division/modulo by a compile-time-constant
+        divisor compiles down to cheap multiply-shift, while GPUs execute a
+        division by a runtime value as a slow instruction. Trade-off: one
+        compiled kernel per distinct conv-layer shape instead of one shared
+        kernel for all shapes.
+    """
+    comptime kh64 = Int64(kh)
+    comptime kw64 = Int64(kw)
+    comptime channels64 = Int64(channels)
+    comptime in_h64 = Int64(in_h)
+    comptime in_w64 = Int64(in_w)
+    comptime out_channels64 = Int64(out_channels)
+    comptime out_h64 = Int64(out_h)
+    comptime out_w64 = Int64(out_w)
+    comptime pad_h64 = Int64(pad_h)
+    comptime pad_w64 = Int64(pad_w)
+    comptime stride_h64 = Int64(stride_h)
+    comptime stride_w64 = Int64(stride_w)
+    comptime dilation_h64 = Int64(dilation_h)
+    comptime dilation_w64 = Int64(dilation_w)
+    comptime batch_size64 = Int64(batch_size)
+
     var i = Int64(block_idx.x * block_dim.x + thread_idx.x)
     if i < n:
-        var out_channel = i // kernel_values
-        var feature = i % kernel_values
-        output.unsafe_store(
-            Int(i),
-            source.unsafe_load(Int(feature * out_channels + out_channel)),
-        )
-
-
-comptime _transpose_kernel_gradient_kernel_global = _Global[
-    "mantle_gpu_kernel_transpose_conv_gradient",
-    _make_kernel_fn[_transpose_kernel_gradient_kernel],
-]
-
-
-def _cached_transpose_kernel_gradient_kernel() raises -> (
-    type_of(
-        _shared_device_context().compile_function[
-            _transpose_kernel_gradient_kernel
-        ]()
-    )
-):
-    return _transpose_kernel_gradient_kernel_global.get_or_create_ptr()[
-        unsafe_offset=0
-    ].copy()
-
-
-def _bias_gradient_kernel(
-    output: Pointer[Scalar[f32], MutAnyOrigin],
-    upper_grad: Pointer[Scalar[f32], MutAnyOrigin],
-    out_channels: Int64,
-    rows: Int64,
-):
-    var channel = Int64(block_idx.x * block_dim.x + thread_idx.x)
-    if channel < out_channels:
+        var feature = i // Int64(num_chunks)
+        var chunk_id = i % Int64(num_chunks)
+        var batch_start = chunk_id * Int64(chunk_size)
+        var within_feature = feature % (channels64 * kh64 * kw64)
+        var out_channel = feature // (channels64 * kh64 * kw64)
+        var channel = within_feature // (kh64 * kw64)
+        var kernel_position = within_feature % (kh64 * kw64)
+        var kx = kernel_position // kw64
+        var ky = kernel_position % kw64
         var total: Scalar[f32] = 0.0
-        for row in range(Int(rows)):
-            total += upper_grad.unsafe_load(
-                Int((Int64(row) * out_channels) + channel)
-            )
-        output.unsafe_store(Int(channel), total)
+        for bo in range(chunk_size):
+            var batch = batch_start + Int64(bo)
+            if batch >= batch_size64:
+                continue
+            for ox in range(out_h):
+                var iy = Int64(ox) * stride_h64 - pad_h64 + kx * dilation_h64
+                if iy < 0 or iy >= in_h64:
+                    continue
+                for oy in range(out_w):
+                    var ix = (
+                        Int64(oy) * stride_w64 - pad_w64 + ky * dilation_w64
+                    )
+                    if ix >= 0 and ix < in_w64:
+                        var input_index = (
+                            (batch * channels64 + channel) * in_h64 + iy
+                        ) * in_w64 + ix
+                        var grad_index = (
+                            (batch * out_channels64 + out_channel) * out_h64
+                            + Int64(ox)
+                        ) * out_w64 + Int64(oy)
+                        total += inputs.unsafe_load(
+                            Int(input_index)
+                        ) * upper_grad.unsafe_load(Int(grad_index))
+        partial.unsafe_store(Int(i), total)
 
 
-comptime _bias_gradient_kernel_global = _Global[
-    "mantle_gpu_kernel_conv_bias_gradient",
-    _make_kernel_fn[_bias_gradient_kernel],
+def _cached_conv_kernel_gradient_partial_kernel[
+    batch_size: Int,
+    channels: Int,
+    in_h: Int,
+    in_w: Int,
+    out_channels: Int,
+    kh: Int,
+    kw: Int,
+    out_h: Int,
+    out_w: Int,
+    pad_h: Int,
+    pad_w: Int,
+    stride_h: Int,
+    stride_w: Int,
+    dilation_h: Int,
+    dilation_w: Int,
+    num_chunks: Int,
+    chunk_size: Int,
+]() raises -> type_of(
+    _shared_device_context().compile_function[
+        _conv_kernel_gradient_partial_kernel[
+            batch_size,
+            channels,
+            in_h,
+            in_w,
+            out_channels,
+            kh,
+            kw,
+            out_h,
+            out_w,
+            pad_h,
+            pad_w,
+            stride_h,
+            stride_w,
+            dilation_h,
+            dilation_w,
+            num_chunks,
+            chunk_size,
+        ]
+    ]()
+):
+    comptime name = (
+        "mantle_gpu_kernel_conv_wgrad_"
+        + String(batch_size)
+        + "_"
+        + String(channels)
+        + "_"
+        + String(in_h)
+        + "_"
+        + String(in_w)
+        + "_"
+        + String(out_channels)
+        + "_"
+        + String(kh)
+        + "_"
+        + String(kw)
+        + "_"
+        + String(out_h)
+        + "_"
+        + String(out_w)
+        + "_"
+        + String(pad_h)
+        + "_"
+        + String(pad_w)
+        + "_"
+        + String(stride_h)
+        + "_"
+        + String(stride_w)
+        + "_"
+        + String(dilation_h)
+        + "_"
+        + String(dilation_w)
+        + "_"
+        + String(num_chunks)
+        + "_"
+        + String(chunk_size)
+    )
+    comptime global_ = _Global[
+        name,
+        _make_kernel_fn[
+            _conv_kernel_gradient_partial_kernel[
+                batch_size,
+                channels,
+                in_h,
+                in_w,
+                out_channels,
+                kh,
+                kw,
+                out_h,
+                out_w,
+                pad_h,
+                pad_w,
+                stride_h,
+                stride_w,
+                dilation_h,
+                dilation_w,
+                num_chunks,
+                chunk_size,
+            ]
+        ],
+    ]
+    return global_.get_or_create_ptr()[unsafe_offset=0].copy()
+
+
+def _conv_bias_gradient_partial_kernel[
+    batch_size: Int,
+    out_channels: Int,
+    out_h: Int,
+    out_w: Int,
+    num_chunks: Int,
+    chunk_size: Int,
+](
+    partial: Pointer[Scalar[f32], MutAnyOrigin],
+    upper_grad: Pointer[Scalar[f32], MutAnyOrigin],
+    n: Int64,
+):
+    """One thread per (out-channel, batch-chunk) pair; see the kernel-
+    gradient partial kernel above for why this is split out of the batch
+    loop, and why every shape dimension is a compile-time parameter."""
+    comptime out_channels64 = Int64(out_channels)
+    comptime spatial64 = Int64(out_h * out_w)
+    comptime batch_size64 = Int64(batch_size)
+
+    var i = Int64(block_idx.x * block_dim.x + thread_idx.x)
+    if i < n:
+        var channel = i // Int64(num_chunks)
+        var chunk_id = i % Int64(num_chunks)
+        var batch_start = chunk_id * Int64(chunk_size)
+        var total: Scalar[f32] = 0.0
+        for bo in range(chunk_size):
+            var batch = batch_start + Int64(bo)
+            if batch >= batch_size64:
+                continue
+            var base = (batch * out_channels64 + channel) * spatial64
+            for position in range(out_h * out_w):
+                total += upper_grad.unsafe_load(Int(base + Int64(position)))
+        partial.unsafe_store(Int(i), total)
+
+
+def _cached_conv_bias_gradient_partial_kernel[
+    batch_size: Int,
+    out_channels: Int,
+    out_h: Int,
+    out_w: Int,
+    num_chunks: Int,
+    chunk_size: Int,
+]() raises -> type_of(
+    _shared_device_context().compile_function[
+        _conv_bias_gradient_partial_kernel[
+            batch_size, out_channels, out_h, out_w, num_chunks, chunk_size
+        ]
+    ]()
+):
+    comptime name = (
+        "mantle_gpu_kernel_conv_bgrad_"
+        + String(batch_size)
+        + "_"
+        + String(out_channels)
+        + "_"
+        + String(out_h)
+        + "_"
+        + String(out_w)
+        + "_"
+        + String(num_chunks)
+        + "_"
+        + String(chunk_size)
+    )
+    comptime global_ = _Global[
+        name,
+        _make_kernel_fn[
+            _conv_bias_gradient_partial_kernel[
+                batch_size, out_channels, out_h, out_w, num_chunks, chunk_size
+            ]
+        ],
+    ]
+    return global_.get_or_create_ptr()[unsafe_offset=0].copy()
+
+
+def _sum_rows_kernel(
+    output: Pointer[Scalar[f32], MutAnyOrigin],
+    partial: Pointer[Scalar[f32], MutAnyOrigin],
+    rows: Int64,
+    chunks: Int64,
+):
+    """Folds a `(rows, chunks)` buffer's last axis into `output[rows]`.
+
+    Used to finish the batch-axis reduction the two partial kernels above
+    split off -- `chunks` is small (the batch size), so this second pass is
+    cheap even though it's back to one thread per row.
+    """
+    var row = Int64(block_idx.x * block_dim.x + thread_idx.x)
+    if row < rows:
+        var total: Scalar[f32] = 0.0
+        var base = row * chunks
+        for c in range(Int(chunks)):
+            total += partial.unsafe_load(Int(base + Int64(c)))
+        output.unsafe_store(Int(row), total)
+
+
+comptime _sum_rows_kernel_global = _Global[
+    "mantle_gpu_kernel_sum_rows", _make_kernel_fn[_sum_rows_kernel]
 ]
 
 
-def _cached_bias_gradient_kernel() raises -> (
-    type_of(_shared_device_context().compile_function[_bias_gradient_kernel]())
+def _cached_sum_rows_kernel() raises -> (
+    type_of(_shared_device_context().compile_function[_sum_rows_kernel]())
 ):
-    return _bias_gradient_kernel_global.get_or_create_ptr()[
-        unsafe_offset=0
-    ].copy()
+    return _sum_rows_kernel_global.get_or_create_ptr()[unsafe_offset=0].copy()
 
 
 def gpu_conv2d_input_backward[
@@ -509,14 +852,13 @@ def gpu_conv2d_input_backward[
         TensorShape(rows, kernel_values), uninitialized=True
     )
     var ctx = output.gpu_context()
-    _cached_spatial_from_nchw_kernel()._call_with_pack_checked(
+    _cached_spatial_from_nchw_kernel[
+        out_channels, out_h, out_w
+    ]()._call_with_pack_checked(
         ctx,
         spatial.gpu_ptr(),
         upper_grad.gpu_ptr(),
         Int64(upper_grad.num_elements()),
-        Int64(out_channels),
-        Int64(out_h),
-        Int64(out_w),
         grid_dim=ceildiv(upper_grad.num_elements(), _BLOCK),
         block_dim=min(upper_grad.num_elements(), _BLOCK),
     )
@@ -565,60 +907,51 @@ def gpu_conv2d_kernel_backward[
     inputs: Tensor[f32, Device.gpu],
     upper_grad: Tensor[f32, Device.gpu],
 ) raises:
-    comptime rows = batch * out_h * out_w
-    comptime kernel_values = channels * kh * kw
-    var col = Tensor[f32, Device.gpu](
-        TensorShape(rows, kernel_values), uninitialized=True
-    )
-    var spatial = Tensor[f32, Device.gpu](
-        TensorShape(rows, out_channels), uninitialized=True
-    )
-    var transposed = Tensor[f32, Device.gpu](
-        TensorShape(kernel_values, out_channels), uninitialized=True
-    )
     var ctx = output.gpu_context()
-    _cached_im2col_kernel()._call_with_pack_checked(
+    comptime out_elems = channels * kh * kw * out_channels
+    comptime num_chunks = min(
+        batch, max(1, _CONV_WEIGHT_TARGET_THREADS // out_elems)
+    )
+    comptime chunk_size = ceildiv(batch, num_chunks)
+
+    var partial = Tensor[f32, Device.gpu](
+        TensorShape(out_elems, num_chunks), uninitialized=True
+    )
+    _cached_conv_kernel_gradient_partial_kernel[
+        batch,
+        channels,
+        in_h,
+        in_w,
+        out_channels,
+        kh,
+        kw,
+        out_h,
+        out_w,
+        pad_h,
+        pad_w,
+        stride_h,
+        stride_w,
+        dilation_h,
+        dilation_w,
+        num_chunks,
+        chunk_size,
+    ]()._call_with_pack_checked(
         ctx,
-        col.gpu_ptr(),
+        partial.gpu_ptr(),
         inputs.gpu_ptr(),
-        Int64(rows),
-        Int64(channels),
-        Int64(in_h),
-        Int64(in_w),
-        Int64(out_h),
-        Int64(out_w),
-        Int64(kh),
-        Int64(kw),
-        Int64(pad_h),
-        Int64(pad_w),
-        Int64(stride_h),
-        Int64(stride_w),
-        Int64(dilation_h),
-        Int64(dilation_w),
-        grid_dim=ceildiv(col.num_elements(), _BLOCK),
-        block_dim=min(col.num_elements(), _BLOCK),
-    )
-    _cached_spatial_from_nchw_kernel()._call_with_pack_checked(
-        ctx,
-        spatial.gpu_ptr(),
         upper_grad.gpu_ptr(),
-        Int64(upper_grad.num_elements()),
-        Int64(out_channels),
-        Int64(out_h),
-        Int64(out_w),
-        grid_dim=ceildiv(upper_grad.num_elements(), _BLOCK),
-        block_dim=min(upper_grad.num_elements(), _BLOCK),
+        Int64(partial.num_elements()),
+        grid_dim=ceildiv(partial.num_elements(), _BLOCK),
+        block_dim=min(partial.num_elements(), _BLOCK),
     )
-    gpu_matmul_at[rows, kernel_values, out_channels](transposed, col, spatial)
-    _cached_transpose_kernel_gradient_kernel()._call_with_pack_checked(
+    _cached_sum_rows_kernel()._call_with_pack_checked(
         ctx,
         output.gpu_ptr(),
-        transposed.gpu_ptr(),
-        Int64(output.num_elements()),
-        Int64(kernel_values),
-        Int64(out_channels),
-        grid_dim=ceildiv(output.num_elements(), _BLOCK),
-        block_dim=min(output.num_elements(), _BLOCK),
+        partial.gpu_ptr(),
+        Int64(out_elems),
+        Int64(num_chunks),
+        grid_dim=ceildiv(out_elems, _BLOCK),
+        block_dim=min(out_elems, _BLOCK),
     )
 
 
@@ -631,29 +964,135 @@ def gpu_conv2d_bias_backward[
     mut output: Tensor[f32, Device.gpu],
     upper_grad: Tensor[f32, Device.gpu],
 ) raises:
-    comptime rows = batch * out_h * out_w
     var ctx = output.gpu_context()
-    # The reduction expects spatial-major rows. Use a short-lived layout conversion.
-    var spatial = Tensor[f32, Device.gpu](
-        TensorShape(rows, out_channels), uninitialized=True
+    comptime num_chunks = min(
+        batch, max(1, _CONV_WEIGHT_TARGET_THREADS // out_channels)
     )
-    _cached_spatial_from_nchw_kernel()._call_with_pack_checked(
+    comptime chunk_size = ceildiv(batch, num_chunks)
+
+    var partial = Tensor[f32, Device.gpu](
+        TensorShape(out_channels, num_chunks), uninitialized=True
+    )
+    _cached_conv_bias_gradient_partial_kernel[
+        batch, out_channels, out_h, out_w, num_chunks, chunk_size
+    ]()._call_with_pack_checked(
         ctx,
-        spatial.gpu_ptr(),
+        partial.gpu_ptr(),
         upper_grad.gpu_ptr(),
-        Int64(upper_grad.num_elements()),
-        Int64(out_channels),
-        Int64(out_h),
-        Int64(out_w),
-        grid_dim=ceildiv(upper_grad.num_elements(), _BLOCK),
-        block_dim=min(upper_grad.num_elements(), _BLOCK),
+        Int64(partial.num_elements()),
+        grid_dim=ceildiv(partial.num_elements(), _BLOCK),
+        block_dim=min(partial.num_elements(), _BLOCK),
     )
-    _cached_bias_gradient_kernel()._call_with_pack_checked(
+    _cached_sum_rows_kernel()._call_with_pack_checked(
         ctx,
         output.gpu_ptr(),
-        spatial.gpu_ptr(),
+        partial.gpu_ptr(),
         Int64(out_channels),
-        Int64(rows),
+        Int64(num_chunks),
+        grid_dim=ceildiv(out_channels, _BLOCK),
+        block_dim=min(out_channels, _BLOCK),
+    )
+
+
+def gpu_conv2d_parameter_backward_direct[
+    batch: Int,
+    channels: Int,
+    in_h: Int,
+    in_w: Int,
+    out_channels: Int,
+    kh: Int,
+    kw: Int,
+    out_h: Int,
+    out_w: Int,
+    pad_h: Int,
+    pad_w: Int,
+    stride_h: Int,
+    stride_w: Int,
+    dilation_h: Int,
+    dilation_w: Int,
+](
+    mut kernel_grad: Tensor[f32, Device.gpu],
+    mut bias_grad: Tensor[f32, Device.gpu],
+    inputs: Tensor[f32, Device.gpu],
+    upper_grad: Tensor[f32, Device.gpu],
+) raises:
+    """Compute Conv2d parameter gradients without materializing im2col.
+
+    Uses a two-pass, batch-parallel reduction where a first pass gives each
+    (weight, batch-chunk) pair its own thread, then a second pass folds the
+    chunk axis to the final gradient.
+    """
+    var ctx = kernel_grad.gpu_context()
+    comptime out_elems = channels * kh * kw * out_channels
+    comptime num_chunks = min(
+        batch, max(1, _CONV_WEIGHT_TARGET_THREADS // out_elems)
+    )
+    comptime chunk_size = ceildiv(batch, num_chunks)
+
+    var kernel_partial = Tensor[f32, Device.gpu](
+        TensorShape(out_elems, num_chunks), uninitialized=True
+    )
+    _cached_conv_kernel_gradient_partial_kernel[
+        batch,
+        channels,
+        in_h,
+        in_w,
+        out_channels,
+        kh,
+        kw,
+        out_h,
+        out_w,
+        pad_h,
+        pad_w,
+        stride_h,
+        stride_w,
+        dilation_h,
+        dilation_w,
+        num_chunks,
+        chunk_size,
+    ]()._call_with_pack_checked(
+        ctx,
+        kernel_partial.gpu_ptr(),
+        inputs.gpu_ptr(),
+        upper_grad.gpu_ptr(),
+        Int64(kernel_partial.num_elements()),
+        grid_dim=ceildiv(kernel_partial.num_elements(), _BLOCK),
+        block_dim=min(kernel_partial.num_elements(), _BLOCK),
+    )
+    _cached_sum_rows_kernel()._call_with_pack_checked(
+        ctx,
+        kernel_grad.gpu_ptr(),
+        kernel_partial.gpu_ptr(),
+        Int64(out_elems),
+        Int64(num_chunks),
+        grid_dim=ceildiv(out_elems, _BLOCK),
+        block_dim=min(out_elems, _BLOCK),
+    )
+
+    comptime bias_num_chunks = min(
+        batch, max(1, _CONV_WEIGHT_TARGET_THREADS // out_channels)
+    )
+    comptime bias_chunk_size = ceildiv(batch, bias_num_chunks)
+
+    var bias_partial = Tensor[f32, Device.gpu](
+        TensorShape(out_channels, bias_num_chunks), uninitialized=True
+    )
+    _cached_conv_bias_gradient_partial_kernel[
+        batch, out_channels, out_h, out_w, bias_num_chunks, bias_chunk_size
+    ]()._call_with_pack_checked(
+        ctx,
+        bias_partial.gpu_ptr(),
+        upper_grad.gpu_ptr(),
+        Int64(bias_partial.num_elements()),
+        grid_dim=ceildiv(bias_partial.num_elements(), _BLOCK),
+        block_dim=min(bias_partial.num_elements(), _BLOCK),
+    )
+    _cached_sum_rows_kernel()._call_with_pack_checked(
+        ctx,
+        bias_grad.gpu_ptr(),
+        bias_partial.gpu_ptr(),
+        Int64(out_channels),
+        Int64(bias_num_chunks),
         grid_dim=ceildiv(out_channels, _BLOCK),
         block_dim=min(out_channels, _BLOCK),
     )

@@ -15,4 +15,5 @@ from .ops import (
     dynamic_result_shape,
     forward_op,
     backward_op,
+    backward_conv2d_parameters,
 )

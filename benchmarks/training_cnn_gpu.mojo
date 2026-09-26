@@ -86,3 +86,43 @@ def main() raises:
         inputs.gpu_context().synchronize()
         var seconds = Float64(now() - start) / 1e9
         print("RESULT, cnn-mnist ,", trial + 1, ",", seconds)
+
+    # Synchronize at phase boundaries in a separate pass so the normal result
+    # above still measures the fully queued training step.
+    var profile_model = nn.Model[graph, device=Device.gpu]()
+    var profile_optimizer = nn.optim.Adam[graph, device=Device.gpu](
+        profile_model.parameters, lr=0.001
+    )
+    var forward_ns: Int = 0
+    var backward_ns: Int = 0
+    var adam_ns: Int = 0
+    for _ in range(WARMUP_STEPS):
+        profile_optimizer.zero_grad(profile_model.parameters)
+        _ = profile_model.forward(inputs, targets)
+        profile_model.backward()
+        profile_optimizer.step(profile_model.parameters)
+    inputs.gpu_context().synchronize()
+    for _ in range(TIMED_STEPS):
+        profile_optimizer.zero_grad(profile_model.parameters)
+        var phase_start = now()
+        _ = profile_model.forward(inputs, targets)
+        inputs.gpu_context().synchronize()
+        forward_ns += now() - phase_start
+
+        phase_start = now()
+        profile_model.backward()
+        inputs.gpu_context().synchronize()
+        backward_ns += now() - phase_start
+
+        phase_start = now()
+        profile_optimizer.step(profile_model.parameters)
+        inputs.gpu_context().synchronize()
+        adam_ns += now() - phase_start
+    print(
+        "PHASES, cnn-mnist, forward/backward/adam,",
+        Float64(forward_ns) / 1e9,
+        ",",
+        Float64(backward_ns) / 1e9,
+        ",",
+        Float64(adam_ns) / 1e9,
+    )

@@ -10,6 +10,7 @@ from mantle.core.device import Device
 from mantle.autograd.ops.gpu_conv import (
     gpu_conv2d_forward_max,
     gpu_conv2d_forward_native,
+    gpu_conv2d_parameter_backward_direct,
 )
 
 
@@ -79,6 +80,87 @@ def test_max_conv_matches_native() raises:
         assert_true(difference < 1e-4, "MAX Conv2d must match native Conv2d")
 
 
+def test_direct_parameter_backward_matches_cpu() raises:
+    var inputs = Tensor[f32](TensorShape(2, 2, 8, 8))
+    var upper_grad = Tensor[f32](TensorShape(2, 3, 8, 8))
+    rand[f32](inputs.ptr(), inputs.num_elements())
+    rand[f32](upper_grad.ptr(), upper_grad.num_elements())
+    var inputs_gpu = inputs.to_gpu()
+    var upper_grad_gpu = upper_grad.to_gpu()
+    var direct_kernel = Tensor[f32, Device.gpu](
+        TensorShape(3, 2, 3, 3), uninitialized=True
+    )
+    var direct_bias = Tensor[f32, Device.gpu](
+        TensorShape(3), uninitialized=True
+    )
+    gpu_conv2d_parameter_backward_direct[
+        2,
+        2,
+        8,
+        8,
+        3,
+        3,
+        3,
+        8,
+        8,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+    ](direct_kernel, direct_bias, inputs_gpu, upper_grad_gpu)
+    inputs_gpu.gpu_context().synchronize()
+    var direct_kernel_host = direct_kernel.to_host()
+    var direct_bias_host = direct_bias.to_host()
+    for out_channel in range(3):
+        for channel in range(2):
+            for kx in range(3):
+                for ky in range(3):
+                    var expected: Float32 = 0.0
+                    for batch in range(2):
+                        for ox in range(8):
+                            var iy = ox - 1 + kx
+                            if iy < 0 or iy >= 8:
+                                continue
+                            for oy in range(8):
+                                var ix = oy - 1 + ky
+                                if ix >= 0 and ix < 8:
+                                    expected += Float32(
+                                        inputs[
+                                            ((batch * 2 + channel) * 8 + iy) * 8
+                                            + ix
+                                        ]
+                                    ) * Float32(
+                                        upper_grad[
+                                            ((batch * 3 + out_channel) * 8 + ox)
+                                            * 8
+                                            + oy
+                                        ]
+                                    )
+                    var index = ((out_channel * 2 + channel) * 3 + kx) * 3 + ky
+                    var difference = abs(
+                        Float32(direct_kernel_host[index]) - expected
+                    )
+                    assert_true(
+                        difference < 1e-4,
+                        "direct Conv2d kernel gradient must match CPU",
+                    )
+        var expected_bias: Float32 = 0.0
+        for batch in range(2):
+            for position in range(8 * 8):
+                expected_bias += Float32(
+                    upper_grad[(batch * 3 + out_channel) * 8 * 8 + position]
+                )
+        var bias_difference = abs(
+            Float32(direct_bias_host[out_channel]) - expected_bias
+        )
+        assert_true(
+            bias_difference < 1e-4,
+            "direct Conv2d bias gradient must match CPU",
+        )
+
+
 def make_graph() -> Graph:
     var graph = Graph()
     var inputs = graph.input(TensorShape(2, 1, 8, 8))
@@ -107,6 +189,7 @@ def make_graph() -> Graph:
 
 def main() raises:
     test_max_conv_matches_native()
+    test_direct_parameter_backward_matches_cpu()
     comptime graph = make_graph()
     var host_inputs = Tensor[f32](TensorShape(2, 1, 8, 8))
     var host_targets = Tensor[f32](TensorShape(2, 4))
