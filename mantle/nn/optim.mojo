@@ -79,54 +79,76 @@ def get_direct_overwrite_gradients(g: Graph) -> List[Symbol]:
             if not symbol.trainable:
                 continue
 
-            var supports_overwrite = node.operator == OP.LINEAR or (
-                (
-                    node.operator == OP.RELU
-                    or node.operator == OP.EXP
-                    or node.operator == OP.LOG
-                    or node.operator == OP.GELU
-                    or node.operator == OP.DROPOUT
-                    or node.operator == OP.SQRT
-                    or node.operator == OP.RESHAPE
-                    or node.operator == OP.FLATTEN
+            var supports_overwrite = (
+                node.operator == OP.LINEAR
+                or (
+                    (
+                        node.operator == OP.RELU
+                        or node.operator == OP.EXP
+                        or node.operator == OP.LOG
+                        or node.operator == OP.GELU
+                        or node.operator == OP.DROPOUT
+                        or node.operator == OP.SQRT
+                        or node.operator == OP.RESHAPE
+                        or node.operator == OP.FLATTEN
+                    )
+                    and input_id == 0
                 )
-                and input_id == 0
-            ) or (
-                node.operator == OP.MEAN
-                and input_id == 0
-                and not node.attributes["axis"]
-            ) or (
-                (node.operator == OP.SUM or node.operator == OP.MEAN or node.operator == OP.MAX)
-                and input_id == 0
-                and node.attributes["axis"]
-                and node.attributes["axis"].value().to_int()
-                == node.inputs[0].shape.rank() - 1
-            ) or (node.operator == OP.POW and input_id == 0) or (
-                (node.operator == OP.SUB or node.operator == OP.MUL or node.operator == OP.DIV)
-                and node.inputs[0].shape == node.inputs[1].shape
-            ) or (
-                node.operator == OP.ADD
-                and node.inputs[0].shape == node.inputs[1].shape
-            ) or (
-                node.operator == OP.ADD
-                and input_id == 0
-                and node.inputs[0].shape.rank() >= 2
-                and node.inputs[1].shape.rank() == 1
-                and node.inputs[1].shape[0] == node.inputs[0].shape[-1]
-            ) or (
-                node.operator == OP.ADD
-                and input_id == 1
-                and node.inputs[0].shape.rank() >= 2
-                and node.inputs[1].shape.rank() == 1
-                and node.inputs[1].shape[0] == node.inputs[0].shape[-1]
-            ) or (
-                node.operator == OP.DOT
-                and node.inputs[0].shape.rank() == 2
-                and node.inputs[1].shape.rank() == 2
-            ) or (
-                node.operator == OP.TRANSPOSE
-                and input_id == 0
-                and node.inputs[0].shape.rank() == 4
+                or (
+                    node.operator == OP.MEAN
+                    and input_id == 0
+                    and not node.attributes["axis"]
+                )
+                or (
+                    (
+                        node.operator == OP.SUM
+                        or node.operator == OP.MEAN
+                        or node.operator == OP.MAX
+                    )
+                    and input_id == 0
+                    and node.attributes["axis"]
+                    and node.attributes["axis"].value().to_int()
+                    == node.inputs[0].shape.rank() - 1
+                )
+                or (node.operator == OP.POW and input_id == 0)
+                or (
+                    (
+                        node.operator == OP.SUB
+                        or node.operator == OP.MUL
+                        or node.operator == OP.DIV
+                    )
+                    and node.inputs[0].shape == node.inputs[1].shape
+                )
+                or (
+                    node.operator == OP.ADD
+                    and node.inputs[0].shape == node.inputs[1].shape
+                )
+                or (
+                    node.operator == OP.ADD
+                    and input_id == 0
+                    and node.inputs[0].shape.rank() >= 2
+                    and node.inputs[1].shape.rank() == 1
+                    and node.inputs[1].shape[0] == node.inputs[0].shape[-1]
+                )
+                or (
+                    node.operator == OP.ADD
+                    and input_id == 1
+                    and node.inputs[0].shape.rank() >= 2
+                    and node.inputs[1].shape.rank() == 1
+                    and node.inputs[1].shape[0] == node.inputs[0].shape[-1]
+                )
+                or (
+                    node.operator == OP.DOT
+                    and node.inputs[0].shape.rank() == 2
+                    and node.inputs[1].shape.rank() == 2
+                )
+                or (
+                    node.operator == OP.TRANSPOSE
+                    and input_id == 0
+                    and node.inputs[0].shape.rank() == 4
+                )
+                or node.operator == OP.MAXPOOL2D
+                or node.operator == OP.CONV2D
             )
             if not supports_overwrite:
                 continue
@@ -259,13 +281,25 @@ struct Adam[
                 self.direct_overwrite_gradients
             )
 
+    def zero_grad(mut self, mut parameters: Parameters[Self.device]) raises:
+        """Set gradients to zero using an explicit model storage reference.
+
+        This is the stable GPU path for large mixed-operator graphs.  It
+        avoids relying on a raw pointer through a deeply-specialized kernel
+        call while preserving the usual all-device execution.
+        """
+        comptime if Self.device.id == Device.cpu.id:
+            parameters.grads.set_zero()
+        else:
+            parameters.grads.set_zero_except(self.direct_overwrite_gradients)
+
     def step(mut self) raises:
         """Update model parameters."""
         self.iter += 1
-        var tr = materialize[Self.trainable_parameters]()
 
         comptime if Self.device.id == Device.cpu.id:
             comptime assert Self.device.id == Device.cpu.id
+            var tr = materialize[Self.trainable_parameters]()
 
             # Loop-invariant across every element of every param — hoisted
             # out of `v_step` so `pow` runs once per `step()` call instead
@@ -364,13 +398,47 @@ struct Adam[
             # RELU kernels in gpu_elementwise.mojo).
             var one_minus_beta1_pow_t = 1 - self.beta1**self.iter
             var one_minus_beta2_pow_t = 1 - self.beta2**self.iter
-            for i in range(len(tr)):
-                var param = tr[i]
+            # Use the graph's runtime symbol list on GPU.  Besides avoiding
+            # a large specialization for mixed Conv/Linear graphs, this keeps
+            # every update on the device just like the CPU path above.
+            var trainable = get_trainable_parameters(Self.g)
+            for i in range(len(trainable)):
+                var param = trainable[i]
                 var momentum_gpu = self.momentum_grads[param]
                 var rms_gpu = self.rms_grads[param]
                 var params_gpu = self.parameters[].tensors[param]
                 var grad_gpu = self.parameters[].grads[param]
 
+                gpu_adam_step(
+                    rebind[Tensor[f32, Device.gpu]](params_gpu),
+                    rebind[Tensor[f32, Device.gpu]](momentum_gpu),
+                    rebind[Tensor[f32, Device.gpu]](rms_gpu),
+                    rebind[Tensor[f32, Device.gpu]](grad_gpu),
+                    self.lr,
+                    self.beta1,
+                    self.beta2,
+                    self.epsilon,
+                    one_minus_beta1_pow_t,
+                    one_minus_beta2_pow_t,
+                )
+
+    def step(mut self, mut parameters: Parameters[Self.device]) raises:
+        """Update parameters through an explicit model storage reference."""
+        comptime if Self.device.id == Device.cpu.id:
+            # Keep the established CPU implementation as the single source
+            # of truth.  Its pointer path is safe on CPU.
+            self.step()
+        else:
+            self.iter += 1
+            var one_minus_beta1_pow_t = 1 - self.beta1**self.iter
+            var one_minus_beta2_pow_t = 1 - self.beta2**self.iter
+            var trainable = get_trainable_parameters(Self.g)
+            for i in range(len(trainable)):
+                var param = trainable[i]
+                var momentum_gpu = self.momentum_grads[param]
+                var rms_gpu = self.rms_grads[param]
+                var params_gpu = parameters.tensors[param]
+                var grad_gpu = parameters.grads[param]
                 gpu_adam_step(
                     rebind[Tensor[f32, Device.gpu]](params_gpu),
                     rebind[Tensor[f32, Device.gpu]](momentum_gpu),
@@ -519,9 +587,7 @@ struct AdamW[
                             + (1 - self.beta1) * grads
                         )
                         momentum_t.store[nelts](index, momentum_grads)
-                        momentum_grads = (
-                            momentum_grads / one_minus_beta1_pow_t
-                        )
+                        momentum_grads = momentum_grads / one_minus_beta1_pow_t
 
                         # RMS beta 2
                         rms_grads = (
