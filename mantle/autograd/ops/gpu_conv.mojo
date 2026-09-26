@@ -6,6 +6,7 @@ from std.math import ceildiv
 from max.gpu import thread_idx, block_idx, block_dim
 from std.ffi import _Global
 from std.os import abort
+from std.sys import CompilationTarget
 from std.utils import IndexList
 from layout import TileTensor
 from layout.tile_layout import row_major
@@ -54,16 +55,17 @@ def gpu_conv2d_forward_max[
     var output_nhwc = Tensor[f32, Device.gpu](
         TensorShape(batch, out_h, out_w, out_channels), uninitialized=True
     )
-    _cached_spatial_from_nchw_kernel[
-        channels, in_h, in_w
-    ]()._call_with_pack_checked(
-        output.gpu_context(),
-        input_nhwc.gpu_ptr(),
-        inputs.gpu_ptr(),
-        Int64(inputs.num_elements()),
-        grid_dim=ceildiv(inputs.num_elements(), _BLOCK),
-        block_dim=min(inputs.num_elements(), _BLOCK),
-    )
+    comptime if channels != 1:
+        _cached_spatial_from_nchw_kernel[
+            channels, in_h, in_w
+        ]()._call_with_pack_checked(
+            output.gpu_context(),
+            input_nhwc.gpu_ptr(),
+            inputs.gpu_ptr(),
+            Int64(inputs.num_elements()),
+            grid_dim=ceildiv(inputs.num_elements(), _BLOCK),
+            block_dim=min(inputs.num_elements(), _BLOCK),
+        )
     _cached_filter_oihw_to_rscf_kernel[
         channels, out_channels, kh, kw
     ]()._call_with_pack_checked(
@@ -74,8 +76,16 @@ def gpu_conv2d_forward_max[
         grid_dim=ceildiv(kernel.num_elements(), _BLOCK),
         block_dim=min(kernel.num_elements(), _BLOCK),
     )
+    var input_ptr = input_nhwc.gpu_ptr().unsafe_origin_cast[MutAnyOrigin]()
+    comptime if channels == 1:
+        # NCHW and NHWC have identical storage when C == 1.
+        input_ptr = (
+            inputs.gpu_ptr()
+            .unsafe_mut_cast[True]()
+            .unsafe_origin_cast[MutAnyOrigin]()
+        )
     var input_tt = TileTensor(
-        ptr=input_nhwc.gpu_ptr().unsafe_origin_cast[MutAnyOrigin](),
+        ptr=input_ptr,
         layout=row_major[batch, in_h, in_w, channels](),
     )
     var filter_tt = TileTensor(
@@ -127,6 +137,256 @@ def _make_kernel_fn[
         return _shared_device_context().compile_function[func]()
     except e:
         abort("Mantle: GPU convolution kernel compile failed: " + String(e))
+
+
+def _conv2d_forward_direct_kernel[
+    batch: Int,
+    channels: Int,
+    in_h: Int,
+    in_w: Int,
+    out_channels: Int,
+    kh: Int,
+    kw: Int,
+    out_h: Int,
+    out_w: Int,
+    pad_h: Int,
+    pad_w: Int,
+    stride_h: Int,
+    stride_w: Int,
+    dilation_h: Int,
+    dilation_w: Int,
+](
+    output: Pointer[Scalar[f32], MutAnyOrigin],
+    inputs: Pointer[Scalar[f32], MutAnyOrigin],
+    kernel: Pointer[Scalar[f32], MutAnyOrigin],
+    bias: Pointer[Scalar[f32], MutAnyOrigin],
+    n: Int64,
+):
+    """NCHW/OIHW convolution without layout-conversion temporaries."""
+    comptime channels64 = Int64(channels)
+    comptime in_h64 = Int64(in_h)
+    comptime in_w64 = Int64(in_w)
+    comptime out_channels64 = Int64(out_channels)
+    comptime kh64 = Int64(kh)
+    comptime kw64 = Int64(kw)
+    comptime out_h64 = Int64(out_h)
+    comptime out_w64 = Int64(out_w)
+    comptime pad_h64 = Int64(pad_h)
+    comptime pad_w64 = Int64(pad_w)
+    comptime stride_h64 = Int64(stride_h)
+    comptime stride_w64 = Int64(stride_w)
+    comptime dilation_h64 = Int64(dilation_h)
+    comptime dilation_w64 = Int64(dilation_w)
+
+    var i = Int64(block_idx.x * block_dim.x + thread_idx.x)
+    if i < n:
+        var oy = i % out_w64
+        var ox = (i // out_w64) % out_h64
+        var out_channel = (i // (out_w64 * out_h64)) % out_channels64
+        var batch_index = i // (out_w64 * out_h64 * out_channels64)
+        var total = bias.unsafe_load(Int(out_channel))
+        for channel in range(channels):
+            for kx in range(kh):
+                var iy = ox * stride_h64 - pad_h64 + Int64(kx) * dilation_h64
+                if iy < 0 or iy >= in_h64:
+                    continue
+                comptime if stride_w == 1 and dilation_w == 1:
+                    comptime vector_width = 4
+                    var ky_start = max(Int64(0), pad_w64 - oy)
+                    var ky_end = min(kw64, in_w64 + pad_w64 - oy)
+                    var input_row = (
+                        (
+                            (batch_index * channels64 + Int64(channel)) * in_h64
+                            + iy
+                        )
+                        * in_w64
+                        + oy
+                        - pad_w64
+                    )
+                    var kernel_row = (
+                        (out_channel * channels64 + Int64(channel)) * kh64
+                        + Int64(kx)
+                    ) * kw64
+                    var ky = ky_start
+                    while ky + Int64(vector_width) <= ky_end:
+                        total += (
+                            inputs.unsafe_load[width=vector_width](
+                                Int(input_row + ky)
+                            )
+                            * kernel.unsafe_load[width=vector_width](
+                                Int(kernel_row + ky)
+                            )
+                        ).reduce_add()
+                        ky += Int64(vector_width)
+                    while ky < ky_end:
+                        total += inputs.unsafe_load(
+                            Int(input_row + ky)
+                        ) * kernel.unsafe_load(Int(kernel_row + ky))
+                        ky += 1
+                else:
+                    for ky in range(kw):
+                        var ix = (
+                            oy * stride_w64 - pad_w64 + Int64(ky) * dilation_w64
+                        )
+                        if ix >= 0 and ix < in_w64:
+                            var input_index = (
+                                (batch_index * channels64 + Int64(channel))
+                                * in_h64
+                                + iy
+                            ) * in_w64 + ix
+                            var kernel_index = (
+                                (out_channel * channels64 + Int64(channel))
+                                * kh64
+                                + Int64(kx)
+                            ) * kw64 + Int64(ky)
+                            total += inputs.unsafe_load(
+                                Int(input_index)
+                            ) * kernel.unsafe_load(Int(kernel_index))
+        output.unsafe_store(Int(i), total)
+
+
+def _cached_conv2d_forward_direct_kernel[
+    batch: Int,
+    channels: Int,
+    in_h: Int,
+    in_w: Int,
+    out_channels: Int,
+    kh: Int,
+    kw: Int,
+    out_h: Int,
+    out_w: Int,
+    pad_h: Int,
+    pad_w: Int,
+    stride_h: Int,
+    stride_w: Int,
+    dilation_h: Int,
+    dilation_w: Int,
+]() raises -> type_of(
+    _shared_device_context().compile_function[
+        _conv2d_forward_direct_kernel[
+            batch,
+            channels,
+            in_h,
+            in_w,
+            out_channels,
+            kh,
+            kw,
+            out_h,
+            out_w,
+            pad_h,
+            pad_w,
+            stride_h,
+            stride_w,
+            dilation_h,
+            dilation_w,
+        ]
+    ]()
+):
+    comptime name = (
+        "mantle_gpu_conv2d_forward_direct_"
+        + String(batch)
+        + "_"
+        + String(channels)
+        + "_"
+        + String(in_h)
+        + "_"
+        + String(in_w)
+        + "_"
+        + String(out_channels)
+        + "_"
+        + String(kh)
+        + "_"
+        + String(kw)
+        + "_"
+        + String(out_h)
+        + "_"
+        + String(out_w)
+        + "_"
+        + String(pad_h)
+        + "_"
+        + String(pad_w)
+        + "_"
+        + String(stride_h)
+        + "_"
+        + String(stride_w)
+        + "_"
+        + String(dilation_h)
+        + "_"
+        + String(dilation_w)
+    )
+    comptime global_ = _Global[
+        name,
+        _make_kernel_fn[
+            _conv2d_forward_direct_kernel[
+                batch,
+                channels,
+                in_h,
+                in_w,
+                out_channels,
+                kh,
+                kw,
+                out_h,
+                out_w,
+                pad_h,
+                pad_w,
+                stride_h,
+                stride_w,
+                dilation_h,
+                dilation_w,
+            ]
+        ],
+    ]
+    return global_.get_or_create_ptr()[unsafe_offset=0].copy()
+
+
+def gpu_conv2d_forward_direct[
+    batch: Int,
+    channels: Int,
+    in_h: Int,
+    in_w: Int,
+    out_channels: Int,
+    kh: Int,
+    kw: Int,
+    out_h: Int,
+    out_w: Int,
+    pad_h: Int,
+    pad_w: Int,
+    stride_h: Int,
+    stride_w: Int,
+    dilation_h: Int,
+    dilation_w: Int,
+](
+    mut output: Tensor[f32, Device.gpu],
+    inputs: Tensor[f32, Device.gpu],
+    kernel: Tensor[f32, Device.gpu],
+    bias: Tensor[f32, Device.gpu],
+) raises:
+    _cached_conv2d_forward_direct_kernel[
+        batch,
+        channels,
+        in_h,
+        in_w,
+        out_channels,
+        kh,
+        kw,
+        out_h,
+        out_w,
+        pad_h,
+        pad_w,
+        stride_h,
+        stride_w,
+        dilation_h,
+        dilation_w,
+    ]()._call_with_pack_checked(
+        output.gpu_context(),
+        output.gpu_ptr(),
+        inputs.gpu_ptr(),
+        kernel.gpu_ptr(),
+        bias.gpu_ptr(),
+        Int64(output.num_elements()),
+        grid_dim=ceildiv(output.num_elements(), _BLOCK),
+        block_dim=min(output.num_elements(), _BLOCK),
+    )
 
 
 def _im2col_kernel(
@@ -326,24 +586,43 @@ def gpu_conv2d_forward[
     kernel: Tensor[f32, Device.gpu],
     bias: Tensor[f32, Device.gpu],
 ) raises:
-    """Dispatch Conv2d through MAX's target-tuned GPU implementation."""
-    gpu_conv2d_forward_max[
-        batch,
-        channels,
-        in_h,
-        in_w,
-        out_channels,
-        kh,
-        kw,
-        out_h,
-        out_w,
-        pad_h,
-        pad_w,
-        stride_h,
-        stride_w,
-        dilation_h,
-        dilation_w,
-    ](output, inputs, kernel, bias)
+    """Avoid conversion for single-channel Apple inputs; use MAX otherwise."""
+    comptime if CompilationTarget.is_macos() and channels == 1:
+        gpu_conv2d_forward_direct[
+            batch,
+            channels,
+            in_h,
+            in_w,
+            out_channels,
+            kh,
+            kw,
+            out_h,
+            out_w,
+            pad_h,
+            pad_w,
+            stride_h,
+            stride_w,
+            dilation_h,
+            dilation_w,
+        ](output, inputs, kernel, bias)
+    else:
+        gpu_conv2d_forward_max[
+            batch,
+            channels,
+            in_h,
+            in_w,
+            out_channels,
+            kh,
+            kw,
+            out_h,
+            out_w,
+            pad_h,
+            pad_w,
+            stride_h,
+            stride_w,
+            dilation_h,
+            dilation_w,
+        ](output, inputs, kernel, bias)
 
 
 def _spatial_from_nchw_kernel[
@@ -594,21 +873,53 @@ def _conv_kernel_gradient_partial_kernel[
                 var iy = Int64(ox) * stride_h64 - pad_h64 + kx * dilation_h64
                 if iy < 0 or iy >= in_h64:
                     continue
-                for oy in range(out_w):
-                    var ix = (
-                        Int64(oy) * stride_w64 - pad_w64 + ky * dilation_w64
-                    )
-                    if ix >= 0 and ix < in_w64:
-                        var input_index = (
-                            (batch * channels64 + channel) * in_h64 + iy
-                        ) * in_w64 + ix
-                        var grad_index = (
-                            (batch * out_channels64 + out_channel) * out_h64
-                            + Int64(ox)
-                        ) * out_w64 + Int64(oy)
+                comptime if stride_w == 1 and dilation_w == 1:
+                    # Across an output row both source arrays are contiguous.
+                    # Wider rows amortize eight-lane loads; short rows retain
+                    # better occupancy with four lanes.
+                    comptime vector_width = 8 if out_w >= 28 else 4
+                    var input_x_offset = ky - pad_w64
+                    var oy_start = max(Int64(0), -input_x_offset)
+                    var oy_end = min(out_w64, in_w64 - input_x_offset)
+                    var input_row = (
+                        (batch * channels64 + channel) * in_h64 + iy
+                    ) * in_w64 + input_x_offset
+                    var grad_row = (
+                        (batch * out_channels64 + out_channel) * out_h64
+                        + Int64(ox)
+                    ) * out_w64
+                    var oy = oy_start
+                    while oy + Int64(vector_width) <= oy_end:
+                        total += (
+                            inputs.unsafe_load[width=vector_width](
+                                Int(input_row + oy)
+                            )
+                            * upper_grad.unsafe_load[width=vector_width](
+                                Int(grad_row + oy)
+                            )
+                        ).reduce_add()
+                        oy += Int64(vector_width)
+                    while oy < oy_end:
                         total += inputs.unsafe_load(
-                            Int(input_index)
-                        ) * upper_grad.unsafe_load(Int(grad_index))
+                            Int(input_row + oy)
+                        ) * upper_grad.unsafe_load(Int(grad_row + oy))
+                        oy += 1
+                else:
+                    for oy in range(out_w):
+                        var ix = (
+                            Int64(oy) * stride_w64 - pad_w64 + ky * dilation_w64
+                        )
+                        if ix >= 0 and ix < in_w64:
+                            var input_index = (
+                                (batch * channels64 + channel) * in_h64 + iy
+                            ) * in_w64 + ix
+                            var grad_index = (
+                                (batch * out_channels64 + out_channel) * out_h64
+                                + Int64(ox)
+                            ) * out_w64 + Int64(oy)
+                            total += inputs.unsafe_load(
+                                Int(input_index)
+                            ) * upper_grad.unsafe_load(Int(grad_index))
         partial.unsafe_store(Int(i), total)
 
 

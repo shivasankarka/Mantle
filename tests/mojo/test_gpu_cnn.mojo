@@ -8,6 +8,7 @@ from mantle import Graph, Tensor, TensorShape, OP, f32
 from mantle.autograd.attributes import Attribute, AttributeVector
 from mantle.core.device import Device
 from mantle.autograd.ops.gpu_conv import (
+    gpu_conv2d_forward_direct,
     gpu_conv2d_forward_max,
     gpu_conv2d_forward_native,
     gpu_conv2d_parameter_backward_direct,
@@ -36,6 +37,9 @@ def test_max_conv_matches_native() raises:
         TensorShape(batch, out_channels, height, width), uninitialized=True
     )
     var max_output = Tensor[f32, Device.gpu](
+        TensorShape(batch, out_channels, height, width), uninitialized=True
+    )
+    var direct_output = Tensor[f32, Device.gpu](
         TensorShape(batch, out_channels, height, width), uninitialized=True
     )
     gpu_conv2d_forward_native[
@@ -72,12 +76,37 @@ def test_max_conv_matches_native() raises:
         1,
         1,
     ](max_output, inputs, kernel, bias)
+    gpu_conv2d_forward_direct[
+        batch,
+        channels,
+        height,
+        width,
+        out_channels,
+        kernel_size,
+        kernel_size,
+        height,
+        width,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+    ](direct_output, inputs, kernel, bias)
     inputs.gpu_context().synchronize()
     var native_host = native_output.to_host()
     var max_host = max_output.to_host()
+    var direct_host = direct_output.to_host()
     for i in range(native_host.num_elements()):
         var difference = abs(Float32(native_host[i]) - Float32(max_host[i]))
         assert_true(difference < 1e-4, "MAX Conv2d must match native Conv2d")
+        var direct_difference = abs(
+            Float32(native_host[i]) - Float32(direct_host[i])
+        )
+        assert_true(
+            direct_difference < 1e-4,
+            "direct Conv2d must match native Conv2d",
+        )
 
 
 def test_direct_parameter_backward_matches_cpu() raises:
