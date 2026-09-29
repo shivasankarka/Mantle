@@ -125,6 +125,7 @@ from .gpu_elementwise import (
     gpu_layernorm_forward,
     gpu_layernorm_input_backward,
     gpu_layernorm_affine_backward,
+    gpu_channel_bias_add_forward,
 )
 from .gpu_matmul import (
     gpu_matmul,
@@ -979,10 +980,9 @@ def forward_op[
     t3: Tensor[f32, device],
 ) raises:
     """
-    Forward pass for ternary operators, dispatching by device. Every
-    ternary op except LINEAR (CONV2D/FMA/BATCHNORM2D) is CPU-only; LINEAR
-    (DOT + bias-add, i.e. `Linear`) fuses onto the GPU via `matmul`'s own
-    epilogue.
+    Forward pass for ternary operators, dispatching by device. LINEAR,
+    LAYERNORM, CONV2D, and CONVTRANSPOSE2D have GPU kernels; FMA and
+    BATCHNORM2D are still CPU-only.
     """
     comptime if device.id == Device.cpu.id:
         comptime assert device.id == Device.cpu.id
@@ -1039,6 +1039,43 @@ def forward_op[
             rebind[Tensor[f32, Device.gpu]](res),
             rebind[Tensor[f32, Device.gpu]](t1),
             rebind[Tensor[f32, Device.gpu]](t2),
+            rebind[Tensor[f32, Device.gpu]](t3),
+        )
+    elif op == OP.CONVTRANSPOSE2D:
+        # Forward is CONV2D's col2im input-gradient kernel with input/output
+        # roles swapped (see conv_transpose.mojo), plus a channel-broadcast
+        # bias add since that kernel has no bias epilogue of its own.
+        comptime out_shape = CONVTRANSPOSE2D.result_shape(
+            t1_shape, t2_shape, t3_shape, attributes
+        )
+        comptime padding = attributes["padding"].value().to_static[2]()
+        comptime stride = attributes["stride"].value().to_static[2]()
+        comptime dilation = attributes["dilation"].value().to_static[2]()
+        var unbiased = Tensor[f32, Device.gpu](out_shape, uninitialized=True)
+        gpu_conv2d_input_backward[
+            out_shape[0],
+            out_shape[1],
+            out_shape[2],
+            out_shape[3],
+            t2_shape[0],
+            t2_shape[2],
+            t2_shape[3],
+            t1_shape[2],
+            t1_shape[3],
+            padding[0],
+            padding[1],
+            stride[0],
+            stride[1],
+            dilation[0],
+            dilation[1],
+        ](
+            unbiased,
+            rebind[Tensor[f32, Device.gpu]](t1),
+            rebind[Tensor[f32, Device.gpu]](t2),
+        )
+        gpu_channel_bias_add_forward[out_shape[1], out_shape[2] * out_shape[3]](
+            rebind[Tensor[f32, Device.gpu]](res),
+            unbiased,
             rebind[Tensor[f32, Device.gpu]](t3),
         )
     else:
@@ -1925,7 +1962,7 @@ def backward_op[
 ) raises:
     """
     Backward pass for ternary operators, dispatching by device (see
-    `forward_op`'s ternary overload: GPU support is LINEAR-only).
+    `forward_op`'s ternary overload for which ops have GPU kernels).
     """
     comptime if device.id == Device.cpu.id:
         comptime assert device.id == Device.cpu.id
@@ -2204,8 +2241,101 @@ def backward_op[
                 gpu_accumulate_grad(
                     rebind[Tensor[f32, Device.gpu]](grad), res_grad
                 )
+    elif op == OP.CONVTRANSPOSE2D:
+        # Mirrors conv_transpose.mojo's CPU backward: each tensor_id
+        # delegates to the matching CONV2D GPU kernel with input/output
+        # roles swapped.
+        comptime padding = attributes["padding"].value().to_static[2]()
+        comptime stride = attributes["stride"].value().to_static[2]()
+        comptime dilation = attributes["dilation"].value().to_static[2]()
+        comptime if tensor_id == 0:
+            var zero_bias = Tensor[f32, Device.gpu](
+                TensorShape(t2_shape[0])
+            )
+            comptime if overwrite_grad:
+                gpu_conv2d_forward[
+                    ug_shape[0], ug_shape[1], ug_shape[2], ug_shape[3],
+                    t2_shape[0], t2_shape[2], t2_shape[3],
+                    t1_shape[2], t1_shape[3],
+                    padding[0], padding[1], stride[0], stride[1],
+                    dilation[0], dilation[1],
+                ](
+                    rebind[Tensor[f32, Device.gpu]](grad),
+                    rebind[Tensor[f32, Device.gpu]](ug),
+                    rebind[Tensor[f32, Device.gpu]](t2),
+                    zero_bias,
+                )
+            else:
+                var res_grad = Tensor[f32, Device.gpu](
+                    t1_shape, uninitialized=True
+                )
+                gpu_conv2d_forward[
+                    ug_shape[0], ug_shape[1], ug_shape[2], ug_shape[3],
+                    t2_shape[0], t2_shape[2], t2_shape[3],
+                    t1_shape[2], t1_shape[3],
+                    padding[0], padding[1], stride[0], stride[1],
+                    dilation[0], dilation[1],
+                ](
+                    res_grad,
+                    rebind[Tensor[f32, Device.gpu]](ug),
+                    rebind[Tensor[f32, Device.gpu]](t2),
+                    zero_bias,
+                )
+                gpu_accumulate_grad(
+                    rebind[Tensor[f32, Device.gpu]](grad), res_grad
+                )
+        elif tensor_id == 1:
+            comptime if overwrite_grad:
+                gpu_conv2d_kernel_backward[
+                    ug_shape[0], ug_shape[1], ug_shape[2], ug_shape[3],
+                    t2_shape[0], t2_shape[2], t2_shape[3],
+                    t1_shape[2], t1_shape[3],
+                    padding[0], padding[1], stride[0], stride[1],
+                    dilation[0], dilation[1],
+                ](
+                    rebind[Tensor[f32, Device.gpu]](grad),
+                    rebind[Tensor[f32, Device.gpu]](ug),
+                    rebind[Tensor[f32, Device.gpu]](t1),
+                )
+            else:
+                var res_grad = Tensor[f32, Device.gpu](
+                    t2_shape, uninitialized=True
+                )
+                gpu_conv2d_kernel_backward[
+                    ug_shape[0], ug_shape[1], ug_shape[2], ug_shape[3],
+                    t2_shape[0], t2_shape[2], t2_shape[3],
+                    t1_shape[2], t1_shape[3],
+                    padding[0], padding[1], stride[0], stride[1],
+                    dilation[0], dilation[1],
+                ](
+                    res_grad,
+                    rebind[Tensor[f32, Device.gpu]](ug),
+                    rebind[Tensor[f32, Device.gpu]](t1),
+                )
+                gpu_accumulate_grad(
+                    rebind[Tensor[f32, Device.gpu]](grad), res_grad
+                )
+        else:
+            comptime assert tensor_id == 2
+            comptime if overwrite_grad:
+                gpu_conv2d_bias_backward[
+                    ug_shape[0], ug_shape[1], ug_shape[2], ug_shape[3]
+                ](
+                    rebind[Tensor[f32, Device.gpu]](grad),
+                    rebind[Tensor[f32, Device.gpu]](ug),
+                )
+            else:
+                var res_grad = Tensor[f32, Device.gpu](
+                    t3_shape, uninitialized=True
+                )
+                gpu_conv2d_bias_backward[
+                    ug_shape[0], ug_shape[1], ug_shape[2], ug_shape[3]
+                ](res_grad, rebind[Tensor[f32, Device.gpu]](ug))
+                gpu_accumulate_grad(
+                    rebind[Tensor[f32, Device.gpu]](grad), res_grad
+                )
     else:
-        comptime assert False, "backward_op: ternary GPU support is LINEAR-only"
+        comptime assert False, "backward_op: unsupported ternary GPU operator"
 
 
 def _backward_op_cpu[

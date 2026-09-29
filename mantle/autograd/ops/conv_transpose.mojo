@@ -7,7 +7,9 @@
 #  ===----------------------------------------------------------------------=== #
 """ConvTranspose Ops (mantle.autograd.ops.conv_transpose)
 ------------------------------------------------
-2D transposed convolution (CPU only).
+2D transposed convolution. The CPU kernels live here; the GPU path
+(ops.mojo's ternary `forward_op`/`backward_op`) delegates to the same
+`gpu_conv2d_*` kernels `CONV2D` uses, with roles swapped the same way.
 """
 from mantle import f32
 from mantle.core.tensor import Tensor, TensorShape

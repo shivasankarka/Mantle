@@ -1635,6 +1635,64 @@ def gpu_add_bias_forward(
     )
 
 
+def _channel_bias_add_kernel(
+    res: Pointer[Scalar[f32], MutAnyOrigin],
+    a: Pointer[Scalar[f32], MutAnyOrigin],
+    bias: Pointer[Scalar[f32], MutAnyOrigin],
+    channels: Int64,
+    spatial: Int64,
+    total: Int64,
+):
+    """res[i] = a[i] + bias[(i / spatial) % channels], for an NCHW tensor
+    broadcasting a per-channel bias over dim 1."""
+    var i = Int64(block_idx.x * block_dim.x + thread_idx.x)
+    if i < total:
+        var ch = (i // spatial) % channels
+        res.unsafe_store(
+            Int(i), a.unsafe_load(Int(i)) + bias.unsafe_load(Int(ch))
+        )
+
+
+comptime _channel_bias_add_kernel_global = _Global[
+    "mantle_gpu_kernel_channel_bias_add",
+    _make_kernel_fn[_channel_bias_add_kernel],
+]
+
+
+def _cached_channel_bias_add_kernel() raises -> (
+    type_of(
+        _shared_device_context().compile_function[_channel_bias_add_kernel]()
+    )
+):
+    return _channel_bias_add_kernel_global.get_or_create_ptr()[
+        unsafe_offset=0
+    ].copy()
+
+
+def gpu_channel_bias_add_forward[
+    channels: Int, spatial: Int
+](
+    mut res: Tensor[f32, Device.gpu],
+    t1: Tensor[f32, Device.gpu],
+    bias: Tensor[f32, Device.gpu],
+) raises:
+    """Res = t1 + bias, broadcasting a rank-1 `bias` over dim 1 of an NCHW
+    tensor (i.e. every `spatial` contiguous elements share one bias value)."""
+    var ctx = res.gpu_context()
+    var total = res.num_elements()
+    _cached_channel_bias_add_kernel()._call_with_pack_checked(
+        ctx,
+        res.gpu_ptr(),
+        t1.gpu_ptr(),
+        bias.gpu_ptr(),
+        Int64(channels),
+        Int64(spatial),
+        Int64(total),
+        grid_dim=ceildiv(total, _BLOCK),
+        block_dim=min(total, _BLOCK),
+    )
+
+
 def gpu_bias_grad_into(
     mut res_grad: Tensor[f32, Device.gpu], ug: Tensor[f32, Device.gpu]
 ) raises:

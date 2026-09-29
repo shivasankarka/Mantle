@@ -170,7 +170,7 @@ def ConvTranspose2d(
     output_padding: IndexList[2] = IndexList[2](0, 0),
 ) -> Symbol:
     """
-    A 2D transposed convolution layer (CPU only).
+    A 2D transposed convolution layer.
 
     Parameters
         inputs.shape     [batch, in_channels, iX, iY]
