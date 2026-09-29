@@ -17,12 +17,13 @@ from std.collections.optional import Optional
 from std.utils.index import IndexList
 from std.memory import unsafe_memset_zero, unsafe_memcpy, Pointer
 from std.os import abort
-from max.gpu.host import DeviceContext, DeviceBuffer, HostBuffer
+from max.gpu.host import DeviceContext, DeviceBuffer
 from std.ffi import _Global
 
 from std.sys.info import simd_width_of
 
 from mantle.core.device import Device
+from mantle.core.host_buffer import CpuBuffer
 
 comptime MAX_RANK = 8
 """Max rank of a tensor."""
@@ -276,15 +277,15 @@ struct Tensor[dtype: DType, device: Device = Device.cpu](
 
     Parameters:
         dtype: The data type of the tensor elements.
-        device: The device the tensor's data lives on. Storage is a MAX
-            `HostBuffer` (CPU) or `DeviceBuffer` (GPU), each already
-            refcounted by the driver — `Tensor` does no refcounting of its
-            own.
+        device: The device the tensor's data lives on. Storage is a
+            reference-counted `CpuBuffer` (CPU, a plain heap allocation) or
+            a MAX `DeviceBuffer` (GPU, already refcounted by the driver) —
+            `Tensor` does no refcounting of its own.
     """
 
     var _shape: TensorShape
     """The shape of the tensor."""
-    var _host_buffer: Optional[HostBuffer[Self.dtype]]
+    var _host_buffer: Optional[CpuBuffer[Self.dtype]]
     """The CPU data buffer. `None` for GPU tensors."""
     var _device_buffer: Optional[DeviceBuffer[Self.dtype]]
     """The GPU data buffer. `None` for CPU tensors."""
@@ -314,35 +315,41 @@ struct Tensor[dtype: DType, device: Device = Device.cpu](
 
         `uninitialized=True` is only safe when the caller is about to fully
         overwrite every element (e.g. a kernel's or matmul's write-only
-        output) — the zero-fill `enqueue_fill` performs is itself a real
-        GPU kernel launch/memory write, not a free formality, so skipping it
-        for write-only temporaries avoids doing that work twice.
+        output) — on GPU, the zero-fill `enqueue_fill` performs is itself a
+        real kernel launch/memory write, not a free formality, so skipping
+        it for write-only temporaries avoids doing that work twice.
 
         Args:
             shape: The shape of the tensor.
             uninitialized: If True, skip zero-filling the buffer.
+
+        Notes:
+            The CPU branch allocates a plain heap buffer (`CpuBuffer`)
+            directly, without going through `DeviceContext` — that queue-
+            based API is meant for coordinating GPU work and costs a fixed
+            ~40-50us per call regardless of size, which used to dominate
+            every small CPU tensor's allocation cost.
         """
         self._shape = shape
         self._host_buffer = None
         self._device_buffer = None
-        try:
-            var ctx = _shared_device_context()
-            comptime if Self.device.id == Device.cpu.id:
-                var buf = ctx.enqueue_create_host_buffer[Self.dtype](
-                    shape.num_elements()
-                )
-                if not uninitialized:
-                    buf.enqueue_fill(Scalar[Self.dtype](0))
-                self._host_buffer = buf
-            else:
+        comptime if Self.device.id == Device.cpu.id:
+            comptime assert Self.device.id == Device.cpu.id
+            var buf = CpuBuffer[Self.dtype](shape.num_elements())
+            if not uninitialized:
+                unsafe_memset_zero(buf.unsafe_ptr(), shape.num_elements())
+            self._host_buffer = buf^
+        else:
+            try:
+                var ctx = _shared_device_context()
                 var buf = ctx.enqueue_create_buffer[Self.dtype](
                     shape.num_elements()
                 )
                 if not uninitialized:
                     buf.enqueue_fill(Scalar[Self.dtype](0))
                 self._device_buffer = buf
-        except e:
-            abort("Tensor: allocation failed: " + String(e))
+            except e:
+                abort("Tensor: allocation failed: " + String(e))
 
     def __init__(out self, shapes: VariadicList[Int, _]):
         """
@@ -373,7 +380,7 @@ struct Tensor[dtype: DType, device: Device = Device.cpu](
         self = Self(shape)
         if shape.num_elements() > 0:
             unsafe_memcpy(
-                dest=self._host_buffer.value().unsafe_ptr(),
+                dest=self._host_buffer.value().unsafe_mut_ptr(),
                 src=data,
                 count=shape.num_elements(),
             )
@@ -406,8 +413,8 @@ struct Tensor[dtype: DType, device: Device = Device.cpu](
         try:
             comptime if Self.device.id == Device.cpu.id:
                 unsafe_memcpy(
-                    dest=self._host_buffer.value().unsafe_ptr(),
-                    src=copy._host_buffer.value().unsafe_ptr(),
+                    dest=self._host_buffer.value().unsafe_mut_ptr(),
+                    src=copy._host_buffer.value().unsafe_mut_ptr(),
                     count=copy.num_elements(),
                 )
             else:
@@ -440,8 +447,8 @@ struct Tensor[dtype: DType, device: Device = Device.cpu](
         comptime if Self.device.id == Device.cpu.id:
             comptime assert Self.device.id == Device.cpu.id
             unsafe_memcpy(
-                dest=self._host_buffer.value().unsafe_ptr(),
-                src=source._host_buffer.value().unsafe_ptr(),
+                dest=self._host_buffer.value().unsafe_mut_ptr(),
+                src=source._host_buffer.value().unsafe_mut_ptr(),
                 count=self.num_elements(),
             )
         else:
@@ -450,10 +457,10 @@ struct Tensor[dtype: DType, device: Device = Device.cpu](
             src.enqueue_copy_to(self._device_buffer.value())
 
     def __init__(
-        out self, *, var host_buffer: HostBuffer[Self.dtype], shape: TensorShape
+        out self, *, var host_buffer: CpuBuffer[Self.dtype], shape: TensorShape
     ) where Self.device.id == Device.cpu.id:
         """
-        Initialize a CPU tensor by wrapping an existing `HostBuffer`.
+        Initialize a CPU tensor by wrapping an existing `CpuBuffer`.
 
         Args:
             host_buffer: The CPU buffer backing this tensor.
@@ -492,7 +499,7 @@ struct Tensor[dtype: DType, device: Device = Device.cpu](
         comptime if Self.device.id == Device.cpu.id:
             comptime assert Self.device.id == Device.cpu.id
             return Self(
-                host_buffer=self._host_buffer.value().copy(),
+                host_buffer=self._host_buffer.value().share(),
                 shape=self._shape,
             )
         else:
@@ -513,13 +520,13 @@ struct Tensor[dtype: DType, device: Device = Device.cpu](
         comptime if Self.device.id == Device.cpu.id:
             comptime assert Self.device.id == Device.cpu.id
             unsafe_memcpy(
-                dest=out._host_buffer.value().unsafe_ptr(),
-                src=self._host_buffer.value().unsafe_ptr(),
+                dest=out._host_buffer.value().unsafe_mut_ptr(),
+                src=self._host_buffer.value().unsafe_mut_ptr(),
                 count=self.num_elements(),
             )
         else:
             var buf = self._device_buffer.value()
-            buf.enqueue_copy_to(out._host_buffer.value())
+            buf.enqueue_copy_to(out._host_buffer.value().unsafe_mut_ptr())
             buf.context().synchronize()
         return out^
 
@@ -534,7 +541,7 @@ struct Tensor[dtype: DType, device: Device = Device.cpu](
         comptime if Self.device.id == Device.cpu.id:
             comptime assert Self.device.id == Device.cpu.id
             var buf = out._device_buffer.value()
-            buf.enqueue_copy_from(self._host_buffer.value())
+            buf.enqueue_copy_from(self._host_buffer.value().unsafe_mut_ptr())
             buf.context().synchronize()
         else:
             var src = self._device_buffer.value()
@@ -555,7 +562,9 @@ struct Tensor[dtype: DType, device: Device = Device.cpu](
         Returns:
             The element at the given index.
         """
-        return self._host_buffer.value()[index]
+        return self._host_buffer.value().unsafe_mut_ptr()[
+            unsafe_offset=index
+        ]
 
     @always_inline("nodebug")
     def __setitem__(
@@ -568,7 +577,9 @@ struct Tensor[dtype: DType, device: Device = Device.cpu](
             index: The flat index into the tensor data.
             value: The value to set.
         """
-        self._host_buffer.value()[index] = value
+        self._host_buffer.value().unsafe_mut_ptr()[
+            unsafe_offset=index
+        ] = value
 
     @always_inline("nodebug")
     def ptr[
@@ -621,7 +632,7 @@ struct Tensor[dtype: DType, device: Device = Device.cpu](
         """
         return (
             self._host_buffer.value()
-            .unsafe_ptr()
+            .unsafe_mut_ptr()
             .unsafe_load[width=simd_width](index)
         )
 
@@ -641,7 +652,7 @@ struct Tensor[dtype: DType, device: Device = Device.cpu](
             index: The flat index to store at.
             value: The SIMD vector to store.
         """
-        self._host_buffer.value().unsafe_ptr().unsafe_store(index, value)
+        self._host_buffer.value().unsafe_mut_ptr().unsafe_store(index, value)
 
     @always_inline("nodebug")
     def strides(self) -> IndexList[MAX_RANK]:
@@ -684,7 +695,7 @@ struct Tensor[dtype: DType, device: Device = Device.cpu](
     def zero(self) where Self.device.id == Device.cpu.id:
         """Set all elements to zero."""
         unsafe_memset_zero(
-            self._host_buffer.value().unsafe_ptr(), self.num_elements()
+            self._host_buffer.value().unsafe_mut_ptr(), self.num_elements()
         )
 
     @always_inline("nodebug")
