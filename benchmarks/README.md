@@ -1,10 +1,15 @@
 # Training benchmark suite
 
-This suite regenerates the Housing / sine / MNIST small–medium–large chart
-with matched Mantle and PyTorch CPU workloads. Every sample is 100 training
-steps after five warm-up steps; a step includes forward, MSE backward, and
-Adam. Inputs are intentionally synthetic and resident in memory, so dataset
-loading and language-specific data-loader overhead do not affect the result.
+This suite regenerates the Housing / sine / MNIST chart with matched Mantle
+and PyTorch CPU workloads. Every sample is 100 training steps after five
+warm-up steps; a step includes forward, loss backward, and Adam. Inputs are
+intentionally synthetic and resident in memory, so dataset loading and
+language-specific data-loader overhead do not affect the result.
+
+Case sizes mirror the actual examples rather than an arbitrary sweep:
+housing and mnist each have one case matching their example's fixed
+architecture (~14 and ~29k parameters), while sin_estimate's architecture is
+reused at three widths to cover ~1k / ~20k / ~350k parameters.
 
 Run current Mantle and PyTorch from the project root:
 
