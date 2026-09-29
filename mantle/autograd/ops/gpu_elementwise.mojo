@@ -1321,6 +1321,52 @@ def _cached_mean_bw_kernel() raises -> (
     return _mean_bw_kernel_global.get_or_create_ptr()[unsafe_offset=0].copy()
 
 
+def _sum_kernel(
+    res: Pointer[Scalar[f32], MutAnyOrigin],
+    a: Pointer[Scalar[f32], MutAnyOrigin],
+    n: Int64,
+):
+    """Single-thread full reduction, same shape as `_mean_kernel` but
+    without the final divide-by-n — see its docstring for the scale this is
+    meant for."""
+    var s: Scalar[f32] = 0
+    for i in range(Int(n)):
+        s += a.unsafe_load(i)
+    res.unsafe_store(0, s)
+
+
+comptime _sum_kernel_global = _Global[
+    "mantle_gpu_kernel_sum", _make_kernel_fn[_sum_kernel]
+]
+
+
+def _cached_sum_kernel() raises -> (
+    type_of(_shared_device_context().compile_function[_sum_kernel]())
+):
+    return _sum_kernel_global.get_or_create_ptr()[unsafe_offset=0].copy()
+
+
+def _sum_bw_kernel(
+    res: Pointer[Scalar[f32], MutAnyOrigin],
+    ug: Pointer[Scalar[f32], MutAnyOrigin],
+    n: Int64,
+):
+    var i = Int64(block_idx.x * block_dim.x + thread_idx.x)
+    if i < n:
+        res.unsafe_store(Int(i), ug.unsafe_load(0))
+
+
+comptime _sum_bw_kernel_global = _Global[
+    "mantle_gpu_kernel_sum_bw", _make_kernel_fn[_sum_bw_kernel]
+]
+
+
+def _cached_sum_bw_kernel() raises -> (
+    type_of(_shared_device_context().compile_function[_sum_bw_kernel]())
+):
+    return _sum_bw_kernel_global.get_or_create_ptr()[unsafe_offset=0].copy()
+
+
 def gpu_pow_forward(
     mut res: Tensor[f32, Device.gpu],
     t1: Tensor[f32, Device.gpu],
@@ -1527,6 +1573,44 @@ def gpu_mean_backward(
 ) raises -> Tensor[f32, Device.gpu]:
     var res_grad = Tensor[f32, Device.gpu](t_shape, uninitialized=True)
     gpu_mean_backward_into(res_grad, ug)
+    return res_grad^
+
+
+def gpu_sum_forward(
+    mut res: Tensor[f32, Device.gpu], t1: Tensor[f32, Device.gpu]
+) raises:
+    var ctx = res.gpu_context()
+    var n = t1.num_elements()
+    _cached_sum_kernel()._call_with_pack_checked(
+        ctx,
+        res.gpu_ptr(),
+        t1.gpu_ptr(),
+        Int64(n),
+        grid_dim=1,
+        block_dim=1,
+    )
+
+
+def gpu_sum_backward_into(
+    mut grad: Tensor[f32, Device.gpu], ug: Tensor[f32, Device.gpu]
+) raises:
+    var ctx = grad.gpu_context()
+    var n = grad.num_elements()
+    _cached_sum_bw_kernel()._call_with_pack_checked(
+        ctx,
+        grad.gpu_ptr(),
+        ug.gpu_ptr(),
+        Int64(n),
+        grid_dim=ceildiv(n, _BLOCK),
+        block_dim=min(n, _BLOCK),
+    )
+
+
+def gpu_sum_backward(
+    ug: Tensor[f32, Device.gpu], t_shape: TensorShape
+) raises -> Tensor[f32, Device.gpu]:
+    var res_grad = Tensor[f32, Device.gpu](t_shape, uninitialized=True)
+    gpu_sum_backward_into(res_grad, ug)
     return res_grad^
 
 

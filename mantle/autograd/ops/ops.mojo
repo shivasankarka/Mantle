@@ -105,6 +105,9 @@ from .gpu_elementwise import (
     gpu_mean_forward,
     gpu_mean_backward,
     gpu_mean_backward_into,
+    gpu_sum_forward,
+    gpu_sum_backward,
+    gpu_sum_backward_into,
     gpu_reduce_last_forward,
     gpu_reduce_last_backward,
     gpu_reduce_last_backward_into,
@@ -642,6 +645,11 @@ def forward_op[
         )
     elif op == OP.MEAN and not attributes["axis"]:
         gpu_mean_forward(
+            rebind[Tensor[f32, Device.gpu]](res),
+            rebind[Tensor[f32, Device.gpu]](t1),
+        )
+    elif op == OP.SUM and not attributes["axis"]:
+        gpu_sum_forward(
             rebind[Tensor[f32, Device.gpu]](res),
             rebind[Tensor[f32, Device.gpu]](t1),
         )
@@ -1309,6 +1317,17 @@ def backward_op[
             )
         else:
             var res_grad = gpu_mean_backward(
+                rebind[Tensor[f32, Device.gpu]](ug), t1_shape
+            )
+            gpu_accumulate_grad(rebind[Tensor[f32, Device.gpu]](grad), res_grad)
+    elif op == OP.SUM and not attributes["axis"]:
+        comptime if overwrite_grad:
+            gpu_sum_backward_into(
+                rebind[Tensor[f32, Device.gpu]](grad),
+                rebind[Tensor[f32, Device.gpu]](ug),
+            )
+        else:
+            var res_grad = gpu_sum_backward(
                 rebind[Tensor[f32, Device.gpu]](ug), t1_shape
             )
             gpu_accumulate_grad(rebind[Tensor[f32, Device.gpu]](grad), res_grad)
