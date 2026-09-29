@@ -1138,17 +1138,20 @@ def forward_op[
     inputs: List[Symbol],
     outputs: List[Symbol],
     mut parameters: Parameters[device],
-):
+) raises:
     """
-    Forward pass for dynamic operators (CPU-only; CONCAT/SPLIT are out of
-    scope for the GPU port).
+    Forward pass for dynamic operators, dispatching by device.
     """
-    comptime assert (
-        device.id == Device.cpu.id
-    ), "forward_op: dynamic operators (CONCAT/SPLIT) are CPU-only"
-    _forward_op_cpu[op, attributes](
-        inputs, outputs, rebind[Parameters[Device.cpu]](parameters)
-    )
+    comptime if device.id == Device.cpu.id:
+        _forward_op_cpu[op, attributes](
+            inputs, outputs, rebind[Parameters[Device.cpu]](parameters)
+        )
+    elif op == OP.CONCAT:
+        CONCAT.forward[attributes, device](inputs, outputs, parameters)
+    elif op == OP.SPLIT:
+        SPLIT.forward[attributes, device](inputs, outputs, parameters)
+    else:
+        comptime assert False, "forward_op: unsupported dynamic GPU operator"
 
 
 def _forward_op_cpu[
@@ -1158,7 +1161,7 @@ def _forward_op_cpu[
     inputs: List[Symbol],
     outputs: List[Symbol],
     mut parameters: Parameters[Device.cpu],
-):
+) raises:
     """
     Forward pass for dynamic operators (CPU implementation).
     """
@@ -2435,20 +2438,38 @@ def backward_op[
     outputs: List[Symbol],
     mut grad: Tensor[f32, device],
     mut parameters: Parameters[device],
-):
+) raises:
     """
-    Backward pass for dynamic operators (CPU-only; CONCAT/SPLIT are out of
-    scope for the GPU port).
+    Backward pass for dynamic operators, dispatching by device.
     """
-    comptime assert (
-        device.id == Device.cpu.id
-    ), "backward_op: dynamic operators (CONCAT/SPLIT) are CPU-only"
-    _backward_op_cpu[input_id, op, attributes](
-        inputs,
-        outputs,
-        rebind[Tensor[f32, Device.cpu]](grad),
-        rebind[Parameters[Device.cpu]](parameters),
-    )
+    comptime if device.id == Device.cpu.id:
+        _backward_op_cpu[input_id, op, attributes](
+            inputs,
+            outputs,
+            rebind[Tensor[f32, Device.cpu]](grad),
+            rebind[Parameters[Device.cpu]](parameters),
+        )
+    else:
+        comptime if op == OP.CONCAT:
+            var res_grad = CONCAT.backward[input_id, attributes, device](
+                inputs, outputs, parameters
+            )
+            gpu_accumulate_grad(
+                rebind[Tensor[f32, Device.gpu]](grad),
+                rebind[Tensor[f32, Device.gpu]](res_grad),
+            )
+        elif op == OP.SPLIT:
+            var res_grad = SPLIT.backward[input_id, attributes, device](
+                inputs, outputs, parameters
+            )
+            gpu_accumulate_grad(
+                rebind[Tensor[f32, Device.gpu]](grad),
+                rebind[Tensor[f32, Device.gpu]](res_grad),
+            )
+        else:
+            comptime assert False, (
+                "backward_op: unsupported dynamic GPU operator"
+            )
 
 
 def _backward_op_cpu[
@@ -2460,7 +2481,7 @@ def _backward_op_cpu[
     outputs: List[Symbol],
     mut grad: Tensor[f32],
     mut parameters: Parameters[Device.cpu],
-):
+) raises:
     """
     Backward pass for dynamic operators (CPU implementation).
     """

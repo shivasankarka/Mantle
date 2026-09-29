@@ -1614,6 +1614,74 @@ def gpu_sum_backward(
     return res_grad^
 
 
+def _strided_block_copy_kernel(
+    dst: Pointer[Scalar[f32], MutAnyOrigin],
+    src: Pointer[Scalar[f32], MutAnyOrigin],
+    count: Int64,
+    src_chunk_stride: Int64,
+    dst_chunk_stride: Int64,
+    src_offset: Int64,
+    dst_offset: Int64,
+    total: Int64,
+):
+    """dst[dst_offset + c*dst_chunk_stride + e] = src[src_offset +
+    c*src_chunk_stride + e], for c in [0, total/count) and e in [0, count) —
+    the CONCAT/SPLIT chunked copy pattern (see dynamics.mojo), done as one
+    kernel launch instead of `total/count` separate device memcpys."""
+    var i = Int64(block_idx.x * block_dim.x + thread_idx.x)
+    if i < total:
+        var c = i // count
+        var e = i % count
+        var src_idx = src_offset + c * src_chunk_stride + e
+        var dst_idx = dst_offset + c * dst_chunk_stride + e
+        dst.unsafe_store(Int(dst_idx), src.unsafe_load(Int(src_idx)))
+
+
+comptime _strided_block_copy_kernel_global = _Global[
+    "mantle_gpu_kernel_strided_block_copy",
+    _make_kernel_fn[_strided_block_copy_kernel],
+]
+
+
+def _cached_strided_block_copy_kernel() raises -> (
+    type_of(
+        _shared_device_context().compile_function[
+            _strided_block_copy_kernel
+        ]()
+    )
+):
+    return _strided_block_copy_kernel_global.get_or_create_ptr()[
+        unsafe_offset=0
+    ].copy()
+
+
+def gpu_strided_block_copy(
+    mut dst: Tensor[f32, Device.gpu],
+    src: Tensor[f32, Device.gpu],
+    n_chunks: Int,
+    count: Int,
+    src_chunk_stride: Int,
+    dst_chunk_stride: Int,
+    src_offset: Int,
+    dst_offset: Int,
+) raises:
+    var ctx = dst.gpu_context()
+    var total = n_chunks * count
+    _cached_strided_block_copy_kernel()._call_with_pack_checked(
+        ctx,
+        dst.gpu_ptr(),
+        src.gpu_ptr(),
+        Int64(count),
+        Int64(src_chunk_stride),
+        Int64(dst_chunk_stride),
+        Int64(src_offset),
+        Int64(dst_offset),
+        Int64(total),
+        grid_dim=ceildiv(total, _BLOCK),
+        block_dim=min(total, _BLOCK),
+    )
+
+
 def gpu_add_bias_forward(
     mut res: Tensor[f32, Device.gpu],
     t1: Tensor[f32, Device.gpu],

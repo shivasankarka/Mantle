@@ -15,6 +15,7 @@ from mantle.core.tensor import Tensor, TensorShape
 from mantle.core.device import Device
 from mantle.nn.parameters import Parameters
 from mantle.autograd.attributes import AttributeVector
+from .gpu_elementwise import gpu_strided_block_copy
 
 from std.memory import unsafe_memcpy
 
@@ -52,8 +53,12 @@ struct CONCAT:
 
     @staticmethod
     def forward[
-        attributes: AttributeVector
-    ](inputs: List[Symbol], outputs: List[Symbol], mut parameters: Parameters[Device.cpu],):
+        attributes: AttributeVector, device: Device = Device.cpu
+    ](
+        inputs: List[Symbol],
+        outputs: List[Symbol],
+        mut parameters: Parameters[device],
+    ) raises:
         comptime dim = attributes["dim"].value().to_int() if attributes[
             "dim"
         ] else 0
@@ -65,26 +70,49 @@ struct CONCAT:
             chunks.append(inputs[i].shape.num_elements() // n_chunks)
             chunk_offsets.append(chunk_offsets[i] + chunks[i])
 
-        var out_tensor = parameters.tensors[outputs[0]]
-        for i in range(n_chunks):
+        comptime if device.id == Device.cpu.id:
+            var out_tensor = rebind[Parameters[Device.cpu]](
+                parameters
+            ).tensors[outputs[0]]
+            for i in range(n_chunks):
+                for j in range(len(inputs)):
+                    var in_tensor = rebind[Parameters[Device.cpu]](
+                        parameters
+                    ).tensors[inputs[j]]
+                    unsafe_memcpy(
+                        dest=out_tensor.ptr().unsafe_offset(
+                            i * chunk_offsets[len(inputs)] + chunk_offsets[j]
+                        ),
+                        src=in_tensor.ptr().unsafe_offset(i * chunks[j]),
+                        count=chunks[j],
+                    )
+        else:
+            var out_tensor = rebind[Parameters[Device.gpu]](
+                parameters
+            ).tensors[outputs[0]]
             for j in range(len(inputs)):
-                var in_tensor = parameters.tensors[inputs[j]]
-                unsafe_memcpy(
-                    dest=out_tensor.ptr().unsafe_offset(
-                        i * chunk_offsets[len(inputs)] + chunk_offsets[j]
-                    ),
-                    src=in_tensor.ptr().unsafe_offset(i * chunks[j]),
+                var in_tensor = rebind[Parameters[Device.gpu]](
+                    parameters
+                ).tensors[inputs[j]]
+                gpu_strided_block_copy(
+                    out_tensor,
+                    in_tensor,
+                    n_chunks=n_chunks,
                     count=chunks[j],
+                    src_chunk_stride=chunks[j],
+                    dst_chunk_stride=chunk_offsets[len(inputs)],
+                    src_offset=0,
+                    dst_offset=chunk_offsets[j],
                 )
 
     @staticmethod
     def backward[
-        input_id: Int, attributes: AttributeVector
+        input_id: Int, attributes: AttributeVector, device: Device = Device.cpu
     ](
         inputs: List[Symbol],
         outputs: List[Symbol],
-        mut parameters: Parameters[Device.cpu],
-    ) -> Tensor[f32]:
+        mut parameters: Parameters[device],
+    ) raises -> Tensor[f32, device]:
         comptime dim = attributes["dim"].value().to_int() if attributes[
             "dim"
         ] else 0
@@ -96,15 +124,35 @@ struct CONCAT:
             chunks.append(inputs[i].shape.num_elements() // n_chunks)
             chunk_offsets.append(chunk_offsets[i] + chunks[i])
 
-        var res_grad = Tensor[f32](inputs[input_id].shape)
-        var out_grad = parameters.grads[outputs[0]]
-        for i in range(n_chunks):
-            unsafe_memcpy(
-                dest=res_grad.ptr().unsafe_offset(i * chunks[input_id]),
-                src=out_grad.ptr().unsafe_offset(
-                    i * chunk_offsets[len(inputs)] + chunk_offsets[input_id]
-                ),
+        var res_grad = Tensor[f32, device](inputs[input_id].shape)
+        comptime if device.id == Device.cpu.id:
+            var out_grad = rebind[Parameters[Device.cpu]](parameters).grads[
+                outputs[0]
+            ]
+            for i in range(n_chunks):
+                unsafe_memcpy(
+                    dest=rebind[Tensor[f32, Device.cpu]](
+                        res_grad
+                    ).ptr().unsafe_offset(i * chunks[input_id]),
+                    src=out_grad.ptr().unsafe_offset(
+                        i * chunk_offsets[len(inputs)]
+                        + chunk_offsets[input_id]
+                    ),
+                    count=chunks[input_id],
+                )
+        else:
+            var out_grad = rebind[Parameters[Device.gpu]](parameters).grads[
+                outputs[0]
+            ]
+            gpu_strided_block_copy(
+                rebind[Tensor[f32, Device.gpu]](res_grad),
+                out_grad,
+                n_chunks=n_chunks,
                 count=chunks[input_id],
+                src_chunk_stride=chunk_offsets[len(inputs)],
+                dst_chunk_stride=chunks[input_id],
+                src_offset=chunk_offsets[input_id],
+                dst_offset=0,
             )
 
         return res_grad^
@@ -139,8 +187,12 @@ struct SPLIT:
 
     @staticmethod
     def forward[
-        attributes: AttributeVector
-    ](inputs: List[Symbol], outputs: List[Symbol], mut parameters: Parameters[Device.cpu],):
+        attributes: AttributeVector, device: Device = Device.cpu
+    ](
+        inputs: List[Symbol],
+        outputs: List[Symbol],
+        mut parameters: Parameters[device],
+    ) raises:
         comptime dim = attributes["dim"].value().to_int() if attributes[
             "dim"
         ] else 0
@@ -153,26 +205,49 @@ struct SPLIT:
             chunks.append(outputs[i].shape.num_elements() // n_chunks)
             chunk_offsets.append(chunk_offsets[i] + chunks[i])
 
-        var in_tensor = parameters.tensors[inputs[0]]
-        for i in range(n_chunks):
+        comptime if device.id == Device.cpu.id:
+            var in_tensor = rebind[Parameters[Device.cpu]](
+                parameters
+            ).tensors[inputs[0]]
+            for i in range(n_chunks):
+                for j in range(len(outputs)):
+                    var out_tensor = rebind[Parameters[Device.cpu]](
+                        parameters
+                    ).tensors[outputs[j]]
+                    unsafe_memcpy(
+                        dest=out_tensor.ptr().unsafe_offset(i * chunks[j]),
+                        src=in_tensor.ptr().unsafe_offset(
+                            i * chunk_offsets[len(outputs)] + chunk_offsets[j]
+                        ),
+                        count=chunks[j],
+                    )
+        else:
+            var in_tensor = rebind[Parameters[Device.gpu]](
+                parameters
+            ).tensors[inputs[0]]
             for j in range(len(outputs)):
-                var out_tensor = parameters.tensors[outputs[j]]
-                unsafe_memcpy(
-                    dest=out_tensor.ptr().unsafe_offset(i * chunks[j]),
-                    src=in_tensor.ptr().unsafe_offset(
-                        i * chunk_offsets[len(outputs)] + chunk_offsets[j]
-                    ),
+                var out_tensor = rebind[Parameters[Device.gpu]](
+                    parameters
+                ).tensors[outputs[j]]
+                gpu_strided_block_copy(
+                    out_tensor,
+                    in_tensor,
+                    n_chunks=n_chunks,
                     count=chunks[j],
+                    src_chunk_stride=chunk_offsets[len(outputs)],
+                    dst_chunk_stride=chunks[j],
+                    src_offset=chunk_offsets[j],
+                    dst_offset=0,
                 )
 
     @staticmethod
     def backward[
-        input_id: Int, attributes: AttributeVector
+        input_id: Int, attributes: AttributeVector, device: Device = Device.cpu
     ](
         inputs: List[Symbol],
         outputs: List[Symbol],
-        mut parameters: Parameters[Device.cpu],
-    ) -> Tensor[f32]:
+        mut parameters: Parameters[device],
+    ) raises -> Tensor[f32, device]:
         comptime dim = attributes["dim"].value().to_int() if attributes[
             "dim"
         ] else 0
@@ -185,17 +260,37 @@ struct SPLIT:
             chunks.append(outputs[i].shape.num_elements() // n_chunks)
             chunk_offsets.append(chunk_offsets[i] + chunks[i])
 
-        var res_grad = Tensor[f32](inputs[input_id].shape)
+        var res_grad = Tensor[f32, device](inputs[input_id].shape)
 
-        for i in range(n_chunks):
+        comptime if device.id == Device.cpu.id:
+            for i in range(n_chunks):
+                for j in range(len(outputs)):
+                    var out_grad = rebind[Parameters[Device.cpu]](
+                        parameters
+                    ).grads[outputs[j]]
+                    unsafe_memcpy(
+                        dest=rebind[Tensor[f32, Device.cpu]](
+                            res_grad
+                        ).ptr().unsafe_offset(
+                            i * chunk_offsets[len(outputs)] + chunk_offsets[j]
+                        ),
+                        src=out_grad.ptr().unsafe_offset(i * chunks[j]),
+                        count=chunks[j],
+                    )
+        else:
             for j in range(len(outputs)):
-                var out_grad = parameters.grads[outputs[j]]
-                unsafe_memcpy(
-                    dest=res_grad.ptr().unsafe_offset(
-                        i * chunk_offsets[len(outputs)] + chunk_offsets[j]
-                    ),
-                    src=out_grad.ptr().unsafe_offset(i * chunks[j]),
+                var out_grad = rebind[Parameters[Device.gpu]](
+                    parameters
+                ).grads[outputs[j]]
+                gpu_strided_block_copy(
+                    rebind[Tensor[f32, Device.gpu]](res_grad),
+                    out_grad,
+                    n_chunks=n_chunks,
                     count=chunks[j],
+                    src_chunk_stride=chunks[j],
+                    dst_chunk_stride=chunk_offsets[len(outputs)],
+                    src_offset=0,
+                    dst_offset=chunk_offsets[j],
                 )
 
         return res_grad^
