@@ -8,18 +8,11 @@
 """GPU matmul (mantle.autograd.ops.gpu_matmul)
 ------------------------------------------------
 Rank-2 matmul + transpose variants for DOT forward/backward, via MAX's own
-`linalg.matmul` (TileTensor-based, not the `max.kernels.*` namespace —
-that's internal-only and not importable from this distribution).
+`linalg.matmul` (TileTensor-based).
 
-`matmul`'s `transpose_a` parameter is unsupported (per its own docstring),
-and a `.transpose()` *view* passed as the `a` operand is silently wrong
-whenever the output has a single column (N=1, likely a GEMV dispatch that
-ignores the transposed strides) — confirmed on both `target="cpu"` and
-`target="gpu"`. `transpose_b` (a real view on `b`) is fine at every shape
-tested, including the analogous thin case. So `gpu_matmul_at` (needs
-`a^T`) materializes the transpose with a small copy kernel first, then
-calls `matmul` untransposed; `gpu_matmul_bt` (needs `b^T`) uses
-`.transpose()` directly.
+Notes:
+    `gpu_matmul_at` materializes a^T with a copy kernel before matmul;
+    `gpu_matmul_bt` uses `.transpose()` directly on b.
 """
 from std.math import ceildiv
 from max.gpu import thread_idx, block_idx, block_dim
@@ -43,9 +36,7 @@ def _make_kernel_fn[
     //,
     func: def(* args: * declared_arg_types) thin -> None,
 ]() -> type_of(_shared_device_context().compile_function[func]()):
-    """Caches a kernel's compiled `DeviceFunction` (same rationale as
-    `_shared_device_context` caching the `DeviceContext` itself — see
-    `gpu_elementwise.mojo`)."""
+    """Compile and cache a kernel's `DeviceFunction`."""
     try:
         return _shared_device_context().compile_function[func]()
     except e:
@@ -340,10 +331,6 @@ def gpu_matmul_at[
     matmul[target="gpu"](res_tt, a_tt.transpose(), b_tt, ctx)
 
 
-# Attention uses independent matrices in contiguous `(B,H,*,*)` slices. MAX's
-# public matmul API is rank-2, so submit one ordered device matmul per slice;
-# all operands remain on the GPU and no host staging occurs. A true batched
-# MAX matmul layout can replace this dispatcher later without changing ops.
 def gpu_batched_matmul[
     batches: Int, m: Int, k: Int, n: Int
 ](
@@ -351,6 +338,12 @@ def gpu_batched_matmul[
     a: Tensor[f32, Device.gpu],
     b: Tensor[f32, Device.gpu],
 ) raises:
+    """Per-batch `a[m,k] @ b[k,n]`.
+
+    Notes:
+        Submits one ordered device matmul per contiguous `(B,H,*,*)` slice;
+        all operands remain on GPU with no host staging.
+    """
     var ctx = res.gpu_context()
     var res_ptr = res.gpu_ptr().unsafe_origin_cast[MutAnyOrigin]()
     var a_ptr = a.gpu_ptr().unsafe_origin_cast[MutAnyOrigin]()

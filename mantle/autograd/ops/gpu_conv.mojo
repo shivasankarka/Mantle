@@ -389,17 +389,18 @@ def gpu_conv2d_forward_direct[
     )
 
 
-def _im2col_kernel(
+def _im2col_kernel[
+    channels: Int,
+    in_h: Int,
+    in_w: Int,
+    out_h: Int,
+    out_w: Int,
+    kh: Int,
+    kw: Int,
+](
     col: Pointer[Scalar[f32], MutAnyOrigin],
     inputs: Pointer[Scalar[f32], MutAnyOrigin],
     rows: Int64,
-    channels: Int64,
-    in_h: Int64,
-    in_w: Int64,
-    out_h: Int64,
-    out_w: Int64,
-    kh: Int64,
-    kw: Int64,
     pad_h: Int64,
     pad_w: Int64,
     stride_h: Int64,
@@ -407,41 +408,193 @@ def _im2col_kernel(
     dilation_h: Int64,
     dilation_w: Int64,
 ):
+    """Converts input to column matrix (im2col) for efficient convolution."""
+    # `channels`/`in_h`/`in_w`/`out_h`/`out_w`/`kh`/`kw` are compile-time
+    # parameters so every divisor below is a compile-time constant, far
+    # cheaper on GPU than runtime division.
+    comptime channels64 = Int64(channels)
+    comptime in_h64 = Int64(in_h)
+    comptime in_w64 = Int64(in_w)
+    comptime out_w64 = Int64(out_w)
+    comptime kh64 = Int64(kh)
+    comptime kw64 = Int64(kw)
+    comptime kernel_values = channels64 * kh64 * kw64
+    comptime spatial = Int64(out_h * out_w)
+
     var i = Int64(block_idx.x * block_dim.x + thread_idx.x)
-    var kernel_values = channels * kh * kw
     if i < rows * kernel_values:
         var row = i // kernel_values
         var feature = i % kernel_values
-        var batch = row // (out_h * out_w)
-        var position = row % (out_h * out_w)
-        var oy = position % out_w
-        var ox = position // out_w
-        var channel = feature // (kh * kw)
-        var kernel_pos = feature % (kh * kw)
-        var ky = kernel_pos % kw
-        var kx = kernel_pos // kw
+        var batch = row // spatial
+        var position = row % spatial
+        var oy = position % out_w64
+        var ox = position // out_w64
+        var channel = feature // (kh64 * kw64)
+        var kernel_pos = feature % (kh64 * kw64)
+        var ky = kernel_pos % kw64
+        var kx = kernel_pos // kw64
         var iy = ox * stride_h - pad_h + kx * dilation_h
         var ix = oy * stride_w - pad_w + ky * dilation_w
-        if iy >= 0 and ix >= 0 and iy < in_h and ix < in_w:
+        if iy >= 0 and ix >= 0 and iy < in_h64 and ix < in_w64:
             col.unsafe_store(
                 Int(i),
                 inputs.unsafe_load(
-                    Int(((batch * channels + channel) * in_h + iy) * in_w + ix)
+                    Int(
+                        ((batch * channels64 + channel) * in_h64 + iy)
+                        * in_w64
+                        + ix
+                    )
                 ),
             )
         else:
             col.unsafe_store(Int(i), 0.0)
 
 
-comptime _im2col_kernel_global = _Global[
-    "mantle_gpu_kernel_im2col", _make_kernel_fn[_im2col_kernel]
-]
-
-
-def _cached_im2col_kernel() raises -> (
-    type_of(_shared_device_context().compile_function[_im2col_kernel]())
+def _cached_im2col_kernel[
+    channels: Int,
+    in_h: Int,
+    in_w: Int,
+    out_h: Int,
+    out_w: Int,
+    kh: Int,
+    kw: Int,
+]() raises -> type_of(
+    _shared_device_context().compile_function[
+        _im2col_kernel[channels, in_h, in_w, out_h, out_w, kh, kw]
+    ]()
 ):
-    return _im2col_kernel_global.get_or_create_ptr()[unsafe_offset=0].copy()
+    comptime name = (
+        "mantle_gpu_kernel_im2col_"
+        + String(channels)
+        + "_"
+        + String(in_h)
+        + "_"
+        + String(in_w)
+        + "_"
+        + String(out_h)
+        + "_"
+        + String(out_w)
+        + "_"
+        + String(kh)
+        + "_"
+        + String(kw)
+    )
+    comptime global_ = _Global[
+        name,
+        _make_kernel_fn[
+            _im2col_kernel[channels, in_h, in_w, out_h, out_w, kh, kw]
+        ],
+    ]
+    return global_.get_or_create_ptr()[unsafe_offset=0].copy()
+
+
+comptime _MAX_THREADS_PER_BLOCK = 1024
+
+
+def _im2col_kernel_fast[
+    channels: Int,
+    in_h: Int,
+    in_w: Int,
+    out_h: Int,
+    out_w: Int,
+    kh: Int,
+    kw: Int,
+](
+    col: Pointer[Scalar[f32], MutAnyOrigin],
+    inputs: Pointer[Scalar[f32], MutAnyOrigin],
+    pad_h: Int64,
+    pad_w: Int64,
+    stride_h: Int64,
+    stride_w: Int64,
+    dilation_h: Int64,
+    dilation_w: Int64,
+):
+    """Same job as `_im2col_kernel`, but `(batch, ox, oy)` come straight from
+    the grid index and `(channel, kx, ky)` straight from the block index
+    (one block per output position, one thread per kernel tap), instead of
+    decoding a flat thread id with division/modulo.
+
+    Notes:
+        Grid/block indices are hardware registers, not computed values, so
+        this removes every division from the per-thread work. It also makes
+        `ky` (the fastest-varying thread axis) walk contiguous input
+        addresses when `dilation_w == 1`, for coalesced loads.
+
+        Requires `channels * kh * kw <= _MAX_THREADS_PER_BLOCK` (one thread
+        per kernel tap per block); callers fall back to `_im2col_kernel`
+        above when that doesn't hold.
+    """
+    comptime channels64 = Int64(channels)
+    comptime in_h64 = Int64(in_h)
+    comptime in_w64 = Int64(in_w)
+    comptime out_h64 = Int64(out_h)
+    comptime out_w64 = Int64(out_w)
+    comptime kh64 = Int64(kh)
+    comptime kw64 = Int64(kw)
+    comptime kernel_values = channels64 * kh64 * kw64
+
+    var oy = Int64(block_idx.x)
+    var ox = Int64(block_idx.y)
+    var batch = Int64(block_idx.z)
+    var ky = Int64(thread_idx.x)
+    var kx = Int64(thread_idx.y)
+    var channel = Int64(thread_idx.z)
+
+    var iy = ox * stride_h - pad_h + kx * dilation_h
+    var ix = oy * stride_w - pad_w + ky * dilation_w
+    var row = (batch * out_h64 + ox) * out_w64 + oy
+    var feature = (channel * kh64 + kx) * kw64 + ky
+    var i = row * kernel_values + feature
+    if iy >= 0 and ix >= 0 and iy < in_h64 and ix < in_w64:
+        col.unsafe_store(
+            Int(i),
+            inputs.unsafe_load(
+                Int(
+                    ((batch * channels64 + channel) * in_h64 + iy) * in_w64
+                    + ix
+                )
+            ),
+        )
+    else:
+        col.unsafe_store(Int(i), 0.0)
+
+
+def _cached_im2col_kernel_fast[
+    channels: Int,
+    in_h: Int,
+    in_w: Int,
+    out_h: Int,
+    out_w: Int,
+    kh: Int,
+    kw: Int,
+]() raises -> type_of(
+    _shared_device_context().compile_function[
+        _im2col_kernel_fast[channels, in_h, in_w, out_h, out_w, kh, kw]
+    ]()
+):
+    comptime name = (
+        "mantle_gpu_kernel_im2col_fast_"
+        + String(channels)
+        + "_"
+        + String(in_h)
+        + "_"
+        + String(in_w)
+        + "_"
+        + String(out_h)
+        + "_"
+        + String(out_w)
+        + "_"
+        + String(kh)
+        + "_"
+        + String(kw)
+    )
+    comptime global_ = _Global[
+        name,
+        _make_kernel_fn[
+            _im2col_kernel_fast[channels, in_h, in_w, out_h, out_w, kh, kw]
+        ],
+    ]
+    return global_.get_or_create_ptr()[unsafe_offset=0].copy()
 
 
 def _nchw_from_spatial_kernel[
@@ -529,27 +682,39 @@ def gpu_conv2d_forward_native[
         TensorShape(rows, out_channels), uninitialized=True
     )
     var ctx = output.gpu_context()
-    _cached_im2col_kernel()._call_with_pack_checked(
-        ctx,
-        col.gpu_ptr(),
-        inputs.gpu_ptr(),
-        Int64(rows),
-        Int64(channels),
-        Int64(in_h),
-        Int64(in_w),
-        Int64(out_h),
-        Int64(out_w),
-        Int64(kh),
-        Int64(kw),
-        Int64(pad_h),
-        Int64(pad_w),
-        Int64(stride_h),
-        Int64(stride_w),
-        Int64(dilation_h),
-        Int64(dilation_w),
-        grid_dim=ceildiv(col.num_elements(), _BLOCK),
-        block_dim=min(col.num_elements(), _BLOCK),
-    )
+    comptime if kh * kw * channels <= _MAX_THREADS_PER_BLOCK:
+        _cached_im2col_kernel_fast[
+            channels, in_h, in_w, out_h, out_w, kh, kw
+        ]()._call_with_pack_checked(
+            ctx,
+            col.gpu_ptr(),
+            inputs.gpu_ptr(),
+            Int64(pad_h),
+            Int64(pad_w),
+            Int64(stride_h),
+            Int64(stride_w),
+            Int64(dilation_h),
+            Int64(dilation_w),
+            grid_dim=(out_w, out_h, batch),
+            block_dim=(kw, kh, channels),
+        )
+    else:
+        _cached_im2col_kernel[
+            channels, in_h, in_w, out_h, out_w, kh, kw
+        ]()._call_with_pack_checked(
+            ctx,
+            col.gpu_ptr(),
+            inputs.gpu_ptr(),
+            Int64(rows),
+            Int64(pad_h),
+            Int64(pad_w),
+            Int64(stride_h),
+            Int64(stride_w),
+            Int64(dilation_h),
+            Int64(dilation_w),
+            grid_dim=ceildiv(col.num_elements(), _BLOCK),
+            block_dim=min(col.num_elements(), _BLOCK),
+        )
     gpu_matmul_bt[rows, kernel_values, out_channels](spatial, col, kernel)
     _cached_nchw_from_spatial_kernel[
         out_channels, out_h, out_w
@@ -586,9 +751,49 @@ def gpu_conv2d_forward[
     kernel: Tensor[f32, Device.gpu],
     bias: Tensor[f32, Device.gpu],
 ) raises:
-    """Avoid conversion for single-channel Apple inputs; use MAX otherwise."""
+    """Avoid conversion for single-channel Apple inputs. Otherwise prefer
+    Mantle's own im2col + tuned-matmul path over MAX's `conv_gpu` when its
+    fast (grid/block-index, division-free) im2col kernel applies; fall back
+    to MAX otherwise.
+
+    Notes:
+        Across a sweep of common conv shapes (mnist, resnet-ish, VGG-ish,
+        1x1 bottleneck, small-batch), the native path measured 1.3x-7.1x
+        faster end to end than `conv_gpu` whenever both conditions below
+        hold:
+          - `kh * kw * channels <= _MAX_THREADS_PER_BLOCK`: the fast im2col
+            kernel needs one thread per kernel tap per block.
+          - `(kh * kw * channels) % 16 == 0`: that product is also the K
+            (reduction) dimension of the matmul this path feeds into, and
+            MAX's GPU matmul has a large (~20-25x) slowdown whenever K
+            isn't a multiple of 16 (see training_workloads_gpu.mojo's
+            sin-large note). Without this check, the same sweep shows the
+            native path losing to MAX (0.85x, 1.3x) on exactly the two
+            shapes where this product isn't 16-aligned.
+    """
     comptime if CompilationTarget.is_macos() and channels == 1:
         gpu_conv2d_forward_direct[
+            batch,
+            channels,
+            in_h,
+            in_w,
+            out_channels,
+            kh,
+            kw,
+            out_h,
+            out_w,
+            pad_h,
+            pad_w,
+            stride_h,
+            stride_w,
+            dilation_h,
+            dilation_w,
+        ](output, inputs, kernel, bias)
+    elif (
+        kh * kw * channels <= _MAX_THREADS_PER_BLOCK
+        and (kh * kw * channels) % 16 == 0
+    ):
+        gpu_conv2d_forward_native[
             batch,
             channels,
             in_h,
@@ -722,17 +927,18 @@ def _cached_filter_oihw_to_rscf_kernel[
     return global_.get_or_create_ptr()[unsafe_offset=0].copy()
 
 
-def _col2im_kernel(
+def _col2im_kernel[
+    channels: Int,
+    in_h: Int,
+    in_w: Int,
+    out_h: Int,
+    out_w: Int,
+    kh: Int,
+    kw: Int,
+](
     dst: Pointer[Scalar[f32], MutAnyOrigin],
     col: Pointer[Scalar[f32], MutAnyOrigin],
     n: Int64,
-    channels: Int64,
-    in_h: Int64,
-    in_w: Int64,
-    out_h: Int64,
-    out_w: Int64,
-    kh: Int64,
-    kw: Int64,
     pad_h: Int64,
     pad_w: Int64,
     stride_h: Int64,
@@ -740,47 +946,193 @@ def _col2im_kernel(
     dilation_h: Int64,
     dilation_w: Int64,
 ):
+    """Converts column matrix back to input gradients (col2im) for efficient
+    convolution backpropagation."""
+    # `channels`/`in_h`/`in_w`/`out_h`/`out_w`/`kh`/`kw` are compile-time
+    # parameters so every divisor below (including inside the `kh*kw` loop)
+    # becomes a compile-time constant.
+    comptime channels64 = Int64(channels)
+    comptime in_h64 = Int64(in_h)
+    comptime in_w64 = Int64(in_w)
+    comptime out_h64 = Int64(out_h)
+    comptime out_w64 = Int64(out_w)
+    comptime kh64 = Int64(kh)
+    comptime kw64 = Int64(kw)
+
     var i = Int64(block_idx.x * block_dim.x + thread_idx.x)
     if i < n:
-        var x = i % in_w
-        var y = (i // in_w) % in_h
-        var channel = (i // (in_h * in_w)) % channels
-        var batch = i // (channels * in_h * in_w)
+        var x = i % in_w64
+        var y = (i // in_w64) % in_h64
+        var channel = (i // (in_h64 * in_w64)) % channels64
+        var batch = i // (channels64 * in_h64 * in_w64)
         var total: Scalar[f32] = 0.0
         # Invert the convolution coordinate equation from this input element
         # to its contributing output positions.  The former implementation
         # scanned every output location (O(OH*OW*KH*KW) per input); each
         # input can only participate through its KH*KW kernel offsets.
-        for kx in range(Int(kh)):
+        for kx in range(kh):
             var output_y_numerator = y + pad_h - Int64(kx) * dilation_h
             if output_y_numerator < 0 or output_y_numerator % stride_h != 0:
                 continue
             var ox = output_y_numerator // stride_h
-            if ox >= out_h:
+            if ox >= out_h64:
                 continue
-            for ky in range(Int(kw)):
+            for ky in range(kw):
                 var output_x_numerator = x + pad_w - Int64(ky) * dilation_w
                 if output_x_numerator < 0 or output_x_numerator % stride_w != 0:
                     continue
                 var oy = output_x_numerator // stride_w
-                if oy < out_w:
-                    var row = batch * out_h * out_w + ox * out_w + oy
-                    var feature = (channel * kh + Int64(kx)) * kw + Int64(ky)
+                if oy < out_w64:
+                    var row = batch * out_h64 * out_w64 + ox * out_w64 + oy
+                    var feature = (channel * kh64 + Int64(kx)) * kw64 + Int64(
+                        ky
+                    )
                     total += col.unsafe_load(
-                        Int(row * channels * kh * kw + feature)
+                        Int(row * channels64 * kh64 * kw64 + feature)
                     )
         dst.unsafe_store(Int(i), total)
 
 
-comptime _col2im_kernel_global = _Global[
-    "mantle_gpu_kernel_col2im", _make_kernel_fn[_col2im_kernel]
-]
-
-
-def _cached_col2im_kernel() raises -> (
-    type_of(_shared_device_context().compile_function[_col2im_kernel]())
+def _cached_col2im_kernel[
+    channels: Int,
+    in_h: Int,
+    in_w: Int,
+    out_h: Int,
+    out_w: Int,
+    kh: Int,
+    kw: Int,
+]() raises -> type_of(
+    _shared_device_context().compile_function[
+        _col2im_kernel[channels, in_h, in_w, out_h, out_w, kh, kw]
+    ]()
 ):
-    return _col2im_kernel_global.get_or_create_ptr()[unsafe_offset=0].copy()
+    comptime name = (
+        "mantle_gpu_kernel_col2im_"
+        + String(channels)
+        + "_"
+        + String(in_h)
+        + "_"
+        + String(in_w)
+        + "_"
+        + String(out_h)
+        + "_"
+        + String(out_w)
+        + "_"
+        + String(kh)
+        + "_"
+        + String(kw)
+    )
+    comptime global_ = _Global[
+        name,
+        _make_kernel_fn[
+            _col2im_kernel[channels, in_h, in_w, out_h, out_w, kh, kw]
+        ],
+    ]
+    return global_.get_or_create_ptr()[unsafe_offset=0].copy()
+
+
+def _col2im_kernel_fast[
+    channels: Int,
+    in_h: Int,
+    in_w: Int,
+    out_h: Int,
+    out_w: Int,
+    kh: Int,
+    kw: Int,
+](
+    dst: Pointer[Scalar[f32], MutAnyOrigin],
+    col: Pointer[Scalar[f32], MutAnyOrigin],
+    pad_h: Int64,
+    pad_w: Int64,
+    stride_h: Int64,
+    stride_w: Int64,
+    dilation_h: Int64,
+    dilation_w: Int64,
+):
+    """Same grid/block-index mapping as `_im2col_kernel_fast`: `(batch, y,
+    x)` come from the grid index and `channel` from the block index, so no
+    division is needed to recover them from a flat thread id.
+
+    Notes:
+        The inner `kh*kw` accumulation loop still divides/mods by
+        `stride_h`/`stride_w`, which are runtime values here, so those
+        divisions aren't removed the same way.
+
+        Requires `channels <= _MAX_THREADS_PER_BLOCK`; callers fall back to
+        `_col2im_kernel` above when that doesn't hold.
+    """
+    comptime channels64 = Int64(channels)
+    comptime in_h64 = Int64(in_h)
+    comptime in_w64 = Int64(in_w)
+    comptime out_h64 = Int64(out_h)
+    comptime out_w64 = Int64(out_w)
+    comptime kh64 = Int64(kh)
+    comptime kw64 = Int64(kw)
+
+    var x = Int64(block_idx.x)
+    var y = Int64(block_idx.y)
+    var batch = Int64(block_idx.z)
+    var channel = Int64(thread_idx.x)
+
+    var total: Scalar[f32] = 0.0
+    for kx in range(kh):
+        var output_y_numerator = y + pad_h - Int64(kx) * dilation_h
+        if output_y_numerator < 0 or output_y_numerator % stride_h != 0:
+            continue
+        var ox = output_y_numerator // stride_h
+        if ox >= out_h64:
+            continue
+        for ky in range(kw):
+            var output_x_numerator = x + pad_w - Int64(ky) * dilation_w
+            if output_x_numerator < 0 or output_x_numerator % stride_w != 0:
+                continue
+            var oy = output_x_numerator // stride_w
+            if oy < out_w64:
+                var row = batch * out_h64 * out_w64 + ox * out_w64 + oy
+                var feature = (channel * kh64 + Int64(kx)) * kw64 + Int64(ky)
+                total += col.unsafe_load(
+                    Int(row * channels64 * kh64 * kw64 + feature)
+                )
+    var i = ((batch * channels64 + channel) * in_h64 + y) * in_w64 + x
+    dst.unsafe_store(Int(i), total)
+
+
+def _cached_col2im_kernel_fast[
+    channels: Int,
+    in_h: Int,
+    in_w: Int,
+    out_h: Int,
+    out_w: Int,
+    kh: Int,
+    kw: Int,
+]() raises -> type_of(
+    _shared_device_context().compile_function[
+        _col2im_kernel_fast[channels, in_h, in_w, out_h, out_w, kh, kw]
+    ]()
+):
+    comptime name = (
+        "mantle_gpu_kernel_col2im_fast_"
+        + String(channels)
+        + "_"
+        + String(in_h)
+        + "_"
+        + String(in_w)
+        + "_"
+        + String(out_h)
+        + "_"
+        + String(out_w)
+        + "_"
+        + String(kh)
+        + "_"
+        + String(kw)
+    )
+    comptime global_ = _Global[
+        name,
+        _make_kernel_fn[
+            _col2im_kernel_fast[channels, in_h, in_w, out_h, out_w, kh, kw]
+        ],
+    ]
+    return global_.get_or_create_ptr()[unsafe_offset=0].copy()
 
 
 comptime _CONV_WEIGHT_TARGET_THREADS = 32768
@@ -1174,27 +1526,39 @@ def gpu_conv2d_input_backward[
         block_dim=min(upper_grad.num_elements(), _BLOCK),
     )
     gpu_matmul[rows, out_channels, kernel_values](col_grad, spatial, kernel)
-    _cached_col2im_kernel()._call_with_pack_checked(
-        ctx,
-        output.gpu_ptr(),
-        col_grad.gpu_ptr(),
-        Int64(output.num_elements()),
-        Int64(channels),
-        Int64(in_h),
-        Int64(in_w),
-        Int64(out_h),
-        Int64(out_w),
-        Int64(kh),
-        Int64(kw),
-        Int64(pad_h),
-        Int64(pad_w),
-        Int64(stride_h),
-        Int64(stride_w),
-        Int64(dilation_h),
-        Int64(dilation_w),
-        grid_dim=ceildiv(output.num_elements(), _BLOCK),
-        block_dim=min(output.num_elements(), _BLOCK),
-    )
+    comptime if channels <= _MAX_THREADS_PER_BLOCK:
+        _cached_col2im_kernel_fast[
+            channels, in_h, in_w, out_h, out_w, kh, kw
+        ]()._call_with_pack_checked(
+            ctx,
+            output.gpu_ptr(),
+            col_grad.gpu_ptr(),
+            Int64(pad_h),
+            Int64(pad_w),
+            Int64(stride_h),
+            Int64(stride_w),
+            Int64(dilation_h),
+            Int64(dilation_w),
+            grid_dim=(in_w, in_h, batch),
+            block_dim=(channels,),
+        )
+    else:
+        _cached_col2im_kernel[
+            channels, in_h, in_w, out_h, out_w, kh, kw
+        ]()._call_with_pack_checked(
+            ctx,
+            output.gpu_ptr(),
+            col_grad.gpu_ptr(),
+            Int64(output.num_elements()),
+            Int64(pad_h),
+            Int64(pad_w),
+            Int64(stride_h),
+            Int64(stride_w),
+            Int64(dilation_h),
+            Int64(dilation_w),
+            grid_dim=ceildiv(output.num_elements(), _BLOCK),
+            block_dim=min(output.num_elements(), _BLOCK),
+        )
 
 
 def gpu_conv2d_kernel_backward[
