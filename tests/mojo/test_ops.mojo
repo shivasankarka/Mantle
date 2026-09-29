@@ -233,7 +233,10 @@ def test_FLATTEN() raises:
     var t1 = Tensor[f32](t1_shape)
     fill(t1, 1.0)
 
-    var expected = Tensor[f32](24)
+    # FLATTEN preserves the leading (batch) dimension and flattens the
+    # rest — (2, 3, 4) -> (2, 12), not a fully 1D (24,). Matches
+    # FLATTEN.result_shape and how it's used in examples/mnist.mojo.
+    var expected = Tensor[f32](2, 12)
     fill(expected, 1.0)
 
     test_unary_op[OP.FLATTEN, t1_shape](t1, expected)
