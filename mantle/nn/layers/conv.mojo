@@ -152,3 +152,130 @@ struct Conv2dLayer(Copyable, Layer, Module, Movable):
 
     def __call__(mut self, input: Expr) -> Expr:
         return self.forward(input)
+
+
+# ===----------------------------------------------------------------------===#
+# Conv1d (functional)
+# ===----------------------------------------------------------------------===#
+
+
+def Conv1d(
+    mut g: Graph,
+    inputs: Symbol,
+    out_channels: Int,
+    kernel_size: Int,
+    padding: Int = 0,
+    stride: Int = 1,
+    dilation: Int = 1,
+) -> Symbol:
+    """
+    A 1D Convolution Layer, implemented as `Conv2d` over a singleton spatial
+    axis.
+
+    Parameters
+        inputs.shape     [batch, in_channels, length]
+        weights.shape    [out_channels, in_channels, kernel_size]
+        bias.shape       [out_channels].
+        output.shape     [batch, out_channels, out_length].
+    """
+    var batch = inputs.shape[0]
+    var in_channels = inputs.shape[1]
+    var length = inputs.shape[2]
+
+    var reshaped = g.op(
+        OP.RESHAPE,
+        inputs,
+        attributes=AttributeVector(
+            Attribute("shape", TensorShape(batch, in_channels, 1, length))
+        ),
+    )
+    var conv_out = Conv2d(
+        g,
+        reshaped,
+        out_channels,
+        IndexList[2](1, kernel_size),
+        IndexList[2](0, padding),
+        IndexList[2](1, stride),
+        IndexList[2](1, dilation),
+    )
+    var out_length = conv_out.shape[3]
+    return g.op(
+        OP.RESHAPE,
+        conv_out,
+        attributes=AttributeVector(
+            Attribute(
+                "shape", TensorShape(batch, out_channels, out_length)
+            )
+        ),
+    )
+
+
+def Conv1d(
+    out_channels: Int,
+    kernel_size: Int,
+    padding: Int = 0,
+    stride: Int = 1,
+    dilation: Int = 1,
+) -> Conv1dLayer:
+    """Create a Conv1d layer for `Sequential` or a module."""
+    return Conv1dLayer(out_channels, kernel_size, padding, stride, dilation)
+
+
+# ===----------------------------------------------------------------------===#
+# Conv1dLayer
+# ===----------------------------------------------------------------------===#
+
+
+struct Conv1dLayer(Copyable, Layer, Module, Movable):
+    """
+    `Layer`-conforming wrapper around `Conv1d`, for use in a reflection-based
+    Module struct.
+    """
+
+    var out_channels: Int
+    var kernel_size: Int
+    var padding: Int
+    var stride: Int
+    var dilation: Int
+
+    def __init__(
+        out self,
+        out_channels: Int,
+        kernel_size: Int,
+        padding: Int = 0,
+        stride: Int = 1,
+        dilation: Int = 1,
+    ):
+        self.out_channels = out_channels
+        self.kernel_size = kernel_size
+        self.padding = padding
+        self.stride = stride
+        self.dilation = dilation
+
+    def forward(self, mut g: Graph, input: Symbol) -> Symbol:
+        return Conv1d(
+            g,
+            input,
+            self.out_channels,
+            self.kernel_size,
+            self.padding,
+            self.stride,
+            self.dilation,
+        )
+
+    def forward(mut self, input: Expr) -> Expr:
+        return Expr(
+            input.graph,
+            Conv1d(
+                input.graph[],
+                input.symbol,
+                self.out_channels,
+                self.kernel_size,
+                self.padding,
+                self.stride,
+                self.dilation,
+            ),
+        )
+
+    def __call__(mut self, input: Expr) -> Expr:
+        return self.forward(input)

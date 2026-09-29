@@ -23,7 +23,7 @@ from .module import (
 )
 
 from .layers.linear import Linear, LinearLayer
-from .layers.conv import Conv2d, Conv2dLayer
+from .layers.conv import Conv2d, Conv2dLayer, Conv1d, Conv1dLayer
 from .layers.pool import MaxPool2d, MaxPool2dLayer
 from .layers.dropout import Dropout, DropoutLayer
 from .layers.batchnorm import BatchNorm2d, BatchNorm2dLayer
