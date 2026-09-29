@@ -68,124 +68,26 @@ install Python ML packages. Run Mojo examples with:
 pixi run mojo -I . examples/mnist.mojo
 ```
 
-Optional environments install only the dependencies for their purpose:
+See the [quick start guide](docs/getting-started/quickstart.md) for the full
+set of examples, optional Pixi environments (PyTorch comparisons, ONNX
+export/visualization), and how to run the test suite.
 
-```bash
-# PyTorch comparison examples, plus pandas/matplotlib and ONNX export
-pixi run -e examples python examples/mnist.py
+## Documentation
 
-# Mojo and Python-backed test suite
-pixi run -e test test
+Full documentation lives under [`docs/`](docs/README.md):
 
-# ONNX graph rendering with Netron
-pixi run -e visualize python mantle/serialize/graph_render.py
-```
-
-Run the example models:
-
-```bash
-mojo -I . examples/housing.mojo
-```
-
-```bash
-mojo -I . examples/sin_estimate.mojo
-```
-
-```bash
-mojo -I . examples/mnist.mojo
-```
-
-Compare against the equivalent PyTorch implementations.
-
-Install the dependencies and run:
-
-```bash
-python examples/housing.py
-python examples/sin_estimate.py
-python examples/mnist.py
-```
-
-Each example also includes alternate model-definition styles inspired by PyTorch and scikit-learn:
-
-```bash
-mojo -I . examples/housing_module.mojo
-mojo -I . examples/housing_sequential.mojo
-```
-
-Likewise:
-
-* `sin_estimate_module.mojo`
-* `sin_estimate_sequential.mojo`
-* `mnist_module.mojo`
-* `mnist_sequential.mojo`
-
-These variants produce equivalent training results while demonstrating different approaches to model construction.
-
-## Roadmap
-
-See `ROADMAP.md` for the current detailed roadmap.
-
-### Current Focus
-
-* [x] Reflection-based model building
-* [x] Sequential model construction API
-* [x] Custom Tensor and TensorShape implementations
-* [x] Kernel and operator performance improvements
-* [x] Profiling and benchmarking infrastructure
-
-### In Progress
-
-* [ ] High-level `fit()` training API
-* [ ] Additional tensor operators
-* [ ] Expanded layer library
-* [ ] Additional activation functions
-* [ ] Graph submodules and composition
-* [ ] Computer vision benchmarks
-
-### Long-Term Goals
-
-* [ ] Better parallelization support
-* [ ] GPU acceleration
-* [ ] Reworked dataloading pipeline
-* [ ] Autotuning
-* [ ] Graph compilation optimizations
-* [ ] Operator fusion
-* [ ] ONNX interoperability
-* [ ] MAX ecosystem compatibility
+* [Quick start](docs/getting-started/quickstart.md)
+* [Changelog](docs/user-guide/changelog.md)
+* [Roadmap](ROADMAP.md)
+* [Architecture](docs/developer-guide/architecture.md)
+* [Style guide](docs/developer-guide/style-guide.md)
+* [Contributing](docs/developer-guide/contributing.md)
 
 ## Contributing
 
-Mantle is a community-driven project and contributions of all sizes are welcome.
-
-If you discover a bug, have an idea for a feature, or would like to contribute code, please open an issue or discussion first for larger changes.
-
-Before opening a new issue:
-
-* Check whether the issue has already been reported.
-* Provide steps to reproduce bugs whenever possible.
-* Include sufficient context for feature requests.
-
-### Creating A Pull Request
-
-1. Fork the repository
-2. Create a feature branch
-3. Commit your changes
-4. Push your branch
-5. Open a pull request
-
-Before submitting:
-
-* Ensure existing tests pass.
-* Add tests for significant new functionality.
-* Provide a clear explanation of the changes.
-* Link any relevant issues or discussions.
-* Include any special testing instructions if applicable.
-
-Example test command:
-
-```bash
-mojo run -I . test/test_ops.mojo
-```
+Mantle is a community-driven project and contributions of all sizes are
+welcome. See [`docs/developer-guide/contributing.md`](docs/developer-guide/contributing.md)
+for how to open an issue or pull request.
 
 ## Origins
 
