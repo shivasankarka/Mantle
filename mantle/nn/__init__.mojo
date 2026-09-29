@@ -33,6 +33,7 @@ from .layers.conv import (
 )
 from .layers.pool import MaxPool2d, MaxPool2dLayer
 from .layers.dropout import Dropout, DropoutLayer
+from .layers.recurrent import LSTM, LSTMLayer, GRU, GRULayer
 from .layers.batchnorm import BatchNorm2d, BatchNorm2dLayer
 from .layers.embedding import (
     Embedding,

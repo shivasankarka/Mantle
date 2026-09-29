@@ -20,3 +20,4 @@ from .conv import (
 )
 from .pool import MaxPool2d, MaxPool2dLayer
 from .dropout import Dropout, DropoutLayer
+from .recurrent import LSTM, LSTMLayer, GRU, GRULayer
