@@ -54,6 +54,7 @@ from .mlops import (
 )
 from .dynamics import CONCAT, SPLIT
 from .conv import CONV2D
+from .conv_transpose import CONVTRANSPOSE2D
 from .pool import MAXPOOL2D, AVGPOOL2D
 from .matmul import dot_transpose_t1, dot_transpose_t2
 
@@ -191,6 +192,7 @@ struct OP(TrivialRegisterPassable, Writable):
     comptime MIN = OP(38, "MIN")
     comptime ARGMAX = OP(39, "ARGMAX")
     comptime LAYERNORM = OP(40, "LAYERNORM")
+    comptime CONVTRANSPOSE2D = OP(41, "CONVTRANSPOSE2D")
 
     var id: UInt8
     var name: Bytes[16]
@@ -552,6 +554,10 @@ def static_result_shape(
 
     if op == OP.CONV2D:
         return CONV2D.result_shape(t1_shape, t2_shape, t3_shape, attributes)
+    elif op == OP.CONVTRANSPOSE2D:
+        return CONVTRANSPOSE2D.result_shape(
+            t1_shape, t2_shape, t3_shape, attributes
+        )
     elif op == OP.FMA:
         return FMA.result_shape(t1_shape, t2_shape, t3_shape)
     elif op == OP.BATCHNORM2D:
@@ -1057,6 +1063,10 @@ def _forward_op_cpu[
 
     comptime if op == OP.CONV2D:
         CONV2D.forward[t1_shape, t2_shape, t3_shape, attributes](
+            res, t1, t2, t3
+        )
+    elif op == OP.CONVTRANSPOSE2D:
+        CONVTRANSPOSE2D.forward[t1_shape, t2_shape, t3_shape, attributes](
             res, t1, t2, t3
         )
     elif op == OP.FMA:
@@ -2264,6 +2274,10 @@ def _backward_op_cpu[
 
         comptime if op == OP.CONV2D:
             res_grad = CONV2D.backward[
+                tensor_id, ug_shape, t1_shape, t2_shape, t3_shape, attributes
+            ](ug, t1, t2, t3)
+        elif op == OP.CONVTRANSPOSE2D:
+            res_grad = CONVTRANSPOSE2D.backward[
                 tensor_id, ug_shape, t1_shape, t2_shape, t3_shape, attributes
             ](ug, t1, t2, t3)
         elif op == OP.FMA:
