@@ -388,9 +388,14 @@ struct Adam[
                         min(chunk_elements, n - offset), v_step
                     )
 
-                parallelize(
-                    chunk_step, (n + chunk_elements - 1) // chunk_elements
-                )
+                var num_chunks = (n + chunk_elements - 1) // chunk_elements
+                if num_chunks == 1:
+                    # parallelize() dispatches through the MAX thread pool
+                    # even for a single task; that fixed dispatch cost swamps
+                    # small parameters (most models), so call directly.
+                    chunk_step(0)
+                else:
+                    parallelize(chunk_step, num_chunks)
         else:
             # Native on-device Adam-update kernel — no host round-trip
             # (each parameter element updates independently, so this is a
@@ -614,9 +619,13 @@ struct AdamW[
                         min(chunk_elements, n - offset), v_step
                     )
 
-                parallelize(
-                    chunk_step, (n + chunk_elements - 1) // chunk_elements
-                )
+                var num_chunks = (n + chunk_elements - 1) // chunk_elements
+                if num_chunks == 1:
+                    # See Adam.step: avoid thread-pool dispatch overhead for
+                    # the common single-chunk (small parameter) case.
+                    chunk_step(0)
+                else:
+                    parallelize(chunk_step, num_chunks)
         else:
             for i in range(len(tr)):
                 var param = tr[i]
