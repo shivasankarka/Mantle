@@ -2,14 +2,43 @@
 authors = ["shivasankar"]
 channels = ["conda-forge", "https://conda.modular.com/max", "https://conda.modular.com/max-nightly"]
 description = "Mantle is a stand-alone machine learning framework that leverages the power of Mojo."
+license = "Apache-2.0 WITH LLVM-exception"
 name = "Mantle"
 platforms = ["osx-arm64", "linux-64"]
+preview = ["pixi-build"]
+readme = "README.md"
 version = "0.1.0"
+
+[package]
+name = "mantle"
+version = "0.1.0"
+
+[package.build]
+backend = { name = "pixi-build-mojo", version = "0.*", channels = [
+  "https://prefix.dev/pixi-build-backends",
+  "https://prefix.dev/conda-forge",
+] }
+
+[package.build.config.pkg]
+name = "mantle"
+
+[package.host-dependencies]
+mojo = "==1.1.0"
+max-core = "==26.6.0"
+
+[package.build-dependencies]
+mojo = "==1.1.0"
+max-core = "==26.6.0"
+
+[package.run-dependencies]
+mojo = "==1.1.0"
+max-core = "==26.6.0"
 
 [tasks]
 test_mojo = { cmd = "mojo test -I . tests/mojo" }
 format = { cmd = "mojo format mantle/" }
 precompile = { cmd = "mojo precompile mantle -o mantle.mojoc" }
+doc_pages = { cmd = "mojo doc mantle -o docs.json" }
 
 [dependencies]
 mojo = ">=1.1.0,<2"
